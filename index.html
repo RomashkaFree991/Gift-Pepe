@@ -148,7 +148,7 @@
             border-radius: 16px;
             top: 50%;
             transform: translateY(-50%);
-            transition: left 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+            transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1);
             pointer-events: none;
             z-index: 0;
         }
@@ -192,7 +192,6 @@
 
         /* ─── Tab Pages ─── */
         .tab-page {
-            display: none;
             width: 100%;
             height: 100%;
             position: fixed;
@@ -200,14 +199,21 @@
             left: 0;
             right: 0;
             bottom: 0;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            pointer-events: none;
         }
 
         .tab-page.active {
-            display: flex;
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
         }
 
         /* ─── Profile Page ─── */
         .profile-page {
+            display: flex;
             flex-direction: column;
             align-items: center;
             padding-top: calc(140px + env(safe-area-inset-top, 0px));
@@ -308,6 +314,40 @@
             color: rgba(100, 170, 255, 0.85);
             text-decoration: none;
         }
+
+        /* ─── Games Page ─── */
+        .games-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: calc(140px + env(safe-area-inset-top, 0px));
+            padding-bottom: 100px;
+            padding-left: 16px;
+            padding-right: 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+            height: 100%;
+        }
+
+        .game-banner {
+            width: 100%;
+            border-radius: 20px;
+            overflow: hidden;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.2s ease;
+        }
+
+        .game-banner:active {
+            transform: scale(0.98);
+        }
+
+        .game-banner img {
+            width: 100%;
+            display: block;
+            border-radius: 20px;
+        }
     </style>
 </head>
 <body>
@@ -334,7 +374,13 @@
 
     <!-- Tab Pages -->
     <div class="tab-page active" id="page-top"></div>
-    <div class="tab-page" id="page-games"></div>
+    <div class="tab-page" id="page-games">
+        <div class="games-page">
+            <div class="game-banner" onclick="openGame('crash')">
+                <img src="Crash.png" alt="Crash">
+            </div>
+        </div>
+    </div>
     <div class="tab-page profile-page" id="page-profile">
         <!-- User card -->
         <div class="profile-card">
@@ -452,7 +498,7 @@
                 indicator.style.transition = 'none';
                 positionIndicator(active);
                 requestAnimationFrame(() => {
-                    indicator.style.transition = 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                    indicator.style.transition = 'left 0.45s cubic-bezier(0.22, 1, 0.36, 1)';
                 });
             }
         });
@@ -469,8 +515,14 @@
                 renderer: 'svg',
                 loop: true,
                 autoplay: true,
-                path: 'PlushPepe(blue).json'
+                path: 'PlushPepe%28blue%29.json'
             });
+        }
+
+        // ─── Games ───
+        function openGame(name) {
+            // Placeholder — тут будет переход в игру
+            console.log('Open game:', name);
         }
     </script>
 </body>
