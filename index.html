@@ -48,9 +48,9 @@
             display: flex;
             align-items: center;
             height: 40px;
-            background: rgba(30, 30, 42, 0.92);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(20, 20, 35, 0.45);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 100px;
             padding: 4px;
@@ -120,9 +120,9 @@
             transform: translateX(-50%);
             width: 240px;
             height: 66px;
-            background: rgba(30, 30, 42, 0.92);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(20, 20, 35, 0.45);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 34px;
             display: flex;
@@ -226,9 +226,9 @@
 
         .profile-card {
             width: 100%;
-            background: rgba(30, 30, 42, 0.85);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            background: rgba(20, 20, 35, 0.45);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
             display: flex;
@@ -276,10 +276,10 @@
         /* ─ Gifts card ─ */
         .gifts-card {
             width: 100%;
-            margin-top: 12px;
-            background: rgba(30, 30, 42, 0.85);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            margin-top: 0;
+            background: rgba(20, 20, 35, 0.45);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
             display: flex;
@@ -348,6 +348,16 @@
             display: block;
             border-radius: 20px;
         }
+
+        /* ─── Section Titles ─── */
+        .section-title {
+            width: 100%;
+            font-size: 17px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.92);
+            margin-bottom: 12px;
+            text-align: left;
+        }
     </style>
 </head>
 <body>
@@ -376,6 +386,7 @@
     <div class="tab-page active" id="page-top"></div>
     <div class="tab-page" id="page-games">
         <div class="games-page">
+            <div class="section-title">Выберите игру:</div>
             <div class="game-banner" onclick="openGame('crash')">
                 <img src="Crash.png" alt="Crash">
             </div>
@@ -383,6 +394,7 @@
     </div>
     <div class="tab-page profile-page" id="page-profile">
         <!-- User card -->
+        <div class="section-title">Профиль</div>
         <div class="profile-card">
             <img class="profile-avatar" id="profileAvatar" src="" alt="" style="display:none;">
             <div class="profile-avatar-placeholder" id="profileAvatarPlaceholder" style="display:none;"></div>
@@ -391,6 +403,7 @@
         </div>
 
         <!-- Gifts card -->
+        <div class="section-title" style="margin-top: 20px;">Инвентарь</div>
         <div class="gifts-card">
             <div class="gifts-lottie" id="giftsLottie"></div>
             <div class="gifts-title">Не нашли подарков?</div>
