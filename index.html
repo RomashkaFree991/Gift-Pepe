@@ -317,6 +317,243 @@
             color: rgba(100, 170, 255, 0.85);
         }
 
+        /* ─ Avatar wrapper with gear ─ */
+        .avatar-wrapper {
+            position: relative;
+            width: 72px;
+            height: 72px;
+        }
+
+        .avatar-wrapper .settings-btn {
+            position: absolute;
+            bottom: -2px;
+            left: -2px;
+            width: 26px;
+            height: 26px;
+            background: rgba(50, 50, 58, 0.9);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
+            z-index: 2;
+        }
+
+        .avatar-wrapper .settings-btn svg {
+            width: 14px;
+            height: 14px;
+            pointer-events: auto;
+        }
+
+        /* ─ Invite button ─ */
+        .invite-btn {
+            width: 100%;
+            margin-top: 12px;
+            background: rgba(35, 35, 40, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 18px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.15s ease;
+        }
+
+        .invite-btn:active {
+            transform: scale(0.98);
+        }
+
+        .invite-btn-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .invite-btn-text .main {
+            font-size: 15px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .invite-btn-text .sub {
+            font-size: 12px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .invite-btn .arrow {
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 300;
+        }
+
+        /* ─── Referral Page ─── */
+        .referral-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: calc(90px + env(safe-area-inset-top, 0px));
+            padding-bottom: 100px;
+            padding-left: 16px;
+            padding-right: 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .ref-back {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            margin-bottom: 16px;
+        }
+
+        .ref-back svg {
+            width: 20px;
+            height: 20px;
+            pointer-events: auto;
+        }
+
+        .ref-back span {
+            font-size: 15px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .ref-stats {
+            width: 100%;
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .ref-stat-card {
+            flex: 1;
+            background: rgba(35, 35, 40, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 18px 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .ref-stat-card .label {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .ref-stat-card .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ref-stat-card .value img {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* ─ Referral link card ─ */
+        .ref-link-card {
+            width: 100%;
+            background: rgba(35, 35, 40, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 18px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ref-link-card .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.5px;
+        }
+
+        .ref-link-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .ref-link-input {
+            flex: 1;
+            height: 42px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 0 12px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: inherit;
+            outline: none;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        .ref-copy-icon {
+            width: 42px;
+            height: 42px;
+            background: rgba(100, 170, 255, 0.18);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            flex-shrink: 0;
+            transition: background 0.2s ease;
+        }
+
+        .ref-copy-icon:active {
+            background: rgba(100, 170, 255, 0.35);
+        }
+
+        .ref-copy-icon svg {
+            width: 18px;
+            height: 18px;
+            pointer-events: auto;
+        }
+
+        .ref-copy-btn {
+            width: 100%;
+            height: 46px;
+            background: rgba(100, 170, 255, 0.22);
+            border: none;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            font-family: inherit;
+            transition: background 0.2s ease;
+        }
+
+        .ref-copy-btn:active {
+            background: rgba(100, 170, 255, 0.35);
+        }
+
         /* ─ Gifts card ─ */
         .gifts-card {
             width: 100%;
@@ -482,10 +719,27 @@
         <!-- User card -->
         <div class="section-title">Профиль</div>
         <div class="profile-card">
-            <img class="profile-avatar" id="profileAvatar" src="" alt="" style="display:none;">
-            <div class="profile-avatar-placeholder" id="profileAvatarPlaceholder" style="display:none;"></div>
+            <div class="avatar-wrapper">
+                <img class="profile-avatar" id="profileAvatar" src="" alt="" style="display:none;">
+                <div class="profile-avatar-placeholder" id="profileAvatarPlaceholder" style="display:none;"></div>
+                <div class="settings-btn" onclick="openSettings()">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" stroke="rgba(255,255,255,0.7)" stroke-width="1.8"/>
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-1.42 3.42 2 2 0 01-1.41-.59l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="rgba(255,255,255,0.7)" stroke-width="1.8"/>
+                    </svg>
+                </div>
+            </div>
             <div class="profile-name" id="profileName">User</div>
             <div class="profile-username" id="profileUsername">@username</div>
+        </div>
+
+        <!-- Invite button -->
+        <div class="invite-btn" onclick="showReferralPage()">
+            <div class="invite-btn-text">
+                <span class="main">ПРИГЛАСИТЬ ДРУГА</span>
+                <span class="sub">Получайте бонусы</span>
+            </div>
+            <span class="arrow">›</span>
         </div>
 
         <!-- Gifts card -->
@@ -494,6 +748,41 @@
             <div class="gifts-lottie" id="giftsLottie"></div>
             <div class="gifts-title">Не нашли подарков?</div>
             <div class="gifts-desc">Пополните в <a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a> или выиграйте в играх.</div>
+        </div>
+    </div>
+
+    <!-- Referral Page -->
+    <div class="tab-page referral-page" id="page-referral">
+        <div class="ref-back" onclick="hideReferralPage()">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Назад</span>
+        </div>
+
+        <div class="ref-stats">
+            <div class="ref-stat-card">
+                <span class="label">Рефералы</span>
+                <span class="value">0</span>
+            </div>
+            <div class="ref-stat-card">
+                <span class="label">Заработано</span>
+                <span class="value">0 <img src="star.png" alt="star"></span>
+            </div>
+        </div>
+
+        <div class="ref-link-card">
+            <span class="card-title">РЕФЕРАЛЬНАЯ СИСТЕМА</span>
+            <div class="ref-link-row">
+                <input class="ref-link-input" id="refLinkInput" type="text" value="https://t.me/GiftPepeBot?start=ref_" readonly>
+                <div class="ref-copy-icon" onclick="copyRefLink()">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="9" y="9" width="13" height="13" rx="3" stroke="rgba(255,255,255,0.8)" stroke-width="1.8"/>
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="rgba(255,255,255,0.8)" stroke-width="1.8"/>
+                    </svg>
+                </div>
+            </div>
+            <button class="ref-copy-btn" onclick="copyRefLink()">Скопировать ссылку</button>
         </div>
     </div>
 
@@ -575,6 +864,11 @@
                     pPlaceholder.textContent = letter;
                     pPlaceholder.style.display = 'flex';
                 }
+
+                // Set referral link
+                if (user.id) {
+                    document.getElementById('refLinkInput').value = 'https://t.me/GiftPepeBot?start=ref_' + user.id;
+                }
             }
         }
 
@@ -640,6 +934,37 @@
             } else {
                 window.open(url, '_blank');
             }
+        }
+
+        // ─── Referral Page ───
+        function showReferralPage() {
+            document.getElementById('page-profile').classList.remove('active');
+            document.getElementById('page-referral').classList.add('active');
+        }
+
+        function hideReferralPage() {
+            document.getElementById('page-referral').classList.remove('active');
+            document.getElementById('page-profile').classList.add('active');
+        }
+
+        function copyRefLink() {
+            const input = document.getElementById('refLinkInput');
+            const link = input.value;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(link);
+            } else {
+                input.select();
+                document.execCommand('copy');
+            }
+            // Feedback
+            const btn = document.querySelector('.ref-copy-btn');
+            const old = btn.textContent;
+            btn.textContent = 'Скопировано!';
+            setTimeout(() => btn.textContent = old, 1500);
+        }
+
+        function openSettings() {
+            console.log('Settings');
         }
     </script>
 </body>
