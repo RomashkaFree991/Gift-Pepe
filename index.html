@@ -26,11 +26,286 @@
             background-repeat: no-repeat;
             min-height: 100vh;
             min-height: 100dvh;
+            font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+        }
+
+        /* ─── Top Bar ─── */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            padding-top: calc(54px + env(safe-area-inset-top, 0px));
+            z-index: 100;
+        }
+
+        .pill {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            background: rgba(30, 30, 42, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 100px;
+            padding: 4px;
+            gap: 0;
+        }
+
+        /* ─ Left pill: avatar + name ─ */
+        .pill-user .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .pill-user .username {
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.92);
+            padding: 0 12px 0 8px;
+            white-space: nowrap;
+        }
+
+        /* ─ Right pill: star + balance + plus ─ */
+        .pill-stars {
+            gap: 0;
+            padding-right: 4px;
+        }
+
+        .pill-stars .star-icon {
+            width: 22px;
+            height: 22px;
+            margin-left: 6px;
+            flex-shrink: 0;
+        }
+
+        .pill-stars .star-balance {
+            font-size: 14px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.92);
+            padding: 0 8px 0 6px;
+        }
+
+        .pill-stars .plus-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #f5a623;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .pill-stars .plus-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* ─── Bottom Nav ─── */
+        .bottom-nav {
+            position: fixed;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 240px;
+            height: 66px;
+            background: rgba(30, 30, 42, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .nav-items {
+            display: flex;
+            align-items: center;
+            position: relative;
+            width: 100%;
+            justify-content: space-evenly;
+        }
+
+        /* Скользящий индикатор */
+        .nav-indicator {
+            position: absolute;
+            width: 58px;
+            height: 50px;
+            background: rgba(100, 170, 255, 0.22);
+            border-radius: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: left 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+            z-index: 1;
+            width: 58px;
+            padding: 6px 0;
+        }
+
+        .nav-item img {
+            width: 24px;
+            height: 24px;
+            filter: brightness(0) invert(1);
+            opacity: 0.45;
+            transition: opacity 0.3s ease;
+        }
+
+        .nav-item.active img {
+            opacity: 1;
+        }
+
+        .nav-item span {
+            font-size: 10px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.4);
+            transition: color 0.3s ease;
+            letter-spacing: 0.2px;
+        }
+
+        .nav-item.active span {
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        /* ─── Tab Pages ─── */
+        .tab-page {
+            display: none;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .tab-page.active {
+            display: flex;
+        }
+
+        /* ─── Profile Page ─── */
+        .profile-page {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding-bottom: 80px;
+        }
+
+        .profile-avatar {
+            width: 86px;
+            height: 86px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .profile-avatar-placeholder {
+            width: 86px;
+            height: 86px;
+            border-radius: 50%;
+            background: rgba(100, 170, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            font-weight: 700;
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .profile-name {
+            margin-top: 12px;
+            font-size: 20px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .profile-username {
+            margin-top: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(100, 170, 255, 0.85);
         }
     </style>
 </head>
 <body>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <!-- Left pill: avatar + nickname -->
+        <div class="pill pill-user">
+            <img class="avatar" id="userAvatar" src="" alt="">
+            <span class="username" id="userName">User</span>
+        </div>
+
+        <!-- Right pill: star + balance + plus -->
+        <div class="pill pill-stars">
+            <img class="star-icon" src="star.png" alt="Stars">
+            <span class="star-balance">0</span>
+            <div class="plus-btn">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5.5V18.5M5.5 12H18.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Pages -->
+    <div class="tab-page active" id="page-top"></div>
+    <div class="tab-page" id="page-games"></div>
+    <div class="tab-page profile-page" id="page-profile">
+        <img class="profile-avatar" id="profileAvatar" src="" alt="" style="display:none;">
+        <div class="profile-avatar-placeholder" id="profileAvatarPlaceholder" style="display:none;"></div>
+        <div class="profile-name" id="profileName">User</div>
+        <div class="profile-username" id="profileUsername">@username</div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="nav-items" id="navItems">
+            <div class="nav-indicator" id="navIndicator"></div>
+
+            <div class="nav-item active" data-index="0" onclick="switchTab(this)">
+                <img src="trophy.svg" alt="Топ">
+                <span>Топ</span>
+            </div>
+
+            <div class="nav-item" data-index="1" onclick="switchTab(this)">
+                <img src="game.svg" alt="Игры">
+                <span>Игры</span>
+            </div>
+
+            <div class="nav-item" data-index="2" onclick="switchTab(this)">
+                <img src="user.svg" alt="Профиль">
+                <span>Профиль</span>
+            </div>
+        </div>
+    </nav>
+
     <script>
+        // ─── Telegram Web App ───
         const tg = window.Telegram?.WebApp;
         if (tg) {
             tg.ready();
@@ -38,16 +313,84 @@
             tg.setHeaderColor('#1a1a2e');
             tg.setBackgroundColor('#1a1a2e');
 
-            // Fullscreen — убираем шапку полностью
             if (tg.requestFullscreen) {
                 tg.requestFullscreen();
             }
 
-            // Отключаем вертикальные свайпы чтобы не закрывалось случайно
             if (tg.disableVerticalSwipes) {
                 tg.disableVerticalSwipes();
             }
+
+            // User info
+            const user = tg.initDataUnsafe?.user;
+            if (user) {
+                const nameEl = document.getElementById('userName');
+                const avatarEl = document.getElementById('userAvatar');
+                nameEl.textContent = user.first_name || 'User';
+
+                // Profile page
+                document.getElementById('profileName').textContent = user.first_name || 'User';
+                document.getElementById('profileUsername').textContent = user.username ? ('@' + user.username) : '';
+
+                if (user.photo_url) {
+                    avatarEl.src = user.photo_url;
+                    const pAvatar = document.getElementById('profileAvatar');
+                    pAvatar.src = user.photo_url;
+                    pAvatar.style.display = 'block';
+                } else {
+                    avatarEl.style.display = 'none';
+                    const placeholder = document.createElement('div');
+                    placeholder.style.cssText = 'width:32px;height:32px;border-radius:50%;background:rgba(100,170,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;';
+                    const letter = (user.first_name || 'U')[0];
+                    placeholder.textContent = letter;
+                    avatarEl.parentNode.insertBefore(placeholder, avatarEl);
+
+                    const pPlaceholder = document.getElementById('profileAvatarPlaceholder');
+                    pPlaceholder.textContent = letter;
+                    pPlaceholder.style.display = 'flex';
+                }
+            }
         }
+
+        // ─── Navigation ───
+        const indicator = document.getElementById('navIndicator');
+        const navItems = document.getElementById('navItems');
+        const pages = ['page-top', 'page-games', 'page-profile'];
+
+        function positionIndicator(item) {
+            const itemRect = item.getBoundingClientRect();
+            const parentRect = navItems.getBoundingClientRect();
+            const center = itemRect.left - parentRect.left + (itemRect.width / 2) - 29;
+            indicator.style.left = center + 'px';
+        }
+
+        function switchTab(el) {
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            el.classList.add('active');
+            positionIndicator(el);
+
+            // Switch pages
+            const idx = parseInt(el.dataset.index);
+            document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pages[idx]).classList.add('active');
+        }
+
+        // Начальная позиция индикатора
+        window.addEventListener('load', () => {
+            const active = document.querySelector('.nav-item.active');
+            if (active) {
+                indicator.style.transition = 'none';
+                positionIndicator(active);
+                requestAnimationFrame(() => {
+                    indicator.style.transition = 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                });
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            const active = document.querySelector('.nav-item.active');
+            if (active) positionIndicator(active);
+        });
     </script>
 </body>
 </html>
