@@ -260,7 +260,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-top: calc(105px + env(safe-area-inset-top, 0px));
+            padding-top: calc(135px + env(safe-area-inset-top, 0px));
             padding-bottom: 100px;
             padding-left: 16px;
             padding-right: 16px;
@@ -414,6 +414,13 @@
             margin-bottom: 10px;
             line-height: 0;
             font-size: 0;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.2s ease;
+        }
+
+        .ad-banner:active {
+            transform: scale(0.98);
         }
 
         .ad-banner img {
@@ -455,7 +462,7 @@
     <div class="tab-page active" id="page-top"></div>
     <div class="tab-page" id="page-games">
         <div class="games-page">
-            <div class="ad-banner">
+            <div class="ad-banner" onclick="openBanner('https://t.me/GiftPepe')">
                 <img src="baner_1.png" alt="Banner">
             </div>
             <div class="section-title">Выберите игру</div>
@@ -617,8 +624,15 @@
 
         // ─── Games ───
         function openGame(name) {
-            // Placeholder — тут будет переход в игру
             console.log('Open game:', name);
+        }
+
+        function openBanner(url) {
+            if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink(url);
+            } else {
+                window.open(url, '_blank');
+            }
         }
     </script>
 </body>
