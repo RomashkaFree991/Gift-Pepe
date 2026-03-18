@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mini App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -39,7 +40,7 @@
             justify-content: space-between;
             align-items: center;
             padding: 14px 16px;
-            padding-top: calc(54px + env(safe-area-inset-top, 0px));
+            padding-top: calc(70px + env(safe-area-inset-top, 0px));
             z-index: 100;
         }
 
@@ -209,44 +210,103 @@
         .profile-page {
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding-bottom: 80px;
+            padding-top: calc(110px + env(safe-area-inset-top, 0px));
+            padding-bottom: 100px;
+            padding-left: 16px;
+            padding-right: 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .profile-card {
+            width: 100%;
+            background: rgba(30, 30, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px 20px;
         }
 
         .profile-avatar {
-            width: 86px;
-            height: 86px;
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid rgba(255, 255, 255, 0.12);
         }
 
         .profile-avatar-placeholder {
-            width: 86px;
-            height: 86px;
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
             background: rgba(100, 170, 255, 0.25);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 34px;
+            font-size: 28px;
             font-weight: 700;
             color: #fff;
             border: 2px solid rgba(255, 255, 255, 0.12);
         }
 
         .profile-name {
-            margin-top: 12px;
-            font-size: 20px;
+            margin-top: 10px;
+            font-size: 18px;
             font-weight: 700;
             color: rgba(255, 255, 255, 0.95);
         }
 
         .profile-username {
-            margin-top: 4px;
-            font-size: 14px;
+            margin-top: 3px;
+            font-size: 13px;
             font-weight: 500;
             color: rgba(100, 170, 255, 0.85);
+        }
+
+        /* ─ Gifts card ─ */
+        .gifts-card {
+            width: 100%;
+            margin-top: 12px;
+            background: rgba(30, 30, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 28px 20px 32px;
+        }
+
+        .gifts-lottie {
+            width: 140px;
+            height: 140px;
+        }
+
+        .gifts-title {
+            margin-top: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.92);
+            text-align: center;
+        }
+
+        .gifts-desc {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.4);
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        .gifts-desc a {
+            color: rgba(100, 170, 255, 0.85);
+            text-decoration: none;
         }
     </style>
 </head>
@@ -276,10 +336,20 @@
     <div class="tab-page active" id="page-top"></div>
     <div class="tab-page" id="page-games"></div>
     <div class="tab-page profile-page" id="page-profile">
-        <img class="profile-avatar" id="profileAvatar" src="" alt="" style="display:none;">
-        <div class="profile-avatar-placeholder" id="profileAvatarPlaceholder" style="display:none;"></div>
-        <div class="profile-name" id="profileName">User</div>
-        <div class="profile-username" id="profileUsername">@username</div>
+        <!-- User card -->
+        <div class="profile-card">
+            <img class="profile-avatar" id="profileAvatar" src="" alt="" style="display:none;">
+            <div class="profile-avatar-placeholder" id="profileAvatarPlaceholder" style="display:none;"></div>
+            <div class="profile-name" id="profileName">User</div>
+            <div class="profile-username" id="profileUsername">@username</div>
+        </div>
+
+        <!-- Gifts card -->
+        <div class="gifts-card">
+            <div class="gifts-lottie" id="giftsLottie"></div>
+            <div class="gifts-title">Не нашли подарков?</div>
+            <div class="gifts-desc">Пополните в <a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a> или выиграйте в играх.</div>
+        </div>
     </div>
 
     <!-- Bottom Navigation -->
@@ -391,6 +461,17 @@
             const active = document.querySelector('.nav-item.active');
             if (active) positionIndicator(active);
         });
+
+        // ─── Lottie Animation ───
+        if (typeof lottie !== 'undefined') {
+            lottie.loadAnimation({
+                container: document.getElementById('giftsLottie'),
+                renderer: 'svg',
+                loop: true,
+                autoplay: true,
+                path: 'PlushPepe(blue).json'
+            });
+        }
     </script>
 </body>
 </html>
