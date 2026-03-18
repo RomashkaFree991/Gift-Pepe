@@ -282,22 +282,22 @@
         }
 
         .profile-avatar {
-            width: 72px;
-            height: 72px;
+            width: 120px;
+            height: 120px;
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid rgba(255, 255, 255, 0.12);
         }
 
         .profile-avatar-placeholder {
-            width: 72px;
-            height: 72px;
+            width: 120px;
+            height: 120px;
             border-radius: 50%;
             background: rgba(100, 170, 255, 0.25);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 44px;
             font-weight: 700;
             color: #fff;
             border: 2px solid rgba(255, 255, 255, 0.12);
@@ -320,14 +320,14 @@
         /* ─ Avatar wrapper with gear ─ */
         .avatar-wrapper {
             position: relative;
-            width: 72px;
-            height: 72px;
+            width: 120px;
+            height: 120px;
         }
 
         .avatar-wrapper .settings-btn {
             position: absolute;
-            bottom: -2px;
-            left: -2px;
+            bottom: 0px;
+            left: 0px;
             width: 26px;
             height: 26px;
             background: rgba(50, 50, 58, 0.9);
@@ -351,15 +351,15 @@
         .invite-btn {
             width: 100%;
             margin-top: 12px;
-            background: rgba(35, 35, 40, 0.55);
+            background: rgba(80, 160, 255, 0.35);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
+            border: 1px solid rgba(120, 180, 255, 0.35);
+            border-radius: 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 18px;
+            padding: 20px 20px;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
             transition: transform 0.15s ease;
@@ -372,11 +372,11 @@
         .invite-btn-text {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 3px;
         }
 
         .invite-btn-text .main {
-            font-size: 15px;
+            font-size: 17px;
             font-weight: 700;
             color: rgba(255, 255, 255, 0.95);
         }
@@ -384,13 +384,24 @@
         .invite-btn-text .sub {
             font-size: 12px;
             font-weight: 400;
-            color: rgba(255, 255, 255, 0.4);
+            color: rgba(255, 255, 255, 0.45);
         }
 
-        .invite-btn .arrow {
-            font-size: 18px;
-            color: rgba(255, 255, 255, 0.3);
-            font-weight: 300;
+        .invite-btn .invite-plus {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(100, 180, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .invite-btn .invite-plus svg {
+            width: 16px;
+            height: 16px;
+            pointer-events: auto;
         }
 
         /* ─── Referral Page ─── */
@@ -398,7 +409,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-top: calc(90px + env(safe-area-inset-top, 0px));
+            padding-top: calc(140px + env(safe-area-inset-top, 0px));
             padding-bottom: 100px;
             padding-left: 16px;
             padding-right: 16px;
@@ -469,7 +480,6 @@
             height: 18px;
         }
 
-        /* ─ Referral link card ─ */
         .ref-link-card {
             width: 100%;
             background: rgba(35, 35, 40, 0.55);
@@ -503,18 +513,18 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             padding: 0 12px;
-            font-size: 13px;
+            font-size: 12px;
             color: rgba(255, 255, 255, 0.7);
             font-family: inherit;
             outline: none;
             -webkit-user-select: text;
             user-select: text;
+            min-width: 0;
         }
 
-        .ref-copy-icon {
+        .ref-action-btn {
             width: 42px;
             height: 42px;
-            background: rgba(100, 170, 255, 0.18);
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -525,11 +535,15 @@
             transition: background 0.2s ease;
         }
 
+        .ref-copy-icon {
+            background: rgba(100, 170, 255, 0.18);
+        }
+
         .ref-copy-icon:active {
             background: rgba(100, 170, 255, 0.35);
         }
 
-        .ref-copy-icon svg {
+        .ref-action-btn svg {
             width: 18px;
             height: 18px;
             pointer-events: auto;
@@ -552,6 +566,124 @@
 
         .ref-copy-btn:active {
             background: rgba(100, 170, 255, 0.35);
+        }
+
+        /* ─── Settings Modal ─── */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-box {
+            width: 320px;
+            background: rgba(38, 38, 46, 0.95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transform: scale(0.92);
+            transition: transform 0.25s ease;
+        }
+
+        .modal-overlay.show .modal-box {
+            transform: scale(1);
+        }
+
+        .modal-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 16px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .modal-row span {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.85);
+        }
+
+        .modal-row .row-arrow {
+            font-size: 16px;
+            color: rgba(255,255,255,0.3);
+            transition: transform 0.25s ease;
+        }
+
+        .modal-row.open .row-arrow {
+            transform: rotate(90deg);
+        }
+
+        .lang-options {
+            display: flex;
+            gap: 8px;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease, margin 0.3s ease;
+            margin-top: 0;
+        }
+
+        .lang-options.show {
+            max-height: 50px;
+            margin-top: 8px;
+        }
+
+        .lang-pill {
+            flex: 1;
+            height: 42px;
+            border-radius: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.6);
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.2s ease;
+        }
+
+        .lang-pill.active {
+            background: rgba(100, 170, 255, 0.25);
+            border-color: rgba(100, 170, 255, 0.4);
+            color: rgba(255,255,255,0.95);
+        }
+
+        .modal-save-btn {
+            width: 100%;
+            height: 48px;
+            background: rgba(100, 170, 255, 0.25);
+            border: none;
+            border-radius: 16px;
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.9);
+            cursor: pointer;
+            font-family: inherit;
+            -webkit-tap-highlight-color: transparent;
+            margin-top: 4px;
         }
 
         /* ─ Gifts card ─ */
@@ -739,7 +871,11 @@
                 <span class="main">ПРИГЛАСИТЬ ДРУГА</span>
                 <span class="sub">Получайте бонусы</span>
             </div>
-            <span class="arrow">›</span>
+            <div class="invite-plus">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5.5V18.5M5.5 12H18.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+                </svg>
+            </div>
         </div>
 
         <!-- Gifts card -->
@@ -775,7 +911,7 @@
             <span class="card-title">РЕФЕРАЛЬНАЯ СИСТЕМА</span>
             <div class="ref-link-row">
                 <input class="ref-link-input" id="refLinkInput" type="text" value="https://t.me/GiftPepeBot?start=ref_" readonly>
-                <div class="ref-copy-icon" onclick="copyRefLink()">
+                <div class="ref-action-btn ref-copy-icon" onclick="copyRefLink()">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect x="9" y="9" width="13" height="13" rx="3" stroke="rgba(255,255,255,0.8)" stroke-width="1.8"/>
                         <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="rgba(255,255,255,0.8)" stroke-width="1.8"/>
@@ -783,6 +919,25 @@
                 </div>
             </div>
             <button class="ref-copy-btn" onclick="copyRefLink()">Скопировать ссылку</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal" onclick="closeSettingsOutside(event)">
+        <div class="modal-box">
+            <div class="modal-row" id="langRow" onclick="toggleLang()">
+                <span>Язык</span>
+                <span class="row-arrow">›</span>
+            </div>
+            <div class="lang-options" id="langOptions">
+                <div class="lang-pill" data-lang="en" onclick="selectLang('en', this)">ENG</div>
+                <div class="lang-pill active" data-lang="ru" onclick="selectLang('ru', this)">Русский</div>
+            </div>
+            <div class="modal-row" onclick="openSupport()">
+                <span>Поддержка</span>
+                <span class="row-arrow">›</span>
+            </div>
+            <button class="modal-save-btn" onclick="closeSettings()">Сохранить и продолжить</button>
         </div>
     </div>
 
@@ -956,15 +1111,46 @@
                 input.select();
                 document.execCommand('copy');
             }
-            // Feedback
             const btn = document.querySelector('.ref-copy-btn');
             const old = btn.textContent;
             btn.textContent = 'Скопировано!';
             setTimeout(() => btn.textContent = old, 1500);
         }
 
+        function shareRefLink() {}
+
+        // ─── Settings Modal ───
         function openSettings() {
-            console.log('Settings');
+            document.getElementById('settingsModal').classList.add('show');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('show');
+            document.getElementById('langOptions').classList.remove('show');
+            document.getElementById('langRow').classList.remove('open');
+        }
+
+        function closeSettingsOutside(e) {
+            if (e.target === e.currentTarget) closeSettings();
+        }
+
+        function toggleLang() {
+            document.getElementById('langOptions').classList.toggle('show');
+            document.getElementById('langRow').classList.toggle('open');
+        }
+
+        function selectLang(lang, el) {
+            document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function openSupport() {
+            closeSettings();
+            if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink('https://t.me/GiftPepeSupport');
+            } else {
+                window.open('https://t.me/GiftPepeSupport', '_blank');
+            }
         }
     </script>
 </body>
