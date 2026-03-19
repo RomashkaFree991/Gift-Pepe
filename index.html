@@ -206,7 +206,7 @@
             height: 24px;
             filter: brightness(0) invert(1);
             opacity: 0.4;
-            transition: opacity 0.3s ease, filter 0.3s ease;
+            transition: none;
         }
 
         .nav-item.active img {
@@ -218,7 +218,7 @@
             font-size: 10px;
             font-weight: 500;
             color: rgba(255, 255, 255, 0.4);
-            transition: color 0.3s ease;
+            transition: none;
             letter-spacing: 0.2px;
         }
 
@@ -630,12 +630,7 @@
         }
 
         .crash-multiplier {
-            font-size: 56px;
-            font-weight: 800;
-            color: #fff;
-            position: absolute;
-            z-index: 5;
-            display: none;
+            display: none !important;
         }
 
         .crash-lottie {
@@ -650,11 +645,12 @@
             position: absolute;
             bottom: 85px;
             left: 16px;
+            right: 16px;
             display: flex;
             gap: 6px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
+            overflow: hidden;
             z-index: 5;
-            max-width: calc(100% - 32px);
         }
 
         .crash-history-item {
@@ -663,22 +659,19 @@
             font-size: 12px;
             font-weight: 700;
             background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.6);
+            color: #007AFF;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
 
         .crash-history-item.active {
-            background: rgba(0, 122, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
             color: #007AFF;
         }
 
-        .crash-history-item.green {
-            color: #34c759;
-            background: rgba(52, 199, 89, 0.12);
-        }
-
-        .crash-history-item.red {
-            color: #ff3b30;
-            background: rgba(255, 59, 48, 0.12);
+        .crash-history-item.past {
+            background: rgba(255, 255, 255, 0.08);
+            color: #007AFF;
         }
 
         .crash-bet-area {
@@ -702,10 +695,90 @@
             -webkit-tap-highlight-color: transparent;
             font-family: inherit;
             transition: background 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         .crash-bet-btn:active {
             background: #006ae6;
+        }
+
+        .crash-bet-btn.placed {
+            background: rgba(35, 35, 40, 0.7);
+            pointer-events: none;
+        }
+
+        .crash-bet-btn.disabled {
+            background: rgba(0, 122, 255, 0.25);
+            color: rgba(255, 255, 255, 0.35);
+            pointer-events: none;
+        }
+
+        .crash-bet-btn img {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* ─ Waiting card players ─ */
+        .crash-waiting-players {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .crash-player-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 14px;
+        }
+
+        .crash-player-row .cp-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .crash-player-row .cp-avatar-placeholder {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(100, 170, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .crash-player-row .cp-name {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .crash-player-row .cp-amount {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .crash-player-row .cp-amount img {
+            width: 18px;
+            height: 18px;
         }
 
         .crash-bottom {
@@ -723,16 +796,268 @@
             background: rgba(35, 35, 40, 0.55);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
-            padding: 24px 16px;
+            padding: 20px 16px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
         }
 
-        .crash-waiting-card span {
+        .crash-waiting-text {
             font-size: 15px;
             font-weight: 600;
             color: rgba(255, 255, 255, 0.45);
+            text-align: center;
+        }
+
+        /* ─── Bet Menu ─── */
+        .bet-menu {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 600;
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .bet-menu.show {
+            transform: translateY(0);
+        }
+
+        .bet-menu-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 599;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .bet-menu-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .bet-menu-box {
+            background-color: #1a1a2e;
+            background-image: url('background_pepe.png');
+            background-size: cover;
+            background-position: center;
+            border-top-left-radius: 36px;
+            border-top-right-radius: 36px;
+            padding: 20px 20px 36px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .bet-menu-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .bet-menu-title {
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 100px;
+            padding: 10px 24px;
+            font-size: 16px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .bet-menu-close {
+            position: absolute;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .bet-menu-close svg {
+            width: 18px;
+            height: 18px;
+            pointer-events: auto;
+        }
+
+        .bet-input-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 16px;
+        }
+
+        .bet-input {
+            background: none;
+            border: none;
+            outline: none;
+            font-size: 36px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+            font-family: inherit;
+            -webkit-user-select: text;
+            user-select: text;
+            width: auto;
+            max-width: 120px;
+            text-align: center;
+        }
+
+        .bet-input::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .bet-input-star {
+            width: 30px;
+            height: 30px;
+            flex-shrink: 0;
+        }
+
+        .bet-submit-btn {
+            width: 100%;
+            height: 54px;
+            background: #007AFF;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            font-family: inherit;
+        }
+
+        .bet-submit-btn:active {
+            background: #006ae6;
+        }
+
+        /* ─── Topup Menu ─── */
+        .topup-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 699;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .topup-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .topup-menu {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 700;
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .topup-menu.show {
+            transform: translateY(0);
+        }
+
+        .topup-box {
+            background-color: #1a1a2e;
+            background-image: url('background_pepe.png');
+            background-size: cover;
+            background-position: center;
+            border-top-left-radius: 36px;
+            border-top-right-radius: 36px;
+            padding: 20px 20px 40px;
+            min-height: 75vh;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .topup-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .topup-title {
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 100px;
+            padding: 10px 24px;
+            font-size: 16px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .topup-close {
+            position: absolute;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .topup-close svg {
+            width: 18px;
+            height: 18px;
+            pointer-events: auto;
+        }
+
+        .topup-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .topup-item {
+            width: 100%;
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.15s ease;
+        }
+
+        .topup-item:active {
+            background: rgba(0, 122, 255, 0.2);
+        }
+
+        .topup-item img {
+            width: 22px;
+            height: 22px;
+        }
+
+        .topup-item span {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
         }
 
         /* ─── Settings Modal ─── */
@@ -991,7 +1316,7 @@
         <div class="pill pill-stars">
             <img class="star-icon" src="star.png" alt="Stars">
             <span class="star-balance">0</span>
-            <div class="plus-btn">
+            <div class="plus-btn" onclick="openTopup()">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 5.5V18.5M5.5 12H18.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
                 </svg>
@@ -1000,8 +1325,8 @@
     </div>
 
     <!-- Tab Pages -->
-    <div class="tab-page active" id="page-top"></div>
-    <div class="tab-page" id="page-games">
+    <div class="tab-page" id="page-top"></div>
+    <div class="tab-page active" id="page-games">
         <div class="games-page">
             <div class="ad-banner" onclick="openBanner('https://t.me/GiftPepeChannel')">
                 <img src="baner_1.png" alt="Banner">
@@ -1102,13 +1427,58 @@
             <div class="crash-lottie" id="crashRocket"></div>
             <div class="crash-history" id="crashHistory"></div>
             <div class="crash-bet-area">
-                <button class="crash-bet-btn" onclick="placeBet()">Сделать ставку</button>
+                <button class="crash-bet-btn" id="crashBetBtn" onclick="placeBet()">Сделать ставку</button>
             </div>
         </div>
         <div class="crash-bottom">
             <div class="crash-waiting-card">
-                <span>Ожидание ставок</span>
+                <span class="crash-waiting-text" id="crashWaitingText">Ожидание ставок</span>
+                <div class="crash-waiting-players" id="crashPlayers"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- Topup Menu -->
+    <div class="topup-overlay" id="topupOverlay" onclick="closeTopup()"></div>
+    <div class="topup-menu" id="topupMenu">
+        <div class="topup-box">
+            <div class="topup-header">
+                <span class="topup-title">Пополнение</span>
+                <div class="topup-close" onclick="closeTopup()">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="topup-grid">
+                <div class="topup-item" onclick="addBalance(10)"><img src="star.png" alt=""><span>10</span></div>
+                <div class="topup-item" onclick="addBalance(25)"><img src="star.png" alt=""><span>25</span></div>
+                <div class="topup-item" onclick="addBalance(50)"><img src="star.png" alt=""><span>50</span></div>
+                <div class="topup-item" onclick="addBalance(100)"><img src="star.png" alt=""><span>100</span></div>
+                <div class="topup-item" onclick="addBalance(250)"><img src="star.png" alt=""><span>250</span></div>
+                <div class="topup-item" onclick="addBalance(500)"><img src="star.png" alt=""><span>500</span></div>
+                <div class="topup-item" onclick="addBalance(1000)"><img src="star.png" alt=""><span>1000</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bet Menu -->
+    <div class="bet-menu-overlay" id="betOverlay" onclick="closeBetMenu()"></div>
+    <div class="bet-menu" id="betMenu">
+        <div class="bet-menu-box">
+            <div class="bet-menu-header">
+                <span class="bet-menu-title">Ставка</span>
+                <div class="bet-menu-close" onclick="closeBetMenu()">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="bet-input-row">
+                <input class="bet-input" id="betAmount" type="number" placeholder="0" value="0" inputmode="numeric">
+                <img class="bet-input-star" src="star.png" alt="star">
+            </div>
+            <button class="bet-submit-btn" onclick="submitBet()">Сделать ставку</button>
         </div>
     </div>
 
@@ -1136,12 +1506,12 @@
         <div class="nav-items" id="navItems">
             <div class="nav-indicator" id="navIndicator"></div>
 
-            <div class="nav-item active" data-index="0" onclick="switchTab(this)">
+            <div class="nav-item" data-index="0" onclick="switchTab(this)">
                 <img src="trophy.svg" alt="Топ">
                 <span>Топ</span>
             </div>
 
-            <div class="nav-item" data-index="1" onclick="switchTab(this)">
+            <div class="nav-item active" data-index="1" onclick="switchTab(this)">
                 <img src="game.svg" alt="Игры">
                 <span>Игры</span>
             </div>
@@ -1237,6 +1607,7 @@
             // Cleanup crash if leaving
             crashActive = false;
             stopCrashRound();
+            resetBetState();
 
             // Switch pages
             const idx = parseInt(el.dataset.index);
@@ -1280,6 +1651,8 @@
         let crashRunning = false;
         let rocketAnim = null;
         let crashActive = false;
+        let currentBet = 0;
+        let betPlaced = false;
 
         function openGame(name) {
             if (name === 'crash') {
@@ -1295,6 +1668,7 @@
         function closeCrash() {
             crashActive = false;
             stopCrashRound();
+            resetBetState();
             document.getElementById('crashCountdown').style.display = 'none';
             document.getElementById('crashMultiplier').style.display = 'none';
             document.getElementById('crashRocket').style.display = 'none';
@@ -1349,9 +1723,23 @@
             crashRunning = false;
         }
 
+        function resetBetState() {
+            betPlaced = false;
+            currentBet = 0;
+            cashoutInitialized = false;
+            const btn = document.getElementById('crashBetBtn');
+            btn.innerHTML = 'Сделать ставку';
+            btn.classList.remove('placed');
+            btn.classList.remove('disabled');
+            btn.onclick = function() { placeBet(); };
+            document.getElementById('crashPlayers').innerHTML = '';
+            document.getElementById('crashWaitingText').style.display = '';
+        }
+
         function startCrashRound() {
             if (!crashActive) return;
             stopCrashRound();
+            resetBetState();
 
             const countEl = document.getElementById('crashCountdown');
             const multiEl = document.getElementById('crashMultiplier');
@@ -1405,16 +1793,62 @@
             crashTarget = 1 + Math.random() * 8;
             crashRunning = true;
 
+            // Update button to cashout if bet placed, or disable
+            if (betPlaced) {
+                updateCashoutBtn();
+            } else {
+                const btn = document.getElementById('crashBetBtn');
+                btn.innerHTML = 'Сделать ставку';
+                btn.classList.add('disabled');
+                btn.onclick = null;
+            }
+
             crashInterval = setInterval(() => {
                 if (!crashActive) { stopCrashRound(); return; }
                 crashMultiplier += 0.01 + (crashMultiplier * 0.005);
                 multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
                 setActiveHistory(crashMultiplier.toFixed(2) + 'x');
 
+                if (betPlaced) {
+                    updateCashoutBtn();
+                }
+
                 if (crashMultiplier >= crashTarget) {
                     crashGameEnd();
                 }
             }, 80);
+        }
+
+        let cashoutInitialized = false;
+
+        function updateCashoutBtn() {
+            const btn = document.getElementById('crashBetBtn');
+            const win = Math.floor(currentBet * crashMultiplier);
+            if (!cashoutInitialized) {
+                btn.innerHTML = 'Забрать <span id="cashoutAmount">' + win + '</span> <img src="star.png" alt="star">';
+                cashoutInitialized = true;
+                btn.classList.remove('placed');
+                btn.classList.remove('disabled');
+                btn.onclick = function() { cashOut(); };
+            } else {
+                document.getElementById('cashoutAmount').textContent = win;
+            }
+        }
+
+        function cashOut() {
+            if (!crashRunning) return;
+            const win = Math.floor(currentBet * crashMultiplier);
+            const btn = document.getElementById('crashBetBtn');
+            btn.innerHTML = 'Забрали ' + win + ' <img src="star.png" alt="star">';
+            btn.classList.add('placed');
+            btn.onclick = null;
+            betPlaced = false;
+            cashoutInitialized = false;
+
+            // Add to balance
+            const balEl = document.querySelector('.star-balance');
+            const currentBal = parseInt(balEl.textContent) || 0;
+            balEl.textContent = currentBal + win;
         }
 
         function crashGameEnd() {
@@ -1427,7 +1861,7 @@
 
             removeActiveHistory();
             const finalX = crashMultiplier.toFixed(2) + 'x';
-            addHistoryItem(finalX, crashMultiplier >= 2 ? 'green' : 'red');
+            addHistoryItem(finalX, 'past');
 
             crashTimer = setTimeout(() => {
                 if (!crashActive) return;
@@ -1440,7 +1874,56 @@
         }
 
         function placeBet() {
-            console.log('Bet placed');
+            document.getElementById('betMenu').classList.add('show');
+            document.getElementById('betOverlay').classList.add('show');
+        }
+
+        function closeBetMenu() {
+            document.getElementById('betMenu').classList.remove('show');
+            document.getElementById('betOverlay').classList.remove('show');
+        }
+
+        function submitBet() {
+            const amount = parseInt(document.getElementById('betAmount').value) || 0;
+            if (amount <= 0) return;
+
+            // Subtract from balance
+            const balEl = document.querySelector('.star-balance');
+            const currentBal = parseInt(balEl.textContent) || 0;
+            if (amount > currentBal) return;
+            balEl.textContent = currentBal - amount;
+
+            currentBet = amount;
+            betPlaced = true;
+            closeBetMenu();
+
+            // Button -> Ставка сделана
+            const btn = document.getElementById('crashBetBtn');
+            btn.innerHTML = 'Ставка сделана';
+            btn.classList.add('placed');
+            btn.onclick = null;
+
+            // Hide waiting text, show player
+            document.getElementById('crashWaitingText').style.display = 'none';
+
+            const players = document.getElementById('crashPlayers');
+            const user = tg?.initDataUnsafe?.user;
+            const name = user?.first_name || 'Вы';
+            const photoUrl = user?.photo_url || '';
+            const letter = name[0];
+
+            let avatarHtml;
+            if (photoUrl) {
+                avatarHtml = '<img class="cp-avatar" src="' + photoUrl + '" alt="">';
+            } else {
+                avatarHtml = '<div class="cp-avatar-placeholder">' + letter + '</div>';
+            }
+
+            players.innerHTML = '<div class="crash-player-row">' +
+                avatarHtml +
+                '<span class="cp-name">Вы</span>' +
+                '<span class="cp-amount">' + amount + ' <img src="star.png" alt="star"></span>' +
+            '</div>';
         }
 
         function openBanner(url) {
@@ -1482,6 +1965,24 @@
         // ─── Settings Modal ───
         function openSettings() {
             document.getElementById('settingsModal').classList.add('show');
+        }
+
+        // ─── Topup ───
+        function openTopup() {
+            document.getElementById('topupMenu').classList.add('show');
+            document.getElementById('topupOverlay').classList.add('show');
+        }
+
+        function closeTopup() {
+            document.getElementById('topupMenu').classList.remove('show');
+            document.getElementById('topupOverlay').classList.remove('show');
+        }
+
+        function addBalance(amount) {
+            const balEl = document.querySelector('.star-balance');
+            const current = parseInt(balEl.textContent) || 0;
+            balEl.textContent = current + amount;
+            closeTopup();
         }
 
         function closeSettings() {
