@@ -183,18 +183,9 @@
             justify-content: space-evenly;
         }
 
-        /* Скользящий индикатор */
+        /* Скользящий индикатор - removed */
         .nav-indicator {
-            position: absolute;
-            width: 58px;
-            height: 50px;
-            background: rgba(100, 170, 255, 0.22);
-            border-radius: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-            pointer-events: none;
-            z-index: 0;
+            display: none;
         }
 
         .nav-item {
@@ -214,12 +205,13 @@
             width: 24px;
             height: 24px;
             filter: brightness(0) invert(1);
-            opacity: 0.45;
-            transition: opacity 0.3s ease;
+            opacity: 0.4;
+            transition: opacity 0.3s ease, filter 0.3s ease;
         }
 
         .nav-item.active img {
             opacity: 1;
+            filter: brightness(0) saturate(100%) invert(33%) sepia(93%) saturate(6000%) hue-rotate(210deg) brightness(102%) contrast(101%);
         }
 
         .nav-item span {
@@ -231,7 +223,7 @@
         }
 
         .nav-item.active span {
-            color: rgba(255, 255, 255, 0.95);
+            color: #007AFF;
         }
 
         /* ─── Tab Pages ─── */
@@ -271,8 +263,6 @@
         .profile-card {
             width: 100%;
             background: rgba(35, 35, 40, 0.55);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
             display: flex;
@@ -282,22 +272,22 @@
         }
 
         .profile-avatar {
-            width: 120px;
-            height: 120px;
+            width: 96px;
+            height: 96px;
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid rgba(255, 255, 255, 0.12);
         }
 
         .profile-avatar-placeholder {
-            width: 120px;
-            height: 120px;
+            width: 96px;
+            height: 96px;
             border-radius: 50%;
             background: rgba(100, 170, 255, 0.25);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 44px;
+            font-size: 36px;
             font-weight: 700;
             color: #fff;
             border: 2px solid rgba(255, 255, 255, 0.12);
@@ -320,8 +310,8 @@
         /* ─ Avatar wrapper with gear ─ */
         .avatar-wrapper {
             position: relative;
-            width: 120px;
-            height: 120px;
+            width: 96px;
+            height: 96px;
         }
 
         .avatar-wrapper .settings-btn {
@@ -351,10 +341,10 @@
         .invite-btn {
             width: 100%;
             margin-top: 12px;
-            background: rgba(80, 160, 255, 0.35);
+            background: #007AFF;
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(120, 180, 255, 0.35);
+            border: none;
             border-radius: 20px;
             display: flex;
             align-items: center;
@@ -384,14 +374,14 @@
         .invite-btn-text .sub {
             font-size: 12px;
             font-weight: 400;
-            color: rgba(255, 255, 255, 0.45);
+            color: rgba(255, 255, 255, 0.7);
         }
 
         .invite-btn .invite-plus {
             width: 38px;
             height: 38px;
             border-radius: 50%;
-            background: rgba(100, 180, 255, 0.4);
+            background: rgba(255, 255, 255, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -536,11 +526,11 @@
         }
 
         .ref-copy-icon {
-            background: rgba(100, 170, 255, 0.18);
+            background: rgba(0, 122, 255, 0.3);
         }
 
         .ref-copy-icon:active {
-            background: rgba(100, 170, 255, 0.35);
+            background: rgba(0, 122, 255, 0.5);
         }
 
         .ref-action-btn svg {
@@ -552,20 +542,197 @@
         .ref-copy-btn {
             width: 100%;
             height: 46px;
-            background: rgba(100, 170, 255, 0.22);
+            background: #007AFF;
             border: none;
             border-radius: 14px;
             font-size: 14px;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.9);
+            color: #fff;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
             font-family: inherit;
-            transition: background 0.2s ease;
+            transition: background 0.15s ease;
         }
 
         .ref-copy-btn:active {
-            background: rgba(100, 170, 255, 0.35);
+            background: #006ae6;
+        }
+
+        /* ─── Crash Game Page ─── */
+        .crash-page {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+        }
+
+        .crash-back {
+            position: absolute;
+            top: calc(140px + env(safe-area-inset-top, 0px));
+            left: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            z-index: 10;
+        }
+
+        .crash-back svg {
+            width: 20px;
+            height: 20px;
+            pointer-events: auto;
+        }
+
+        .crash-back span {
+            font-size: 15px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .crash-top {
+            width: 100%;
+            height: 62%;
+            flex-shrink: 0;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .crash-star {
+            position: absolute;
+            background: #fff;
+            border-radius: 50%;
+        }
+
+        .crash-countdown {
+            font-size: 72px;
+            font-weight: 800;
+            color: #fff;
+            position: absolute;
+            z-index: 5;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .crash-countdown.pop {
+            animation: countPop 0.85s ease-out forwards;
+        }
+
+        @keyframes countPop {
+            0% { opacity: 1; transform: scale(0.6); filter: blur(0px); }
+            60% { opacity: 1; transform: scale(1.1); filter: blur(0px); }
+            100% { opacity: 0; transform: scale(2.2); filter: blur(12px); }
+        }
+
+        .crash-multiplier {
+            font-size: 56px;
+            font-weight: 800;
+            color: #fff;
+            position: absolute;
+            z-index: 5;
+            display: none;
+        }
+
+        .crash-lottie {
+            width: 200px;
+            height: 200px;
+            position: absolute;
+            z-index: 4;
+            display: none;
+        }
+
+        .crash-history {
+            position: absolute;
+            bottom: 85px;
+            left: 16px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            z-index: 5;
+            max-width: calc(100% - 32px);
+        }
+
+        .crash-history-item {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .crash-history-item.active {
+            background: rgba(0, 122, 255, 0.3);
+            color: #007AFF;
+        }
+
+        .crash-history-item.green {
+            color: #34c759;
+            background: rgba(52, 199, 89, 0.12);
+        }
+
+        .crash-history-item.red {
+            color: #ff3b30;
+            background: rgba(255, 59, 48, 0.12);
+        }
+
+        .crash-bet-area {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 5;
+        }
+
+        .crash-bet-btn {
+            width: 100%;
+            height: 54px;
+            background: #007AFF;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            font-family: inherit;
+            transition: background 0.15s ease;
+        }
+
+        .crash-bet-btn:active {
+            background: #006ae6;
+        }
+
+        .crash-bottom {
+            width: 100%;
+            height: 38%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 12px 16px;
+        }
+
+        .crash-waiting-card {
+            width: 100%;
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 24px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .crash-waiting-card span {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.45);
         }
 
         /* ─── Settings Modal ─── */
@@ -674,7 +841,7 @@
         .modal-save-btn {
             width: 100%;
             height: 48px;
-            background: rgba(100, 170, 255, 0.25);
+            background: #007AFF;
             border: none;
             border-radius: 16px;
             font-size: 15px;
@@ -691,8 +858,6 @@
             width: 100%;
             margin-top: 0;
             background: rgba(35, 35, 40, 0.55);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
             display: flex;
@@ -909,6 +1074,7 @@
 
         <div class="ref-link-card">
             <span class="card-title">РЕФЕРАЛЬНАЯ СИСТЕМА</span>
+            <span style="font-size:12px;color:rgba(255,255,255,0.4);line-height:1.4;">За каждого приглашённого друга вы получаете 10% от его пополнений</span>
             <div class="ref-link-row">
                 <input class="ref-link-input" id="refLinkInput" type="text" value="https://t.me/GiftPepeBot?start=ref_" readonly>
                 <div class="ref-action-btn ref-copy-icon" onclick="copyRefLink()">
@@ -919,6 +1085,30 @@
                 </div>
             </div>
             <button class="ref-copy-btn" onclick="copyRefLink()">Скопировать ссылку</button>
+        </div>
+    </div>
+
+    <!-- Crash Game Page -->
+    <div class="tab-page crash-page" id="page-crash">
+        <div class="crash-back" onclick="closeCrash()">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Назад</span>
+        </div>
+        <div class="crash-top" id="crashStars">
+            <div class="crash-countdown" id="crashCountdown"></div>
+            <div class="crash-multiplier" id="crashMultiplier">1.00x</div>
+            <div class="crash-lottie" id="crashRocket"></div>
+            <div class="crash-history" id="crashHistory"></div>
+            <div class="crash-bet-area">
+                <button class="crash-bet-btn" onclick="placeBet()">Сделать ставку</button>
+            </div>
+        </div>
+        <div class="crash-bottom">
+            <div class="crash-waiting-card">
+                <span>Ожидание ставок</span>
+            </div>
         </div>
     </div>
 
@@ -1044,6 +1234,10 @@
             el.classList.add('active');
             positionIndicator(el);
 
+            // Cleanup crash if leaving
+            crashActive = false;
+            stopCrashRound();
+
             // Switch pages
             const idx = parseInt(el.dataset.index);
             document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
@@ -1079,8 +1273,174 @@
         }
 
         // ─── Games ───
+        let crashInterval = null;
+        let crashTimer = null;
+        let crashMultiplier = 1.00;
+        let crashTarget = 0;
+        let crashRunning = false;
+        let rocketAnim = null;
+        let crashActive = false;
+
         function openGame(name) {
-            console.log('Open game:', name);
+            if (name === 'crash') {
+                stopCrashRound();
+                document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-crash').classList.add('active');
+                crashActive = true;
+                generateStars();
+                setTimeout(() => startCrashRound(), 300);
+            }
+        }
+
+        function closeCrash() {
+            crashActive = false;
+            stopCrashRound();
+            document.getElementById('crashCountdown').style.display = 'none';
+            document.getElementById('crashMultiplier').style.display = 'none';
+            document.getElementById('crashRocket').style.display = 'none';
+            document.getElementById('page-crash').classList.remove('active');
+            document.getElementById('page-games').classList.add('active');
+        }
+
+        function generateStars() {
+            const container = document.getElementById('crashStars');
+            if (container.querySelectorAll('.crash-star').length > 0) return;
+            for (let i = 0; i < 100; i++) {
+                const star = document.createElement('div');
+                star.className = 'crash-star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.opacity = Math.random() * 0.5 + 0.15;
+                const size = Math.random() * 2.5 + 0.5;
+                star.style.width = size + 'px';
+                star.style.height = size + 'px';
+                container.appendChild(star);
+            }
+        }
+
+        function addHistoryItem(text, cls) {
+            const hist = document.getElementById('crashHistory');
+            const item = document.createElement('div');
+            item.className = 'crash-history-item ' + cls;
+            item.textContent = text;
+            hist.insertBefore(item, hist.firstChild);
+            if (hist.children.length > 8) hist.removeChild(hist.lastChild);
+        }
+
+        function setActiveHistory(text) {
+            let active = document.querySelector('.crash-history-item.active');
+            if (!active) {
+                const hist = document.getElementById('crashHistory');
+                active = document.createElement('div');
+                active.className = 'crash-history-item active';
+                hist.insertBefore(active, hist.firstChild);
+            }
+            active.textContent = text;
+        }
+
+        function removeActiveHistory() {
+            const a = document.querySelector('.crash-history-item.active');
+            if (a) a.remove();
+        }
+
+        function stopCrashRound() {
+            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+            if (crashTimer) { clearTimeout(crashTimer); crashTimer = null; }
+            crashRunning = false;
+        }
+
+        function startCrashRound() {
+            if (!crashActive) return;
+            stopCrashRound();
+
+            const countEl = document.getElementById('crashCountdown');
+            const multiEl = document.getElementById('crashMultiplier');
+            const rocketEl = document.getElementById('crashRocket');
+
+            multiEl.style.display = 'none';
+            rocketEl.style.display = 'none';
+            countEl.style.display = 'block';
+
+            setActiveHistory('Ожидание');
+
+            let count = 10;
+            function tick() {
+                if (!crashActive) return;
+                if (count <= 0) {
+                    countEl.style.display = 'none';
+                    startGame();
+                    return;
+                }
+                countEl.textContent = count;
+                countEl.classList.remove('pop');
+                void countEl.offsetWidth;
+                countEl.classList.add('pop');
+                count--;
+                crashTimer = setTimeout(tick, 850);
+            }
+            tick();
+        }
+
+        function startGame() {
+            if (!crashActive) return;
+            const multiEl = document.getElementById('crashMultiplier');
+            const rocketEl = document.getElementById('crashRocket');
+
+            rocketEl.style.display = 'block';
+            if (!rocketAnim && typeof lottie !== 'undefined') {
+                rocketAnim = lottie.loadAnimation({
+                    container: rocketEl,
+                    renderer: 'svg',
+                    loop: true,
+                    autoplay: true,
+                    path: 'rocket.json'
+                });
+            } else if (rocketAnim) {
+                rocketAnim.goToAndPlay(0);
+            }
+
+            multiEl.style.display = 'block';
+            multiEl.style.color = '#fff';
+            crashMultiplier = 1.00;
+            crashTarget = 1 + Math.random() * 8;
+            crashRunning = true;
+
+            crashInterval = setInterval(() => {
+                if (!crashActive) { stopCrashRound(); return; }
+                crashMultiplier += 0.01 + (crashMultiplier * 0.005);
+                multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
+                setActiveHistory(crashMultiplier.toFixed(2) + 'x');
+
+                if (crashMultiplier >= crashTarget) {
+                    crashGameEnd();
+                }
+            }, 80);
+        }
+
+        function crashGameEnd() {
+            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+            crashRunning = false;
+
+            const multiEl = document.getElementById('crashMultiplier');
+            const rocketEl = document.getElementById('crashRocket');
+            multiEl.style.color = '#ff3b30';
+
+            removeActiveHistory();
+            const finalX = crashMultiplier.toFixed(2) + 'x';
+            addHistoryItem(finalX, crashMultiplier >= 2 ? 'green' : 'red');
+
+            crashTimer = setTimeout(() => {
+                if (!crashActive) return;
+                multiEl.style.display = 'none';
+                rocketEl.style.display = 'none';
+                multiEl.style.color = '#fff';
+                if (rocketAnim) rocketAnim.stop();
+                startCrashRound();
+            }, 2500);
+        }
+
+        function placeBet() {
+            console.log('Bet placed');
         }
 
         function openBanner(url) {
