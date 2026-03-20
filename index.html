@@ -2166,9 +2166,9 @@
             let idx = -1;
             for (let i = giftList.length-1; i >= 0; i--) { if (winAmount >= giftList[i].price) { idx = i; break; } }
             if (idx !== currentGiftIndex && idx >= 0) {
-                currentGiftIndex = idx; wonGift = giftList[idx]; gImg.src = wonGift.img;
+                currentGiftIndex = idx; wonGift = giftList[idx]; gImg.src = encodeURI(wonGift.img);
                 gEl.style.display = 'block'; gEl.style.animation = 'none'; void gEl.offsetWidth; gEl.style.animation = 'giftPop 0.4s ease-out';
-                if (pGift) { pGift.src = wonGift.img; pGift.style.display = 'block'; }
+                if (pGift) { pGift.src = encodeURI(wonGift.img); pGift.style.display = 'block'; }
             } else if (idx < 0) { gEl.style.display = 'none'; wonGift = null; if (pGift) pGift.style.display = 'none'; }
         }
 
@@ -2180,7 +2180,7 @@
         }
 
         function showGiftModal(gift, winAmount) {
-            document.getElementById('giftModalImg').src = gift.img;
+            document.getElementById('giftModalImg').src = encodeURI(gift.img);
             document.getElementById('giftModalName').textContent = gift.name;
             document.getElementById('giftSellAmount').textContent = winAmount;
             const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = winAmount;
@@ -2202,7 +2202,7 @@
             if (!inventory.length) { empty.style.display = 'flex'; grid.innerHTML = ''; return; }
             empty.style.display = 'none';
             grid.innerHTML = inventory.map((it, i) =>
-                '<div class="inventory-item"><img class="inv-img" src="'+it.img+'" alt=""><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
+                '<div class="inventory-item"><img class="inv-img" src="'+encodeURI(it.img)+'" alt=""><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
             ).join('');
         }
 
