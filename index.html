@@ -1936,7 +1936,7 @@
 
         function cleanup() {
             if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
-            crashRunning = false;
+            crashRunning = false; crashShown = false;
             resetBetState(); resetGiftDisplay();
             const m = document.getElementById('crashMultiplier');
             if (m) { m.style.display = 'none'; m.classList.remove('crashed'); m.textContent = ''; }
@@ -2047,6 +2047,7 @@
         }
 
         async function createNewRound() {
+            crashShown = false;
             const target = 1 + Math.random() * 8;
             const { data } = await sb.from('crash_rounds')
                 .insert({ target_multiplier: target, status: 'waiting' })
@@ -2104,16 +2105,15 @@
         // Sync client to server round state
         function syncToRound(round) {
             if (!crashActive) return;
-            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
-
-            const now = Date.now();
-            const createdAt = new Date(round.created_at).getTime();
 
             if (round.status === 'waiting') {
-                runCountdown(createdAt);
+                if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+                runCountdown(new Date(round.created_at).getTime());
             } else if (round.status === 'running') {
-                const startTime = new Date(round.start_time).getTime();
-                runGame(startTime);
+                // Don't restart if already running locally
+                if (crashRunning) return;
+                if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+                runGame(new Date(round.start_time).getTime());
             } else if (round.status === 'crashed') {
                 showCrashed(round);
             }
@@ -2158,12 +2158,21 @@
         async function transitionToRunning() {
             if (!sb || !currentRoundId) return;
             const startTime = new Date().toISOString();
-            await sb.from('crash_rounds').update({ status: 'running', start_time: startTime }).eq('id', currentRoundId).eq('status', 'waiting');
-            // The realtime subscription will trigger syncToRound with 'running'
+            const startMs = Date.now();
+            
+            // Update DB
+            await sb.from('crash_rounds').update({ 
+                status: 'running', 
+                start_time: startTime 
+            }).eq('id', currentRoundId).eq('status', 'waiting');
+
+            // Start game immediately — don't wait for realtime echo
+            if (crashActive) runGame(startMs);
         }
 
         function runGame(startTime) {
             closeBetMenu();
+            crashShown = false;
             const rocketEl = document.getElementById('crashRocket');
             const multiEl = document.getElementById('crashMultiplier');
             multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
@@ -2196,12 +2205,23 @@
         }
 
         async function triggerCrash() {
-            if (!sb || !currentRoundId) { showCrashedLocal(); return; }
-            await sb.from('crash_rounds').update({ status: 'crashed', crash_time: new Date().toISOString() }).eq('id', currentRoundId).eq('status', 'running');
-            // Realtime will call syncToRound → showCrashed
+            // Show crash immediately locally
+            showCrashed({ target_multiplier: crashTarget, status: 'crashed' });
+            
+            // Then update DB for other clients
+            if (sb && currentRoundId) {
+                await sb.from('crash_rounds').update({ 
+                    status: 'crashed', 
+                    crash_time: new Date().toISOString() 
+                }).eq('id', currentRoundId).eq('status', 'running');
+            }
         }
 
+        let crashShown = false;
+
         function showCrashed(round) {
+            if (crashShown) return;
+            crashShown = true;
             if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
             crashRunning = false;
             const rocketEl = document.getElementById('crashRocket');
@@ -2249,7 +2269,7 @@
 
         // Fallback for no Supabase
         function startLocalRound() {
-            resetBetState(); resetGiftDisplay();
+            resetBetState(); resetGiftDisplay(); crashShown = false;
             crashTarget = 1 + Math.random() * 8;
             const countEl = document.getElementById('crashCountdown');
             const multiEl = document.getElementById('crashMultiplier');
