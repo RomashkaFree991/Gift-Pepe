@@ -661,28 +661,6 @@
             display: none;
         }
 
-        .crash-gift {
-            position: absolute;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 6;
-            display: none;
-            animation: giftPop 0.4s ease-out;
-        }
-
-        .crash-gift img {
-            width: 80px;
-            height: 80px;
-            object-fit: contain;
-            filter: drop-shadow(0 0 12px rgba(255,255,255,0.2));
-        }
-
-        @keyframes giftPop {
-            0% { opacity: 0; transform: translateY(-50%) scale(0.5); }
-            100% { opacity: 1; transform: translateY(-50%) scale(1); }
-        }
-
         /* ─── Gift Modal ─── */
         .gift-modal-overlay {
             position: fixed;
@@ -1018,6 +996,11 @@
             flex-shrink: 0;
             display: none;
             animation: giftPop 0.3s ease-out;
+        }
+
+        @keyframes giftPop {
+            0% { opacity: 0; transform: scale(0.5); }
+            100% { opacity: 1; transform: scale(1); }
         }
 
         .crash-bottom {
@@ -1671,7 +1654,6 @@
             <div class="crash-countdown" id="crashCountdown"></div>
             <div class="crash-multiplier" id="crashMultiplier">1.00x</div>
             <div class="crash-lottie" id="crashRocket"></div>
-            <div class="crash-gift" id="crashGift"><img id="crashGiftImg" src="" alt=""></div>
             <div class="crash-history" id="crashHistory"></div>
             <div class="crash-bet-area">
                 <button class="crash-bet-btn" id="crashBetBtn" onclick="placeBet()">Сделать ставку</button>
@@ -1989,13 +1971,15 @@
         async function joinCrashGame() {
             if (!sb) { startLocalRound(); return; }
 
-            // Clean up any old stale rounds (>30s waiting or >120s running)
-            const cutoff30 = new Date(Date.now() - 30000).toISOString();
-            const cutoff120 = new Date(Date.now() - 120000).toISOString();
-            await sb.from('crash_rounds').update({ status: 'crashed', target_multiplier: 1.00 }).eq('status', 'waiting').lt('created_at', cutoff30);
-            await sb.from('crash_rounds').update({ status: 'crashed' }).eq('status', 'running').lt('created_at', cutoff120);
+            // Clean up very old stale rounds only (>60s waiting, >5min running)
+            const cutoff60 = new Date(Date.now() - 60000).toISOString();
+            const cutoff300 = new Date(Date.now() - 300000).toISOString();
+            await sb.from('crash_rounds').update({ status: 'crashed' }).eq('status', 'waiting').lt('created_at', cutoff60);
+            await sb.from('crash_rounds').update({ status: 'crashed' }).eq('status', 'running').lt('created_at', cutoff300);
+            // Clean bad history entries
+            await sb.from('crash_rounds').delete().eq('status', 'crashed').lte('target_multiplier', 1.01);
 
-            // Load history
+            // Load history (only rounds with real targets)
             await loadRoundHistory();
 
             // Find active round
@@ -2018,7 +2002,7 @@
 
         async function loadRoundHistory() {
             const { data } = await sb.from('crash_rounds')
-                .select('target_multiplier').eq('status', 'crashed')
+                .select('target_multiplier').eq('status', 'crashed').gt('target_multiplier', 1.01)
                 .order('created_at', { ascending: false }).limit(8);
             if (data) {
                 document.getElementById('crashHistory').innerHTML = '';
@@ -2048,6 +2032,22 @@
 
         async function createNewRound() {
             crashShown = false;
+            
+            // Double-check no active round exists
+            const { data: existing } = await sb.from('crash_rounds')
+                .select('*').in('status', ['waiting', 'running'])
+                .order('created_at', { ascending: false }).limit(1).single();
+            
+            if (existing) {
+                currentRoundData = existing;
+                currentRoundId = existing.id;
+                crashTarget = existing.target_multiplier;
+                subscribeToRound();
+                subscribeToBets();
+                syncToRound(existing);
+                return;
+            }
+
             const target = 1 + Math.random() * 8;
             const { data } = await sb.from('crash_rounds')
                 .insert({ target_multiplier: target, status: 'waiting' })
@@ -2064,9 +2064,14 @@
 
         function subscribeToRound() {
             if (!sb || !currentRoundId) return;
-            if (roundSub) sb.removeChannel(roundSub);
-            roundSub = sb.channel('crash-round-' + currentRoundId)
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'crash_rounds', filter: 'id=eq.' + currentRoundId }, payload => {
+            if (roundSub) { sb.removeChannel(roundSub); roundSub = null; }
+            roundSub = sb.channel('round-' + currentRoundId + '-' + Date.now())
+                .on('postgres_changes', { 
+                    event: 'UPDATE', 
+                    schema: 'public', 
+                    table: 'crash_rounds'
+                }, payload => {
+                    if (!payload.new || payload.new.id !== currentRoundId) return;
                     currentRoundData = payload.new;
                     crashTarget = payload.new.target_multiplier;
                     syncToRound(payload.new);
@@ -2076,10 +2081,15 @@
 
         function subscribeToBets() {
             if (!sb || !currentRoundId) return;
-            if (betsSub) sb.removeChannel(betsSub);
-            betsSub = sb.channel('crash-bets-' + currentRoundId)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crash_bets', filter: 'round_id=eq.' + currentRoundId }, payload => {
+            if (betsSub) { sb.removeChannel(betsSub); betsSub = null; }
+            betsSub = sb.channel('bets-' + currentRoundId + '-' + Date.now())
+                .on('postgres_changes', { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: 'crash_bets'
+                }, payload => {
                     const bet = payload.new;
+                    if (!bet || bet.round_id !== currentRoundId) return;
                     if (bet.user_id === myUserId) return;
                     addPlayerToWaiting(bet.user_name||'Player', bet.user_photo||'', bet.amount);
                 })
@@ -2368,20 +2378,17 @@
         let currentGiftIndex = -1, wonGift = null, inventory = [];
 
         function updateCrashGift(winAmount) {
-            const gEl = document.getElementById('crashGift'), gImg = document.getElementById('crashGiftImg');
             const pGift = document.getElementById('cpGiftIcon');
             let idx = -1;
             for (let i = giftList.length-1; i >= 0; i--) { if (winAmount >= giftList[i].price) { idx = i; break; } }
             if (idx !== currentGiftIndex && idx >= 0) {
-                currentGiftIndex = idx; wonGift = giftList[idx]; gImg.src = encodeURI(wonGift.img);
-                gEl.style.display = 'block'; gEl.style.animation = 'none'; void gEl.offsetWidth; gEl.style.animation = 'giftPop 0.4s ease-out';
+                currentGiftIndex = idx; wonGift = giftList[idx];
                 if (pGift) { pGift.src = encodeURI(wonGift.img); pGift.style.display = 'block'; }
-            } else if (idx < 0) { gEl.style.display = 'none'; wonGift = null; if (pGift) pGift.style.display = 'none'; }
+            } else if (idx < 0) { wonGift = null; if (pGift) pGift.style.display = 'none'; }
         }
 
         function resetGiftDisplay() {
             currentGiftIndex = -1; wonGift = null;
-            document.getElementById('crashGift').style.display = 'none';
             const pGift = document.getElementById('cpGiftIcon');
             if (pGift) pGift.style.display = 'none';
         }
