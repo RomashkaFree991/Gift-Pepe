@@ -1889,7 +1889,7 @@
         function switchTab(el) {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
-            crashActive = false; stopCrashRound(); resetBetState();
+            crashActive = false; cleanup();
             const idx = parseInt(el.dataset.index);
             document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
             document.getElementById(pages[idx]).classList.add('active');
@@ -1900,36 +1900,49 @@
             lottie.loadAnimation({ container: document.getElementById('giftsLottie'), renderer: 'svg', loop: true, autoplay: true, path: 'PlushPepe%28blue%29.json' });
         }
 
-        // ─── Crash Game ───
-        let crashInterval = null, crashTimer = null;
+        // ─── Crash Game (Server-Synced) ───
+        const COUNTDOWN_SEC = 10;
+        const TICK_MS = 80;
+        let crashInterval = null, crashActive = false, crashRunning = false;
         let crashMultiplier = 1.00, crashTarget = 0;
-        let crashRunning = false, crashActive = false;
-        let currentBet = 0, betPlaced = false, didCashOut = false;
-        let cashoutInitialized = false;
-        let rocketAnim = null;
-        let currentRoundId = null;
-        let betsSub = null;
+        let currentBet = 0, betPlaced = false, didCashOut = false, cashoutInitialized = false;
+        let rocketAnim = null, currentRoundId = null;
+        let roundSub = null, betsSub = null;
+        let currentRoundData = null;
+
+        // Deterministic multiplier from elapsed time (same on all clients)
+        function calcMultiplier(elapsedMs) {
+            const steps = Math.floor(elapsedMs / TICK_MS);
+            return 3 * Math.pow(1.005, steps) - 2;
+        }
 
         function openGame(name) {
             if (name === 'crash') {
-                stopCrashRound();
+                cleanup(); 
                 document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
                 document.getElementById('page-crash').classList.add('active');
                 crashActive = true;
                 generateStars();
-                setTimeout(() => startCrashRound(), 300);
+                joinCrashGame();
             }
         }
 
         function closeCrash() {
-            crashActive = false; stopCrashRound(); resetBetState(); resetGiftDisplay();
-            const m = document.getElementById('crashMultiplier');
-            m.style.display = 'none'; m.classList.remove('crashed'); m.textContent = '';
-            document.getElementById('crashRocket').style.display = 'none';
-            document.getElementById('crashCountdown').style.display = 'none';
-            if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
+            crashActive = false; cleanup();
             document.getElementById('page-crash').classList.remove('active');
             document.getElementById('page-games').classList.add('active');
+        }
+
+        function cleanup() {
+            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+            crashRunning = false;
+            resetBetState(); resetGiftDisplay();
+            const m = document.getElementById('crashMultiplier');
+            if (m) { m.style.display = 'none'; m.classList.remove('crashed'); m.textContent = ''; }
+            const r = document.getElementById('crashRocket'); if (r) r.style.display = 'none';
+            const c = document.getElementById('crashCountdown'); if (c) c.style.display = 'none';
+            if (roundSub && sb) { sb.removeChannel(roundSub); roundSub = null; }
+            if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
         }
 
         function generateStars() {
@@ -1938,8 +1951,7 @@
             for (let i = 0; i < 100; i++) {
                 const s = document.createElement('div');
                 s.className = 'crash-star';
-                s.style.left = Math.random()*100+'%';
-                s.style.top = Math.random()*100+'%';
+                s.style.left = Math.random()*100+'%'; s.style.top = Math.random()*100+'%';
                 s.style.opacity = Math.random()*0.5+0.15;
                 const sz = Math.random()*2.5+0.5;
                 s.style.width = sz+'px'; s.style.height = sz+'px';
@@ -1964,30 +1976,94 @@
 
         function removeActiveHistory() { const a = document.querySelector('.crash-history-item.active'); if (a) a.remove(); }
 
-        function stopCrashRound() {
-            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
-            if (crashTimer) { clearTimeout(crashTimer); crashTimer = null; }
-            crashRunning = false;
-        }
-
         function resetBetState() {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInitialized = false;
             const btn = document.getElementById('crashBetBtn');
-            btn.innerHTML = 'Сделать ставку';
-            btn.classList.remove('placed','disabled');
-            btn.onclick = function() { placeBet(); };
-            document.getElementById('crashPlayers').innerHTML = '';
-            document.getElementById('crashWaitingText').style.display = '';
+            if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed','disabled'); btn.onclick = function() { placeBet(); }; }
+            const p = document.getElementById('crashPlayers'); if (p) p.innerHTML = '';
+            const t = document.getElementById('crashWaitingText'); if (t) t.style.display = '';
         }
 
-        // ─── Realtime Round ───
-        async function createRound() {
-            currentRoundId = Date.now();
-            if (!sb) return;
-            try {
-                const { data } = await sb.from('crash_rounds').insert({ target_multiplier: 0, status: 'waiting' }).select().single();
-                if (data) currentRoundId = data.id;
-            } catch(e) {}
+        // ─── Server Round Logic ───
+        async function joinCrashGame() {
+            if (!sb) { startLocalRound(); return; }
+
+            // Load history from past rounds
+            await loadRoundHistory();
+
+            // Find active round (not crashed)
+            const { data: active } = await sb.from('crash_rounds')
+                .select('*').in('status', ['waiting', 'running'])
+                .order('created_at', { ascending: false }).limit(1).single();
+
+            if (active) {
+                currentRoundData = active;
+                currentRoundId = active.id;
+                crashTarget = active.target_multiplier;
+                subscribeToRound();
+                subscribeToBets();
+                await loadRoundBets();
+                syncToRound(active);
+            } else {
+                await createNewRound();
+            }
+        }
+
+        async function loadRoundHistory() {
+            const { data } = await sb.from('crash_rounds')
+                .select('target_multiplier').eq('status', 'crashed')
+                .order('created_at', { ascending: false }).limit(8);
+            if (data) {
+                document.getElementById('crashHistory').innerHTML = '';
+                data.reverse().forEach(r => {
+                    addHistoryItem(r.target_multiplier.toFixed(2) + 'x', 'past');
+                });
+            }
+        }
+
+        async function loadRoundBets() {
+            if (!currentRoundId) return;
+            const { data } = await sb.from('crash_bets').select('*').eq('round_id', currentRoundId);
+            if (data) {
+                data.forEach(bet => {
+                    if (bet.user_id === myUserId) {
+                        betPlaced = true; currentBet = bet.amount;
+                        document.getElementById('crashWaitingText').style.display = 'none';
+                        showMyBetInWaiting(bet.amount);
+                        const btn = document.getElementById('crashBetBtn');
+                        btn.innerHTML = 'Ставка сделана'; btn.classList.add('placed'); btn.onclick = null;
+                    } else {
+                        addPlayerToWaiting(bet.user_name||'Player', bet.user_photo||'', bet.amount);
+                    }
+                });
+            }
+        }
+
+        async function createNewRound() {
+            const target = 1 + Math.random() * 8;
+            const { data } = await sb.from('crash_rounds')
+                .insert({ target_multiplier: target, status: 'waiting' })
+                .select().single();
+            if (data) {
+                currentRoundData = data;
+                currentRoundId = data.id;
+                crashTarget = target;
+                subscribeToRound();
+                subscribeToBets();
+                syncToRound(data);
+            }
+        }
+
+        function subscribeToRound() {
+            if (!sb || !currentRoundId) return;
+            if (roundSub) sb.removeChannel(roundSub);
+            roundSub = sb.channel('crash-round-' + currentRoundId)
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'crash_rounds', filter: 'id=eq.' + currentRoundId }, payload => {
+                    currentRoundData = payload.new;
+                    crashTarget = payload.new.target_multiplier;
+                    syncToRound(payload.new);
+                })
+                .subscribe();
         }
 
         function subscribeToBets() {
@@ -1997,7 +2073,7 @@
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crash_bets', filter: 'round_id=eq.' + currentRoundId }, payload => {
                     const bet = payload.new;
                     if (bet.user_id === myUserId) return;
-                    addPlayerToWaiting(bet.user_name || 'Player', bet.user_photo || '', bet.amount);
+                    addPlayerToWaiting(bet.user_name||'Player', bet.user_photo||'', bet.amount);
                 })
                 .subscribe();
         }
@@ -2011,38 +2087,68 @@
             players.appendChild(row.firstChild);
         }
 
-        async function startCrashRound() {
-            if (!crashActive) return;
-            stopCrashRound(); resetBetState(); resetGiftDisplay();
-            await createRound();
-            subscribeToBets();
+        function showMyBetInWaiting(amount) {
+            document.getElementById('crashWaitingText').style.display = 'none';
+            const players = document.getElementById('crashPlayers');
+            const av = myPhoto ? '<img class="cp-avatar" src="'+myPhoto+'" alt="">' : '<div class="cp-avatar-placeholder">'+myName[0]+'</div>';
+            players.innerHTML = '<div class="crash-player-row">'+av+'<div class="cp-name"><span class="cp-name-text">Вы</span><span class="cp-original-bet">'+amount+' <img src="star.png" alt="star"></span></div><span class="cp-amount"><span id="cpGrowingAmount">'+amount+'</span> <img src="star.png" alt="star"></span><img class="cp-gift" id="cpGiftIcon" src="" alt=""></div>';
+        }
 
+        // Sync client to server round state
+        function syncToRound(round) {
+            if (!crashActive) return;
+            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+
+            const now = Date.now();
+            const createdAt = new Date(round.created_at).getTime();
+
+            if (round.status === 'waiting') {
+                runCountdown(createdAt);
+            } else if (round.status === 'running') {
+                const startTime = new Date(round.start_time).getTime();
+                runGame(startTime);
+            } else if (round.status === 'crashed') {
+                showCrashed(round);
+            }
+        }
+
+        function runCountdown(createdAt) {
             const countEl = document.getElementById('crashCountdown');
             const multiEl = document.getElementById('crashMultiplier');
             multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
             document.getElementById('crashRocket').style.display = 'none';
             countEl.style.display = 'block';
+            crashRunning = false;
             setActiveHistory('Ожидание');
 
-            let count = 10;
-            function tick() {
-                if (!crashActive) return;
-                if (count <= 0) { countEl.style.display = 'none'; startGame(); return; }
-                countEl.textContent = count;
+            if (crashInterval) clearInterval(crashInterval);
+            crashInterval = setInterval(() => {
+                if (!crashActive) { clearInterval(crashInterval); return; }
+                const elapsed = (Date.now() - createdAt) / 1000;
+                const remaining = Math.ceil(COUNTDOWN_SEC - elapsed);
+                if (remaining <= 0) {
+                    countEl.style.display = 'none';
+                    clearInterval(crashInterval); crashInterval = null;
+                    // Start game — first client to see this updates DB
+                    transitionToRunning();
+                    return;
+                }
+                countEl.textContent = remaining;
                 countEl.classList.remove('pop'); void countEl.offsetWidth; countEl.classList.add('pop');
-                count--;
-                crashTimer = setTimeout(tick, 1000);
-            }
-            tick();
+            }, 200);
         }
 
-        function startGame() {
-            if (!crashActive) return;
+        async function transitionToRunning() {
+            if (!sb || !currentRoundId) return;
+            const startTime = new Date().toISOString();
+            await sb.from('crash_rounds').update({ status: 'running', start_time: startTime }).eq('id', currentRoundId).eq('status', 'waiting');
+            // The realtime subscription will trigger syncToRound with 'running'
+        }
+
+        function runGame(startTime) {
             closeBetMenu();
             const rocketEl = document.getElementById('crashRocket');
             const multiEl = document.getElementById('crashMultiplier');
-
-            // Always hide multiplier during flight - only rocket visible
             multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
 
             rocketEl.style.display = 'block';
@@ -2050,28 +2156,115 @@
                 rocketAnim = lottie.loadAnimation({ container: rocketEl, renderer: 'svg', loop: true, autoplay: true, path: 'rocket.json' });
             } else if (rocketAnim) { rocketAnim.goToAndPlay(0); }
 
-            crashMultiplier = 1.00;
-            // ALWAYS generate fresh target
-            crashTarget = 1 + Math.random() * 8;
-            crashRunning = true; didCashOut = false;
+            crashRunning = true;
 
-            if (betPlaced) { updateCashoutBtn(); } else {
+            if (betPlaced && !didCashOut) { updateCashoutBtn(); } else if (!betPlaced && !didCashOut) {
                 const btn = document.getElementById('crashBetBtn');
                 btn.innerHTML = 'Сделать ставку'; btn.classList.add('disabled'); btn.onclick = null;
             }
 
-            if (sb && currentRoundId && typeof currentRoundId === 'number' && currentRoundId > 1000000) {
-                // DB round
-                sb.from('crash_rounds').update({ status: 'running', target_multiplier: crashTarget, start_time: new Date().toISOString() }).eq('id', currentRoundId).then(() => {});
-            }
-
+            if (crashInterval) clearInterval(crashInterval);
             crashInterval = setInterval(() => {
-                if (!crashActive) { stopCrashRound(); return; }
+                if (!crashActive) { clearInterval(crashInterval); return; }
+                const elapsed = Date.now() - startTime;
+                crashMultiplier = calcMultiplier(elapsed);
+                setActiveHistory(crashMultiplier.toFixed(2) + 'x');
+                if (betPlaced && !didCashOut) { updateCashoutBtn(); updatePlayerAmount(); updateCrashGift(Math.floor(currentBet * crashMultiplier)); }
+                if (crashMultiplier >= crashTarget) {
+                    clearInterval(crashInterval); crashInterval = null;
+                    // First client to see crash updates DB
+                    triggerCrash();
+                }
+            }, TICK_MS);
+        }
+
+        async function triggerCrash() {
+            if (!sb || !currentRoundId) { showCrashedLocal(); return; }
+            await sb.from('crash_rounds').update({ status: 'crashed', crash_time: new Date().toISOString() }).eq('id', currentRoundId).eq('status', 'running');
+            // Realtime will call syncToRound → showCrashed
+        }
+
+        function showCrashed(round) {
+            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+            crashRunning = false;
+            const rocketEl = document.getElementById('crashRocket');
+            const multiEl = document.getElementById('crashMultiplier');
+            rocketEl.style.display = 'none';
+            if (rocketAnim) rocketAnim.stop();
+
+            crashMultiplier = round.target_multiplier || crashMultiplier;
+            multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
+            multiEl.classList.add('crashed');
+
+            removeActiveHistory();
+            const finalX = crashMultiplier.toFixed(2) + 'x';
+            let cls = 'past';
+            if (betPlaced) { cls = 'lost'; sb?.from('crash_bets').update({ status: 'lost' }).eq('round_id', currentRoundId).eq('user_id', myUserId).then(()=>{}); }
+            else if (didCashOut) { cls = 'won'; }
+            addHistoryItem(finalX, cls);
+            betPlaced = false; didCashOut = false; resetGiftDisplay();
+
+            // Wait 2s then start new round
+            setTimeout(async () => {
+                if (!crashActive) return;
+                resetBetState();
+                const m2 = document.getElementById('crashMultiplier');
+                m2.style.display = 'none'; m2.classList.remove('crashed');
+                await createNewRound();
+            }, 2500);
+        }
+
+        function showCrashedLocal() {
+            crashRunning = false;
+            document.getElementById('crashRocket').style.display = 'none';
+            if (rocketAnim) rocketAnim.stop();
+            const multiEl = document.getElementById('crashMultiplier');
+            multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
+            multiEl.classList.add('crashed');
+            removeActiveHistory();
+            addHistoryItem(crashMultiplier.toFixed(2) + 'x', 'past');
+            betPlaced = false; didCashOut = false; resetGiftDisplay();
+            setTimeout(() => { if (crashActive) joinCrashGame(); }, 2500);
+        }
+
+        // Fallback for no Supabase
+        function startLocalRound() {
+            resetBetState(); resetGiftDisplay();
+            crashTarget = 1 + Math.random() * 8;
+            const countEl = document.getElementById('crashCountdown');
+            const multiEl = document.getElementById('crashMultiplier');
+            multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
+            document.getElementById('crashRocket').style.display = 'none';
+            countEl.style.display = 'block';
+            setActiveHistory('Ожидание');
+            let count = 10;
+            function tick() {
+                if (!crashActive) return;
+                if (count <= 0) { countEl.style.display = 'none'; runLocalGame(); return; }
+                countEl.textContent = count;
+                countEl.classList.remove('pop'); void countEl.offsetWidth; countEl.classList.add('pop');
+                count--;
+                setTimeout(tick, 1000);
+            }
+            tick();
+        }
+
+        function runLocalGame() {
+            closeBetMenu();
+            const rocketEl = document.getElementById('crashRocket');
+            rocketEl.style.display = 'block';
+            if (!rocketAnim && typeof lottie !== 'undefined') {
+                rocketAnim = lottie.loadAnimation({ container: rocketEl, renderer: 'svg', loop: true, autoplay: true, path: 'rocket.json' });
+            } else if (rocketAnim) { rocketAnim.goToAndPlay(0); }
+            crashMultiplier = 1.00; crashRunning = true;
+            if (!betPlaced) { const btn = document.getElementById('crashBetBtn'); btn.innerHTML = 'Сделать ставку'; btn.classList.add('disabled'); btn.onclick = null; }
+            crashInterval = setInterval(() => {
+                if (!crashActive) { clearInterval(crashInterval); return; }
                 crashMultiplier += 0.01 + (crashMultiplier * 0.005);
                 setActiveHistory(crashMultiplier.toFixed(2) + 'x');
                 if (betPlaced) { updateCashoutBtn(); updatePlayerAmount(); updateCrashGift(Math.floor(currentBet * crashMultiplier)); }
-                if (crashMultiplier >= crashTarget) { crashGameEnd(); }
-            }, 80);
+                if (crashMultiplier >= crashTarget) { clearInterval(crashInterval); showCrashedLocal(); }
+            }, TICK_MS);
         }
 
         function updateCashoutBtn() {
@@ -2097,34 +2290,8 @@
             btn.innerHTML = 'Забрали '+win+' <img src="star.png" alt="star">';
             btn.classList.add('placed'); btn.onclick = null;
             betPlaced = false; didCashOut = true; cashoutInitialized = false;
-
-            if (sb && currentRoundId) sb.from('crash_bets').update({ cashout_multiplier: crashMultiplier, cashout_amount: win, status: 'won' }).eq('round_id', currentRoundId).eq('user_id', myUserId).then(() => {});
-
+            sb?.from('crash_bets').update({ cashout_multiplier: crashMultiplier, cashout_amount: win, status: 'won' }).eq('round_id', currentRoundId).eq('user_id', myUserId).then(()=>{});
             if (wonGift) { showGiftModal(wonGift, win); } else { setBalance(getBalance() + win); }
-        }
-
-        function crashGameEnd() {
-            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
-            crashRunning = false;
-            const rocketEl = document.getElementById('crashRocket');
-            const multiEl = document.getElementById('crashMultiplier');
-            rocketEl.style.display = 'none';
-            if (rocketAnim) rocketAnim.stop();
-
-            multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
-            multiEl.classList.add('crashed');
-
-            removeActiveHistory();
-            const finalX = crashMultiplier.toFixed(2) + 'x';
-            let cls = 'past';
-            if (betPlaced) { cls = 'lost'; if (sb && currentRoundId) sb.from('crash_bets').update({ status: 'lost' }).eq('round_id', currentRoundId).eq('user_id', myUserId).then(() => {}); }
-            else if (didCashOut) { cls = 'won'; }
-            addHistoryItem(finalX, cls);
-            betPlaced = false; didCashOut = false; resetGiftDisplay();
-
-            if (sb && currentRoundId) sb.from('crash_rounds').update({ status: 'crashed', crash_time: new Date().toISOString() }).eq('id', currentRoundId).then(() => {});
-
-            crashTimer = setTimeout(() => { if (!crashActive) return; startCrashRound(); }, 2000);
         }
 
         // ─── Gift System ───
