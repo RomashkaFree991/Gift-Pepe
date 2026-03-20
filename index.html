@@ -623,13 +623,14 @@
         }
 
         .crash-countdown.pop {
-            animation: countPop 0.85s ease-out forwards;
+            animation: countPop 0.9s ease-out forwards;
         }
 
         @keyframes countPop {
-            0% { opacity: 1; transform: scale(0.6); filter: blur(0px); }
-            60% { opacity: 1; transform: scale(1.1); filter: blur(0px); }
-            100% { opacity: 0; transform: scale(2.2); filter: blur(12px); }
+            0% { opacity: 0; transform: translateY(-50%) scale(0.5); filter: blur(0px); }
+            15% { opacity: 1; transform: translateY(-50%) scale(1.05); filter: blur(0px); }
+            50% { opacity: 1; transform: translateY(-50%) scale(1); filter: blur(0px); }
+            100% { opacity: 0; transform: translateY(-50%) scale(1.8); filter: blur(10px); }
         }
 
         .crash-multiplier {
@@ -1988,10 +1989,16 @@
         async function joinCrashGame() {
             if (!sb) { startLocalRound(); return; }
 
-            // Load history from past rounds
+            // Clean up any old stale rounds (>30s waiting or >120s running)
+            const cutoff30 = new Date(Date.now() - 30000).toISOString();
+            const cutoff120 = new Date(Date.now() - 120000).toISOString();
+            await sb.from('crash_rounds').update({ status: 'crashed', target_multiplier: 1.00 }).eq('status', 'waiting').lt('created_at', cutoff30);
+            await sb.from('crash_rounds').update({ status: 'crashed' }).eq('status', 'running').lt('created_at', cutoff120);
+
+            // Load history
             await loadRoundHistory();
 
-            // Find active round (not crashed)
+            // Find active round
             const { data: active } = await sb.from('crash_rounds')
                 .select('*').in('status', ['waiting', 'running'])
                 .order('created_at', { ascending: false }).limit(1).single();
@@ -2112,6 +2119,8 @@
             }
         }
 
+        let lastCountdownNum = -1;
+
         function runCountdown(createdAt) {
             const countEl = document.getElementById('crashCountdown');
             const multiEl = document.getElementById('crashMultiplier');
@@ -2119,23 +2128,31 @@
             document.getElementById('crashRocket').style.display = 'none';
             countEl.style.display = 'block';
             crashRunning = false;
+            lastCountdownNum = -1;
             setActiveHistory('Ожидание');
 
             if (crashInterval) clearInterval(crashInterval);
             crashInterval = setInterval(() => {
                 if (!crashActive) { clearInterval(crashInterval); return; }
                 const elapsed = (Date.now() - createdAt) / 1000;
-                const remaining = Math.ceil(COUNTDOWN_SEC - elapsed);
+                const remaining = Math.floor(COUNTDOWN_SEC - elapsed);
                 if (remaining <= 0) {
                     countEl.style.display = 'none';
                     clearInterval(crashInterval); crashInterval = null;
-                    // Start game — first client to see this updates DB
+                    lastCountdownNum = -1;
                     transitionToRunning();
                     return;
                 }
-                countEl.textContent = remaining;
-                countEl.classList.remove('pop'); void countEl.offsetWidth; countEl.classList.add('pop');
-            }, 200);
+                // Only animate when number actually changes
+                const display = Math.min(remaining, 10);
+                if (display !== lastCountdownNum) {
+                    lastCountdownNum = display;
+                    countEl.textContent = display;
+                    countEl.classList.remove('pop');
+                    void countEl.offsetWidth;
+                    countEl.classList.add('pop');
+                }
+            }, 100);
         }
 
         async function transitionToRunning() {
@@ -2204,7 +2221,10 @@
             addHistoryItem(finalX, cls);
             betPlaced = false; didCashOut = false; resetGiftDisplay();
 
-            // Wait 2s then start new round
+            // Cleanup old subscriptions
+            if (roundSub && sb) { sb.removeChannel(roundSub); roundSub = null; }
+            if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
+
             setTimeout(async () => {
                 if (!crashActive) return;
                 resetBetState();
