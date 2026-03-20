@@ -184,7 +184,10 @@
             justify-content: space-evenly;
         }
 
-        .nav-indicator { display: none; }
+        /* Скользящий индикатор - removed */
+        .nav-indicator {
+            display: none;
+        }
 
         .nav-item {
             display: flex;
@@ -305,6 +308,7 @@
             color: rgba(100, 170, 255, 0.85);
         }
 
+        /* ─ Avatar wrapper with gear ─ */
         .avatar-wrapper {
             position: relative;
             width: 96px;
@@ -334,6 +338,7 @@
             pointer-events: auto;
         }
 
+        /* ─ Invite button ─ */
         .invite-btn {
             width: 100%;
             margin-top: 12px;
@@ -351,7 +356,9 @@
             transition: transform 0.15s ease;
         }
 
-        .invite-btn:active { transform: scale(0.98); }
+        .invite-btn:active {
+            transform: scale(0.98);
+        }
 
         .invite-btn-text {
             display: flex;
@@ -411,8 +418,17 @@
             margin-bottom: 16px;
         }
 
-        .ref-back svg { width: 20px; height: 20px; pointer-events: auto; }
-        .ref-back span { font-size: 15px; font-weight: 500; color: rgba(255, 255, 255, 0.7); }
+        .ref-back svg {
+            width: 20px;
+            height: 20px;
+            pointer-events: auto;
+        }
+
+        .ref-back span {
+            font-size: 15px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+        }
 
         .ref-stats {
             width: 100%;
@@ -435,9 +451,25 @@
             gap: 4px;
         }
 
-        .ref-stat-card .label { font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.45); }
-        .ref-stat-card .value { font-size: 22px; font-weight: 700; color: rgba(255, 255, 255, 0.95); display: flex; align-items: center; gap: 6px; }
-        .ref-stat-card .value img { width: 18px; height: 18px; }
+        .ref-stat-card .label {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .ref-stat-card .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ref-stat-card .value img {
+            width: 18px;
+            height: 18px;
+        }
 
         .ref-link-card {
             width: 100%;
@@ -452,9 +484,18 @@
             gap: 12px;
         }
 
-        .ref-link-card .card-title { font-size: 13px; font-weight: 700; color: rgba(255, 255, 255, 0.5); letter-spacing: 0.5px; }
+        .ref-link-card .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.5px;
+        }
 
-        .ref-link-row { display: flex; gap: 8px; align-items: center; }
+        .ref-link-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
 
         .ref-link-input {
             flex: 1;
@@ -485,9 +526,19 @@
             transition: background 0.2s ease;
         }
 
-        .ref-copy-icon { background: rgba(0, 122, 255, 0.3); }
-        .ref-copy-icon:active { background: rgba(0, 122, 255, 0.5); }
-        .ref-action-btn svg { width: 18px; height: 18px; pointer-events: auto; }
+        .ref-copy-icon {
+            background: rgba(0, 122, 255, 0.3);
+        }
+
+        .ref-copy-icon:active {
+            background: rgba(0, 122, 255, 0.5);
+        }
+
+        .ref-action-btn svg {
+            width: 18px;
+            height: 18px;
+            pointer-events: auto;
+        }
 
         .ref-copy-btn {
             width: 100%;
@@ -504,7 +555,9 @@
             transition: background 0.15s ease;
         }
 
-        .ref-copy-btn:active { background: #006ae6; }
+        .ref-copy-btn:active {
+            background: #006ae6;
+        }
 
         /* ─── Crash Game Page ─── */
         .crash-page {
@@ -526,8 +579,17 @@
             z-index: 10;
         }
 
-        .crash-back svg { width: 20px; height: 20px; pointer-events: auto; }
-        .crash-back span { font-size: 15px; font-weight: 500; color: rgba(255, 255, 255, 0.7); }
+        .crash-back svg {
+            width: 20px;
+            height: 20px;
+            pointer-events: auto;
+        }
+
+        .crash-back span {
+            font-size: 15px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+        }
 
         .crash-top {
             width: 100%;
@@ -556,6 +618,8 @@
             z-index: 5;
             opacity: 0;
             pointer-events: none;
+            top: 55%;
+            transform: translateY(-50%);
         }
 
         .crash-countdown.pop {
@@ -575,22 +639,17 @@
             position: absolute;
             z-index: 5;
             display: none;
-            transition: color 0.15s ease;
         }
 
-        /* Crashed state — красные цифры с эффектом */
         .crash-multiplier.crashed {
             display: block !important;
-            color: #ff3b30 !important;
-            animation: crashExplosion 0.5s ease-out forwards;
-            text-shadow: 0 0 30px rgba(255, 59, 48, 0.6), 0 0 60px rgba(255, 59, 48, 0.3);
+            color: #ff3b30;
+            animation: crashFlash 0.3s ease;
         }
 
-        @keyframes crashExplosion {
-            0% { transform: scale(1.6); opacity: 0.7; }
-            40% { transform: scale(0.95); opacity: 1; }
-            70% { transform: scale(1.08); }
-            100% { transform: scale(1); opacity: 1; }
+        @keyframes crashFlash {
+            0% { transform: scale(1.3); }
+            100% { transform: scale(1); }
         }
 
         .crash-lottie {
@@ -599,12 +658,6 @@
             position: absolute;
             z-index: 4;
             display: none;
-            transition: opacity 0.2s ease, transform 0.3s ease;
-        }
-
-        .crash-lottie.hiding {
-            opacity: 0;
-            transform: scale(0.3) translateY(40px);
         }
 
         .crash-gift {
@@ -643,7 +696,10 @@
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
 
-        .gift-modal-overlay.show { opacity: 1; visibility: visible; }
+        .gift-modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
 
         .gift-modal-box {
             display: flex;
@@ -654,7 +710,9 @@
             transition: transform 0.3s ease;
         }
 
-        .gift-modal-overlay.show .gift-modal-box { transform: scale(1); }
+        .gift-modal-overlay.show .gift-modal-box {
+            transform: scale(1);
+        }
 
         .gift-modal-img {
             width: 160px;
@@ -663,9 +721,18 @@
             filter: drop-shadow(0 0 20px rgba(255,255,255,0.15));
         }
 
-        .gift-modal-name { font-size: 18px; font-weight: 700; color: #fff; text-align: center; }
+        .gift-modal-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            text-align: center;
+        }
 
-        .gift-modal-btns { display: flex; gap: 10px; width: 280px; }
+        .gift-modal-btns {
+            display: flex;
+            gap: 10px;
+            width: 280px;
+        }
 
         .gift-modal-btn {
             flex: 1;
@@ -683,9 +750,20 @@
             gap: 5px;
         }
 
-        .gift-modal-btn img { width: 16px; height: 16px; }
-        .gift-modal-btn.sell { background: #007AFF; color: #fff; }
-        .gift-modal-btn.take { background: rgba(255, 255, 255, 0.1); color: #fff; }
+        .gift-modal-btn img {
+            width: 16px;
+            height: 16px;
+        }
+
+        .gift-modal-btn.sell {
+            background: #007AFF;
+            color: #fff;
+        }
+
+        .gift-modal-btn.take {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
 
         /* ─── Inventory Items ─── */
         .inventory-grid {
@@ -707,7 +785,11 @@
             gap: 8px;
         }
 
-        .inventory-item img.inv-img { width: 70px; height: 70px; object-fit: contain; }
+        .inventory-item img.inv-img {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+        }
 
         .inventory-item .inv-name {
             font-size: 11px;
@@ -720,7 +802,12 @@
             max-width: 100%;
         }
 
-        .inv-btns { width: 100%; display: flex; flex-direction: column; gap: 4px; }
+        .inv-btns {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
 
         .inv-btn {
             width: 100%;
@@ -738,11 +825,21 @@
             gap: 4px;
         }
 
-        .inv-btn img { width: 13px; height: 13px; }
-        .inv-btn.sell { background: #007AFF; color: #fff; }
-        .inv-btn.withdraw { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.5); }
+        .inv-btn img {
+            width: 13px;
+            height: 13px;
+        }
 
-        /* ─── Crash History — белый текст, синяя пилюля ─── */
+        .inv-btn.sell {
+            background: #007AFF;
+            color: #fff;
+        }
+
+        .inv-btn.withdraw {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.5);
+        }
+
         .crash-history {
             position: absolute;
             bottom: 85px;
@@ -760,10 +857,10 @@
             border-radius: 8px;
             font-size: 12px;
             font-weight: 700;
+            background: rgba(255, 255, 255, 0.15);
             color: #fff;
             flex-shrink: 0;
             white-space: nowrap;
-            background: #007AFF;
         }
 
         .crash-history-item.active {
@@ -772,7 +869,7 @@
         }
 
         .crash-history-item.past {
-            background: #007AFF;
+            background: rgba(255, 255, 255, 0.15);
             color: #fff;
         }
 
@@ -813,10 +910,25 @@
             gap: 6px;
         }
 
-        .crash-bet-btn:active { background: #006ae6; }
-        .crash-bet-btn.placed { background: rgba(35, 35, 40, 0.7); pointer-events: none; }
-        .crash-bet-btn.disabled { background: rgba(0, 122, 255, 0.25); color: rgba(255, 255, 255, 0.35); pointer-events: none; }
-        .crash-bet-btn img { width: 20px; height: 20px; }
+        .crash-bet-btn:active {
+            background: #006ae6;
+        }
+
+        .crash-bet-btn.placed {
+            background: rgba(35, 35, 40, 0.7);
+            pointer-events: none;
+        }
+
+        .crash-bet-btn.disabled {
+            background: rgba(0, 122, 255, 0.25);
+            color: rgba(255, 255, 255, 0.35);
+            pointer-events: none;
+        }
+
+        .crash-bet-btn img {
+            width: 20px;
+            height: 20px;
+        }
 
         /* ─ Waiting card players ─ */
         .crash-waiting-players {
@@ -835,7 +947,13 @@
             border-radius: 14px;
         }
 
-        .crash-player-row .cp-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .crash-player-row .cp-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
 
         .crash-player-row .cp-avatar-placeholder {
             width: 38px;
@@ -851,14 +969,55 @@
             flex-shrink: 0;
         }
 
-        .crash-player-row .cp-name { flex: 1; display: flex; flex-direction: column; gap: 1px; }
-        .crash-player-row .cp-name-text { font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
-        .crash-player-row .cp-original-bet { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, 0.35); display: flex; align-items: center; gap: 3px; }
-        .crash-player-row .cp-original-bet img { width: 12px; height: 12px; }
-        .crash-player-row .cp-amount { display: flex; align-items: center; gap: 5px; font-size: 15px; font-weight: 700; color: #fff; }
-        .crash-player-row .cp-amount img { width: 18px; height: 18px; }
+        .crash-player-row .cp-name {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
 
-        .crash-player-row.cashed-out .cp-amount { color: #34c759; }
+        .crash-player-row .cp-name-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .crash-player-row .cp-original-bet {
+            font-size: 11px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.35);
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .crash-player-row .cp-original-bet img {
+            width: 12px;
+            height: 12px;
+        }
+
+        .crash-player-row .cp-amount {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .crash-player-row .cp-amount img {
+            width: 18px;
+            height: 18px;
+        }
+
+        .crash-player-row .cp-gift {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+            flex-shrink: 0;
+            display: none;
+            animation: giftPop 0.3s ease-out;
+        }
 
         .crash-bottom {
             width: 100%;
@@ -872,8 +1031,6 @@
 
         .crash-waiting-card {
             width: 100%;
-            max-height: 100%;
-            overflow-y: auto;
             background: rgba(35, 35, 40, 0.55);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
@@ -881,7 +1038,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
+            justify-content: center;
         }
 
         .crash-waiting-text {
@@ -902,7 +1059,9 @@
             transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
-        .bet-menu.show { transform: translateY(0); }
+        .bet-menu.show {
+            transform: translateY(0);
+        }
 
         .bet-menu-overlay {
             position: fixed;
@@ -914,7 +1073,10 @@
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
 
-        .bet-menu-overlay.show { opacity: 1; visibility: visible; }
+        .bet-menu-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
 
         .bet-menu-box {
             background-color: #1a1a2e;
@@ -929,7 +1091,12 @@
             gap: 18px;
         }
 
-        .bet-menu-header { display: flex; align-items: center; justify-content: center; position: relative; }
+        .bet-menu-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
 
         .bet-menu-title {
             background: rgba(35, 35, 40, 0.55);
@@ -956,9 +1123,19 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        .bet-menu-close svg { width: 18px; height: 18px; pointer-events: auto; }
+        .bet-menu-close svg {
+            width: 18px;
+            height: 18px;
+            pointer-events: auto;
+        }
 
-        .bet-input-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 16px; }
+        .bet-input-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 16px;
+        }
 
         .bet-input {
             background: none;
@@ -975,8 +1152,15 @@
             text-align: center;
         }
 
-        .bet-input::placeholder { color: rgba(255, 255, 255, 0.2); }
-        .bet-input-star { width: 30px; height: 30px; flex-shrink: 0; }
+        .bet-input::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .bet-input-star {
+            width: 30px;
+            height: 30px;
+            flex-shrink: 0;
+        }
 
         .bet-submit-btn {
             width: 100%;
@@ -992,7 +1176,9 @@
             font-family: inherit;
         }
 
-        .bet-submit-btn:active { background: #006ae6; }
+        .bet-submit-btn:active {
+            background: #006ae6;
+        }
 
         /* ─── Topup Menu ─── */
         .topup-overlay {
@@ -1005,7 +1191,10 @@
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
 
-        .topup-overlay.show { opacity: 1; visibility: visible; }
+        .topup-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
 
         .topup-menu {
             position: fixed;
@@ -1017,7 +1206,9 @@
             transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
-        .topup-menu.show { transform: translateY(0); }
+        .topup-menu.show {
+            transform: translateY(0);
+        }
 
         .topup-box {
             background-color: #1a1a2e;
@@ -1033,7 +1224,12 @@
             gap: 18px;
         }
 
-        .topup-header { display: flex; align-items: center; justify-content: center; position: relative; }
+        .topup-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
 
         .topup-title {
             background: rgba(35, 35, 40, 0.55);
@@ -1060,9 +1256,17 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        .topup-close svg { width: 18px; height: 18px; pointer-events: auto; }
+        .topup-close svg {
+            width: 18px;
+            height: 18px;
+            pointer-events: auto;
+        }
 
-        .topup-grid { display: flex; flex-direction: column; gap: 10px; }
+        .topup-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
 
         .topup-item {
             width: 100%;
@@ -1079,9 +1283,20 @@
             transition: background 0.15s ease;
         }
 
-        .topup-item:active { background: rgba(0, 122, 255, 0.2); }
-        .topup-item img { width: 22px; height: 22px; }
-        .topup-item span { font-size: 18px; font-weight: 700; color: #fff; }
+        .topup-item:active {
+            background: rgba(0, 122, 255, 0.2);
+        }
+
+        .topup-item img {
+            width: 22px;
+            height: 22px;
+        }
+
+        .topup-item span {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+        }
 
         /* ─── Settings Modal ─── */
         .modal-overlay {
@@ -1097,7 +1312,10 @@
             transition: opacity 0.25s ease, visibility 0.25s ease;
         }
 
-        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
 
         .modal-box {
             width: 320px;
@@ -1114,7 +1332,9 @@
             transition: transform 0.25s ease;
         }
 
-        .modal-overlay.show .modal-box { transform: scale(1); }
+        .modal-overlay.show .modal-box {
+            transform: scale(1);
+        }
 
         .modal-row {
             width: 100%;
@@ -1128,9 +1348,21 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        .modal-row span { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.85); }
-        .modal-row .row-arrow { font-size: 16px; color: rgba(255,255,255,0.3); transition: transform 0.25s ease; }
-        .modal-row.open .row-arrow { transform: rotate(90deg); }
+        .modal-row span {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.85);
+        }
+
+        .modal-row .row-arrow {
+            font-size: 16px;
+            color: rgba(255,255,255,0.3);
+            transition: transform 0.25s ease;
+        }
+
+        .modal-row.open .row-arrow {
+            transform: rotate(90deg);
+        }
 
         .lang-options {
             display: flex;
@@ -1141,7 +1373,10 @@
             margin-top: 0;
         }
 
-        .lang-options.show { max-height: 50px; margin-top: 8px; }
+        .lang-options.show {
+            max-height: 50px;
+            margin-top: 8px;
+        }
 
         .lang-pill {
             flex: 1;
@@ -1194,12 +1429,32 @@
             padding: 28px 20px 32px;
         }
 
-        .gifts-lottie { width: 140px; height: 140px; }
+        .gifts-lottie {
+            width: 140px;
+            height: 140px;
+        }
 
-        .gifts-title { margin-top: 14px; font-size: 16px; font-weight: 600; color: rgba(255, 255, 255, 0.92); text-align: center; }
+        .gifts-title {
+            margin-top: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.92);
+            text-align: center;
+        }
 
-        .gifts-desc { margin-top: 6px; font-size: 13px; font-weight: 400; color: rgba(255, 255, 255, 0.4); text-align: center; line-height: 1.4; }
-        .gifts-desc a { color: rgba(100, 170, 255, 0.85); text-decoration: none; }
+        .gifts-desc {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.4);
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        .gifts-desc a {
+            color: rgba(100, 170, 255, 0.85);
+            text-decoration: none;
+        }
 
         /* ─── Games Page ─── */
         .games-page {
@@ -1228,9 +1483,19 @@
             display: flex;
         }
 
-        .game-banner:active { transform: scale(0.98); }
-        .game-banner img { width: 100%; display: block; border-radius: 20px; vertical-align: top; height: auto; }
+        .game-banner:active {
+            transform: scale(0.98);
+        }
 
+        .game-banner img {
+            width: 100%;
+            display: block;
+            border-radius: 20px;
+            vertical-align: top;
+            height: auto;
+        }
+
+        /* ─── Section Titles ─── */
         .section-title {
             width: 100%;
             font-size: 17px;
@@ -1240,6 +1505,7 @@
             text-align: left;
         }
 
+        /* ─── Ad Banner ─── */
         .ad-banner {
             width: 100%;
             aspect-ratio: 2048 / 555;
@@ -1255,8 +1521,18 @@
             flex-shrink: 0;
         }
 
-        .ad-banner:active { transform: scale(0.98); }
-        .ad-banner img { width: 100%; height: 100%; display: block; border-radius: 16px; vertical-align: top; object-fit: cover; }
+        .ad-banner:active {
+            transform: scale(0.98);
+        }
+
+        .ad-banner img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 16px;
+            vertical-align: top;
+            object-fit: cover;
+        }
     </style>
 </head>
 <body>
@@ -1268,10 +1544,13 @@
 
     <!-- Top Bar -->
     <div class="top-bar">
+        <!-- Left pill: avatar + nickname -->
         <div class="pill pill-user">
             <img class="avatar" id="userAvatar" src="" alt="">
             <span class="username" id="userName">User</span>
         </div>
+
+        <!-- Right pill: star + balance + plus -->
         <div class="pill pill-stars">
             <img class="star-icon" src="star.png" alt="Stars">
             <span class="star-balance">0</span>
@@ -1303,6 +1582,7 @@
         </div>
     </div>
     <div class="tab-page profile-page" id="page-profile">
+        <!-- User card -->
         <div class="section-title">Профиль</div>
         <div class="profile-card">
             <div class="avatar-wrapper">
@@ -1318,6 +1598,8 @@
             <div class="profile-name" id="profileName">User</div>
             <div class="profile-username" id="profileUsername">@username</div>
         </div>
+
+        <!-- Invite button -->
         <div class="invite-btn" onclick="showReferralPage()">
             <div class="invite-btn-text">
                 <span class="main">ПРИГЛАСИТЬ ДРУГА</span>
@@ -1329,6 +1611,8 @@
                 </svg>
             </div>
         </div>
+
+        <!-- Gifts card -->
         <div class="section-title" style="margin-top: 20px;">Инвентарь</div>
         <div class="gifts-card" id="emptyInventory">
             <div class="gifts-lottie" id="giftsLottie"></div>
@@ -1346,6 +1630,7 @@
             </svg>
             <span>Назад</span>
         </div>
+
         <div class="ref-stats">
             <div class="ref-stat-card">
                 <span class="label">Рефералы</span>
@@ -1356,6 +1641,7 @@
                 <span class="value">0 <img src="star.png" alt="star"></span>
             </div>
         </div>
+
         <div class="ref-link-card">
             <span class="card-title">РЕФЕРАЛЬНАЯ СИСТЕМА</span>
             <span style="font-size:12px;color:rgba(255,255,255,0.4);line-height:1.4;">За каждого приглашённого друга вы получаете 10% от его пополнений</span>
@@ -1477,14 +1763,17 @@
     <nav class="bottom-nav">
         <div class="nav-items" id="navItems">
             <div class="nav-indicator" id="navIndicator"></div>
+
             <div class="nav-item" data-index="0" onclick="switchTab(this)">
                 <img src="trophy.svg" alt="Топ">
                 <span>Топ</span>
             </div>
+
             <div class="nav-item active" data-index="1" onclick="switchTab(this)">
                 <img src="game.svg" alt="Игры">
                 <span>Игры</span>
             </div>
+
             <div class="nav-item" data-index="2" onclick="switchTab(this)">
                 <img src="user.svg" alt="Профиль">
                 <span>Профиль</span>
@@ -1493,9 +1782,7 @@
     </nav>
 
     <script>
-        // ═══════════════════════════════════════════════════════
-        // Supabase
-        // ═══════════════════════════════════════════════════════
+        // ─── Supabase ───
         const SUPA_URL = 'https://wqxanxqxewodbgctgfcm.supabase.co';
         const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxeGFueHF4ZXdvZGJnY3RnZmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDY4NTksImV4cCI6MjA4OTUyMjg1OX0.B8DLPsTDfLfyvyF5g_dhg2RgyQezALRpSMjU1IjNr_Q';
         const sb = window.supabase ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
@@ -1504,23 +1791,17 @@
         let myName = 'User';
         let myPhoto = '';
 
-        // ═══════════════════════════════════════════════════════
-        // Prevent long-press
-        // ═══════════════════════════════════════════════════════
+        // ─── Prevent long-press ───
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.addEventListener('dragstart', e => e.preventDefault());
 
-        // ═══════════════════════════════════════════════════════
-        // Loading Screen
-        // ═══════════════════════════════════════════════════════
+        // ─── Loading Screen ───
         setTimeout(() => {
             const loader = document.getElementById('loadingScreen');
             if (loader) { loader.classList.add('hide'); setTimeout(() => loader.remove(), 400); }
         }, 1500);
 
-        // ═══════════════════════════════════════════════════════
-        // Telegram Web App Init
-        // ═══════════════════════════════════════════════════════
+        // ─── Telegram Web App ───
         const tg = window.Telegram?.WebApp;
         if (tg) {
             tg.ready();
@@ -1557,35 +1838,21 @@
 
                 document.getElementById('refLinkInput').value = 'https://t.me/GiftPepeBot?start=ref_' + user.id;
 
-                // Load user from DB
+                // Load from DB
                 initDB(user);
             }
         }
 
-        // ═══════════════════════════════════════════════════════
-        // Database Functions
-        // ═══════════════════════════════════════════════════════
+        // ─── DB Functions ───
         async function initDB(user) {
             if (!sb || !user?.id) return;
             try {
                 const { data } = await sb.from('users').select('*').eq('telegram_id', user.id).single();
                 if (data) {
-                    // Update profile info
-                    await sb.from('users').update({
-                        first_name: user.first_name || '',
-                        username: user.username || '',
-                        photo_url: user.photo_url || ''
-                    }).eq('telegram_id', user.id);
+                    await sb.from('users').update({ first_name: user.first_name||'', username: user.username||'', photo_url: user.photo_url||'' }).eq('telegram_id', user.id);
                     setBalance(data.balance || 0);
                 } else {
-                    // Create new user
-                    await sb.from('users').insert({
-                        telegram_id: user.id,
-                        first_name: user.first_name || '',
-                        username: user.username || '',
-                        photo_url: user.photo_url || '',
-                        balance: 0
-                    });
+                    await sb.from('users').insert({ telegram_id: user.id, first_name: user.first_name||'', username: user.username||'', photo_url: user.photo_url||'', balance: 0 });
                 }
                 // Load inventory
                 const { data: inv } = await sb.from('inventory').select('*').eq('user_id', user.id);
@@ -1605,23 +1872,19 @@
 
         async function dbSaveInvItem(item) {
             if (!sb || !myUserId) return;
-            const { data } = await sb.from('inventory').insert({
-                user_id: myUserId,
-                gift_name: item.name,
-                gift_img: item.img,
-                gift_price: item.price
-            }).select().single();
+            const { data } = await sb.from('inventory').insert({ user_id: myUserId, gift_name: item.name, gift_img: item.img, gift_price: item.price }).select().single();
             if (data) item.id = data.id;
         }
 
-        async function dbRemoveInvItem(id) {
-            if (sb && id) await sb.from('inventory').delete().eq('id', id);
-        }
+        async function dbRemoveInvItem(id) { if (sb && id) await sb.from('inventory').delete().eq('id', id); }
 
-        // ═══════════════════════════════════════════════════════
-        // Navigation
-        // ═══════════════════════════════════════════════════════
+        // ─── Navigation ───
+        const navItems = document.getElementById('navItems');
         const pages = ['page-top', 'page-games', 'page-profile'];
+
+        function positionIndicator(item) {
+            // no indicator needed anymore
+        }
 
         function switchTab(el) {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -1632,16 +1895,12 @@
             document.getElementById(pages[idx]).classList.add('active');
         }
 
-        // ═══════════════════════════════════════════════════════
-        // Lottie
-        // ═══════════════════════════════════════════════════════
+        // ─── Lottie ───
         if (typeof lottie !== 'undefined') {
             lottie.loadAnimation({ container: document.getElementById('giftsLottie'), renderer: 'svg', loop: true, autoplay: true, path: 'PlushPepe%28blue%29.json' });
         }
 
-        // ═══════════════════════════════════════════════════════
-        // CRASH GAME — Realtime Multiplayer
-        // ═══════════════════════════════════════════════════════
+        // ─── Crash Game ───
         let crashInterval = null, crashTimer = null;
         let crashMultiplier = 1.00, crashTarget = 0;
         let crashRunning = false, crashActive = false;
@@ -1649,18 +1908,7 @@
         let cashoutInitialized = false;
         let rocketAnim = null;
         let currentRoundId = null;
-        let isHost = false;
-        let roundChannel = null;
-        let betsChannel = null;
-        let gameStartTime = 0;
-
-        // Deterministic multiplier from elapsed time
-        // Recurrence: m(n+1) = m(n) * 1.005 + 0.01, m(0) = 1
-        // Solution: m(n) = 3 * 1.005^n - 2
-        function getMultiplierAt(elapsedMs) {
-            const ticks = elapsedMs / 80;
-            return 3 * Math.pow(1.005, ticks) - 2;
-        }
+        let betsSub = null;
 
         function openGame(name) {
             if (name === 'crash') {
@@ -1669,19 +1917,17 @@
                 document.getElementById('page-crash').classList.add('active');
                 crashActive = true;
                 generateStars();
-                setTimeout(() => joinOrCreateRound(), 300);
+                setTimeout(() => startCrashRound(), 300);
             }
         }
 
         function closeCrash() {
-            crashActive = false;
-            stopCrashRound();
-            resetBetState();
-            resetGiftDisplay();
-            leaveRoundChannels();
+            crashActive = false; stopCrashRound(); resetBetState(); resetGiftDisplay();
             const m = document.getElementById('crashMultiplier');
-            m.style.display = 'none'; m.classList.remove('crashed');
+            m.style.display = 'none'; m.classList.remove('crashed'); m.textContent = '';
             document.getElementById('crashRocket').style.display = 'none';
+            document.getElementById('crashCountdown').style.display = 'none';
+            if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
             document.getElementById('page-crash').classList.remove('active');
             document.getElementById('page-games').classList.add('active');
         }
@@ -1701,7 +1947,6 @@
             }
         }
 
-        // ─── History ───
         function addHistoryItem(text, cls) {
             const h = document.getElementById('crashHistory');
             const el = document.createElement('div');
@@ -1713,19 +1958,11 @@
 
         function setActiveHistory(text) {
             let a = document.querySelector('.crash-history-item.active');
-            if (!a) {
-                const h = document.getElementById('crashHistory');
-                a = document.createElement('div');
-                a.className = 'crash-history-item active';
-                h.insertBefore(a, h.firstChild);
-            }
+            if (!a) { const h = document.getElementById('crashHistory'); a = document.createElement('div'); a.className = 'crash-history-item active'; h.insertBefore(a, h.firstChild); }
             a.textContent = text;
         }
 
-        function removeActiveHistory() {
-            const a = document.querySelector('.crash-history-item.active');
-            if (a) a.remove();
-        }
+        function removeActiveHistory() { const a = document.querySelector('.crash-history-item.active'); if (a) a.remove(); }
 
         function stopCrashRound() {
             if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
@@ -1743,397 +1980,100 @@
             document.getElementById('crashWaitingText').style.display = '';
         }
 
-        function leaveRoundChannels() {
-            if (roundChannel) { sb.removeChannel(roundChannel); roundChannel = null; }
-            if (betsChannel) { sb.removeChannel(betsChannel); betsChannel = null; }
-            isHost = false;
-        }
-
-        // ─── Join or Create a Round ───
-        async function joinOrCreateRound() {
-            if (!crashActive) return;
-            stopCrashRound(); resetBetState(); resetGiftDisplay();
-            leaveRoundChannels();
-
-            if (!sb) {
-                // Fallback: local solo mode
-                isHost = true;
-                await createNewRound();
-                return;
-            }
-
-            // Check for an active round
-            const { data: activeRound } = await sb.from('crash_rounds')
-                .select('*')
-                .in('status', ['waiting', 'countdown', 'running'])
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (activeRound) {
-                // Join existing round
-                currentRoundId = activeRound.id;
-                crashTarget = activeRound.target_multiplier;
-                isHost = false;
-                subscribeToRound();
-                subscribeToBets();
-                await loadExistingBets();
-
-                // Sync to current state
-                if (activeRound.status === 'countdown' && activeRound.countdown_start) {
-                    syncCountdown(new Date(activeRound.countdown_start).getTime());
-                } else if (activeRound.status === 'running' && activeRound.game_start) {
-                    syncRunningGame(new Date(activeRound.game_start).getTime());
-                }
-            } else {
-                // No active round — become host and create one
-                isHost = true;
-                await createNewRound();
-            }
-        }
-
-        async function createNewRound() {
-            crashTarget = 1.01 + Math.random() * 8;
-
-            if (sb) {
-                try {
-                    const { data } = await sb.from('crash_rounds').insert({
-                        target_multiplier: crashTarget,
-                        status: 'countdown',
-                        countdown_start: new Date().toISOString()
-                    }).select().single();
-                    if (data) currentRoundId = data.id;
-                } catch(e) { currentRoundId = 'local_' + Date.now(); }
-            } else {
-                currentRoundId = 'local_' + Date.now();
-            }
-
-            subscribeToRound();
-            subscribeToBets();
-            startCountdown(Date.now());
-        }
-
-        // ─── Realtime Subscriptions ───
-        function subscribeToRound() {
-            if (!sb || !currentRoundId) return;
-            roundChannel = sb.channel('round-' + currentRoundId)
-                .on('postgres_changes', {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'crash_rounds',
-                    filter: 'id=eq.' + currentRoundId
-                }, payload => {
-                    const round = payload.new;
-                    if (isHost) return; // Host drives the game, doesn't react
-
-                    if (round.status === 'running' && !crashRunning && round.game_start) {
-                        syncRunningGame(new Date(round.game_start).getTime());
-                    } else if (round.status === 'crashed') {
-                        crashTarget = round.final_multiplier || round.target_multiplier;
-                        crashMultiplier = crashTarget;
-                        crashGameEnd();
-                    }
-                })
-                .subscribe();
+        // ─── Realtime Round ───
+        async function createRound() {
+            currentRoundId = Date.now();
+            if (!sb) return;
+            try {
+                const { data } = await sb.from('crash_rounds').insert({ target_multiplier: 0, status: 'waiting' }).select().single();
+                if (data) currentRoundId = data.id;
+            } catch(e) {}
         }
 
         function subscribeToBets() {
             if (!sb || !currentRoundId) return;
-            betsChannel = sb.channel('bets-' + currentRoundId)
-                .on('postgres_changes', {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'crash_bets',
-                    filter: 'round_id=eq.' + currentRoundId
-                }, payload => {
+            if (betsSub) sb.removeChannel(betsSub);
+            betsSub = sb.channel('crash-bets-' + currentRoundId)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crash_bets', filter: 'round_id=eq.' + currentRoundId }, payload => {
                     const bet = payload.new;
                     if (bet.user_id === myUserId) return;
-                    addPlayerToWaiting(bet.user_name || 'Player', bet.user_photo || '', bet.amount, bet.user_id);
-                })
-                .on('postgres_changes', {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'crash_bets',
-                    filter: 'round_id=eq.' + currentRoundId
-                }, payload => {
-                    const bet = payload.new;
-                    if (bet.user_id === myUserId) return;
-                    if (bet.status === 'won') {
-                        markPlayerCashedOut(bet.user_id, bet.cashout_amount);
-                    }
+                    addPlayerToWaiting(bet.user_name || 'Player', bet.user_photo || '', bet.amount);
                 })
                 .subscribe();
         }
 
-        async function loadExistingBets() {
-            if (!sb || !currentRoundId) return;
-            const { data: bets } = await sb.from('crash_bets')
-                .select('*')
-                .eq('round_id', currentRoundId);
-            if (bets && bets.length > 0) {
-                document.getElementById('crashWaitingText').style.display = 'none';
-                bets.forEach(bet => {
-                    if (bet.user_id === myUserId) {
-                        // Restore own bet
-                        currentBet = bet.amount;
-                        betPlaced = bet.status === 'pending';
-                        if (bet.status === 'won') didCashOut = true;
-                    }
-                    addPlayerToWaiting(
-                        bet.user_id === myUserId ? 'Вы' : (bet.user_name || 'Player'),
-                        bet.user_photo || '',
-                        bet.amount,
-                        bet.user_id
-                    );
-                    if (bet.status === 'won') {
-                        markPlayerCashedOut(bet.user_id, bet.cashout_amount);
-                    }
-                });
-                if (betPlaced) {
-                    const btn = document.getElementById('crashBetBtn');
-                    btn.innerHTML = 'Ставка сделана'; btn.classList.add('placed'); btn.onclick = null;
-                }
-            }
-        }
-
-        function addPlayerToWaiting(name, photo, amount, odUserId) {
+        function addPlayerToWaiting(name, photo, amount) {
             document.getElementById('crashWaitingText').style.display = 'none';
             const players = document.getElementById('crashPlayers');
-            // Check if already exists
-            if (players.querySelector('[data-uid="'+odUserId+'"]')) return;
-            const av = photo ? '<img class="cp-avatar" src="'+photo+'" alt="">' : '<div class="cp-avatar-placeholder">'+(name[0]||'?')+'</div>';
+            const av = photo ? '<img class="cp-avatar" src="'+photo+'" alt="">' : '<div class="cp-avatar-placeholder">'+name[0]+'</div>';
             const row = document.createElement('div');
-            row.className = 'crash-player-row';
-            row.dataset.uid = odUserId;
-            row.innerHTML = av+'<div class="cp-name"><span class="cp-name-text">'+name+'</span><span class="cp-original-bet">'+amount+' <img src="star.png" alt="star"></span></div><span class="cp-amount"><span class="cp-growing" data-base="'+amount+'">'+amount+'</span> <img src="star.png" alt="star"></span>';
-            players.appendChild(row);
+            row.innerHTML = '<div class="crash-player-row">'+av+'<div class="cp-name"><span class="cp-name-text">'+name+'</span><span class="cp-original-bet">'+amount+' <img src="star.png" alt="star"></span></div><span class="cp-amount"><span>'+amount+'</span> <img src="star.png" alt="star"></span></div>';
+            players.appendChild(row.firstChild);
         }
 
-        function markPlayerCashedOut(uid, amount) {
-            const row = document.querySelector('.crash-player-row[data-uid="'+uid+'"]');
-            if (row) {
-                row.classList.add('cashed-out');
-                const g = row.querySelector('.cp-growing');
-                if (g) g.textContent = amount || g.textContent;
-            }
-        }
+        async function startCrashRound() {
+            if (!crashActive) return;
+            stopCrashRound(); resetBetState(); resetGiftDisplay();
+            await createRound();
+            subscribeToBets();
 
-        function updateAllPlayerAmounts() {
-            document.querySelectorAll('.crash-player-row:not(.cashed-out) .cp-growing').forEach(el => {
-                const base = parseInt(el.dataset.base) || 0;
-                el.textContent = Math.floor(base * crashMultiplier);
-            });
-        }
-
-        // ─── Countdown ───
-        function startCountdown(startTime) {
             const countEl = document.getElementById('crashCountdown');
             const multiEl = document.getElementById('crashMultiplier');
-            const rocketEl = document.getElementById('crashRocket');
-
             multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
-            rocketEl.style.display = 'none'; rocketEl.classList.remove('hiding');
+            document.getElementById('crashRocket').style.display = 'none';
             countEl.style.display = 'block';
             setActiveHistory('Ожидание');
 
+            let count = 10;
             function tick() {
                 if (!crashActive) return;
-                const elapsed = Date.now() - startTime;
-                const remaining = Math.ceil((10000 - elapsed) / 850);
-
-                if (remaining <= 0) {
-                    countEl.style.display = 'none';
-                    if (isHost) {
-                        // Host starts the game
-                        const now = new Date();
-                        gameStartTime = now.getTime();
-                        if (sb && currentRoundId) {
-                            sb.from('crash_rounds').update({
-                                status: 'running',
-                                game_start: now.toISOString()
-                            }).eq('id', currentRoundId).then(() => {});
-                        }
-                        startGame(gameStartTime);
-                    }
-                    return;
-                }
-
-                countEl.textContent = remaining;
+                if (count <= 0) { countEl.style.display = 'none'; startGame(); return; }
+                countEl.textContent = count;
                 countEl.classList.remove('pop'); void countEl.offsetWidth; countEl.classList.add('pop');
-                crashTimer = setTimeout(tick, 850);
+                count--;
+                crashTimer = setTimeout(tick, 1000);
             }
             tick();
         }
 
-        function syncCountdown(countdownStartTime) {
-            const elapsed = Date.now() - countdownStartTime;
-            if (elapsed >= 10000) {
-                // Countdown already over — wait for running status
-                setActiveHistory('Ожидание');
-                return;
-            }
-            startCountdown(countdownStartTime);
-        }
-
-        function syncRunningGame(startTime) {
-            gameStartTime = startTime;
-            const elapsed = Date.now() - startTime;
-            crashMultiplier = getMultiplierAt(elapsed);
-
-            if (crashMultiplier >= crashTarget) {
-                crashMultiplier = crashTarget;
-                crashGameEnd();
-                return;
-            }
-
-            startGame(startTime);
-        }
-
-        // ─── Game Loop ───
-        function startGame(startTime) {
+        function startGame() {
             if (!crashActive) return;
             closeBetMenu();
-            gameStartTime = startTime;
-
-            const multiEl = document.getElementById('crashMultiplier');
             const rocketEl = document.getElementById('crashRocket');
+            const multiEl = document.getElementById('crashMultiplier');
 
-            rocketEl.classList.remove('hiding');
+            // Always hide multiplier during flight - only rocket visible
+            multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
+
             rocketEl.style.display = 'block';
             if (!rocketAnim && typeof lottie !== 'undefined') {
                 rocketAnim = lottie.loadAnimation({ container: rocketEl, renderer: 'svg', loop: true, autoplay: true, path: 'rocket.json' });
             } else if (rocketAnim) { rocketAnim.goToAndPlay(0); }
 
-            multiEl.style.display = 'block'; multiEl.classList.remove('crashed');
-            crashRunning = true;
+            crashMultiplier = 1.00;
+            // ALWAYS generate fresh target
+            crashTarget = 1 + Math.random() * 8;
+            crashRunning = true; didCashOut = false;
 
-            if (betPlaced && !didCashOut) {
-                updateCashoutBtn();
-            } else if (!betPlaced) {
+            if (betPlaced) { updateCashoutBtn(); } else {
                 const btn = document.getElementById('crashBetBtn');
                 btn.innerHTML = 'Сделать ставку'; btn.classList.add('disabled'); btn.onclick = null;
             }
 
+            if (sb && currentRoundId && typeof currentRoundId === 'number' && currentRoundId > 1000000) {
+                // DB round
+                sb.from('crash_rounds').update({ status: 'running', target_multiplier: crashTarget, start_time: new Date().toISOString() }).eq('id', currentRoundId).then(() => {});
+            }
+
             crashInterval = setInterval(() => {
                 if (!crashActive) { stopCrashRound(); return; }
-
-                const elapsed = Date.now() - gameStartTime;
-                crashMultiplier = getMultiplierAt(elapsed);
-
-                multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
+                crashMultiplier += 0.01 + (crashMultiplier * 0.005);
                 setActiveHistory(crashMultiplier.toFixed(2) + 'x');
-
-                if (betPlaced && !didCashOut) {
-                    updateCashoutBtn();
-                    updateAllPlayerAmounts();
-                    updateCrashGift(Math.floor(currentBet * crashMultiplier));
-                } else {
-                    updateAllPlayerAmounts();
-                }
-
-                if (crashMultiplier >= crashTarget) {
-                    crashMultiplier = crashTarget;
-                    multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
-
-                    if (isHost && sb && currentRoundId) {
-                        sb.from('crash_rounds').update({
-                            status: 'crashed',
-                            final_multiplier: crashMultiplier,
-                            crash_time: new Date().toISOString()
-                        }).eq('id', currentRoundId).then(() => {});
-                    }
-
-                    crashGameEnd();
-                }
+                if (betPlaced) { updateCashoutBtn(); updatePlayerAmount(); updateCrashGift(Math.floor(currentBet * crashMultiplier)); }
+                if (crashMultiplier >= crashTarget) { crashGameEnd(); }
             }, 80);
         }
 
-        // ─── Crash End — ракета исчезает, красные цифры ───
-        function crashGameEnd() {
-            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
-            crashRunning = false;
-
-            const rocketEl = document.getElementById('crashRocket');
-            const multiEl = document.getElementById('crashMultiplier');
-
-            // Ракета исчезает с анимацией
-            rocketEl.classList.add('hiding');
-            setTimeout(() => {
-                rocketEl.style.display = 'none';
-                rocketEl.classList.remove('hiding');
-                if (rocketAnim) rocketAnim.stop();
-            }, 300);
-
-            // Красные цифры краша
-            multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
-            multiEl.classList.add('crashed');
-
-            // History
-            removeActiveHistory();
-            const finalX = crashMultiplier.toFixed(2) + 'x';
-            let cls = 'past';
-            if (betPlaced) {
-                cls = 'lost';
-                if (sb && currentRoundId) {
-                    sb.from('crash_bets').update({ status: 'lost' })
-                        .eq('round_id', currentRoundId)
-                        .eq('user_id', myUserId).then(() => {});
-                }
-            } else if (didCashOut) {
-                cls = 'won';
-            }
-            addHistoryItem(finalX, cls);
-            betPlaced = false; didCashOut = false; resetGiftDisplay();
-
-            // Next round
-            crashTimer = setTimeout(() => {
-                if (!crashActive) return;
-                if (isHost) {
-                    createNewRound();
-                } else {
-                    // Participant waits for new round
-                    waitForNewRound();
-                }
-            }, 3000);
-        }
-
-        async function waitForNewRound() {
-            if (!crashActive || !sb) return;
-            resetBetState();
-            const multiEl = document.getElementById('crashMultiplier');
-            multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
-            setActiveHistory('Ожидание');
-
-            // Poll for new round
-            const pollInterval = setInterval(async () => {
-                if (!crashActive) { clearInterval(pollInterval); return; }
-                const { data: newRound } = await sb.from('crash_rounds')
-                    .select('*')
-                    .in('status', ['waiting', 'countdown', 'running'])
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single();
-
-                if (newRound && newRound.id !== currentRoundId) {
-                    clearInterval(pollInterval);
-                    leaveRoundChannels();
-                    currentRoundId = newRound.id;
-                    crashTarget = newRound.target_multiplier;
-                    isHost = false;
-                    resetBetState();
-                    subscribeToRound();
-                    subscribeToBets();
-
-                    if (newRound.status === 'countdown' && newRound.countdown_start) {
-                        syncCountdown(new Date(newRound.countdown_start).getTime());
-                    } else if (newRound.status === 'running' && newRound.game_start) {
-                        syncRunningGame(new Date(newRound.game_start).getTime());
-                    }
-                }
-            }, 1500);
-        }
-
-        // ─── Cashout ───
         function updateCashoutBtn() {
             const btn = document.getElementById('crashBetBtn');
             const win = Math.floor(currentBet * crashMultiplier);
@@ -2142,10 +2082,12 @@
                 cashoutInitialized = true;
                 btn.classList.remove('placed','disabled');
                 btn.onclick = function() { cashOut(); };
-            } else {
-                const el = document.getElementById('cashoutAmount');
-                if (el) el.textContent = win;
-            }
+            } else { const el = document.getElementById('cashoutAmount'); if (el) el.textContent = win; }
+        }
+
+        function updatePlayerAmount() {
+            const el = document.getElementById('cpGrowingAmount');
+            if (el) el.textContent = Math.floor(currentBet * crashMultiplier);
         }
 
         function cashOut() {
@@ -2156,96 +2098,86 @@
             btn.classList.add('placed'); btn.onclick = null;
             betPlaced = false; didCashOut = true; cashoutInitialized = false;
 
-            if (sb && currentRoundId) {
-                sb.from('crash_bets').update({
-                    cashout_multiplier: crashMultiplier,
-                    cashout_amount: win,
-                    status: 'won'
-                }).eq('round_id', currentRoundId).eq('user_id', myUserId).then(() => {});
-            }
+            if (sb && currentRoundId) sb.from('crash_bets').update({ cashout_multiplier: crashMultiplier, cashout_amount: win, status: 'won' }).eq('round_id', currentRoundId).eq('user_id', myUserId).then(() => {});
 
-            markPlayerCashedOut(myUserId, win);
-
-            if (wonGift) {
-                showGiftModal(wonGift, win);
-            } else {
-                setBalance(getBalance() + win);
-            }
+            if (wonGift) { showGiftModal(wonGift, win); } else { setBalance(getBalance() + win); }
         }
 
-        // ═══════════════════════════════════════════════════════
-        // Gift System — все PNG в папке Gifts/
-        // ═══════════════════════════════════════════════════════
+        function crashGameEnd() {
+            if (crashInterval) { clearInterval(crashInterval); crashInterval = null; }
+            crashRunning = false;
+            const rocketEl = document.getElementById('crashRocket');
+            const multiEl = document.getElementById('crashMultiplier');
+            rocketEl.style.display = 'none';
+            if (rocketAnim) rocketAnim.stop();
+
+            multiEl.textContent = crashMultiplier.toFixed(2) + 'x';
+            multiEl.classList.add('crashed');
+
+            removeActiveHistory();
+            const finalX = crashMultiplier.toFixed(2) + 'x';
+            let cls = 'past';
+            if (betPlaced) { cls = 'lost'; if (sb && currentRoundId) sb.from('crash_bets').update({ status: 'lost' }).eq('round_id', currentRoundId).eq('user_id', myUserId).then(() => {}); }
+            else if (didCashOut) { cls = 'won'; }
+            addHistoryItem(finalX, cls);
+            betPlaced = false; didCashOut = false; resetGiftDisplay();
+
+            if (sb && currentRoundId) sb.from('crash_rounds').update({ status: 'crashed', crash_time: new Date().toISOString() }).eq('id', currentRoundId).then(() => {});
+
+            crashTimer = setTimeout(() => { if (!crashActive) return; startCrashRound(); }, 2000);
+        }
+
+        // ─── Gift System ───
         const giftList = [
-            {name:'Amber Adder',img:'Gifts/Amber Adder.png',price:475},
-            {name:'Amethyst',img:'Gifts/Amethyst.png',price:525},
-            {name:'Anniversary',img:'Gifts/Anniversary.png',price:545},
-            {name:'Albino',img:'Gifts/Albino.png',price:550},
-            {name:'Absinthe',img:'Gifts/Absinthe.png',price:575},
-            {name:'Azurite',img:'Gifts/Azurite.png',price:575},
-            {name:'Be Awesome!',img:'Gifts/Be Awesome!.png',price:575},
-            {name:'Baked Logo',img:'Gifts/Baked Logo.png',price:578},
-            {name:'Backyard',img:'Gifts/Backyard.png',price:579},
-            {name:'Adam',img:'Gifts/Adam.png',price:650},
-            {name:'Blue Beam',img:'Gifts/Blue Beam.png',price:650},
-            {name:'Apple Fresh',img:'Gifts/Apple Fresh.png',price:684},
-            {name:'Anniversary',img:'Gifts/Anniversary.png',price:700},
-            {name:'Alpine Fern',img:'Gifts/Alpine Fern.png',price:707},
-            {name:'Angry Ghost',img:'Gifts/Angry Ghost.png',price:743},
-            {name:'Chamomile',img:'Gifts/Chamomile.png',price:784},
-            {name:'Affection',img:'Gifts/Affection.png',price:814},
-            {name:'Arlequin',img:'Gifts/Arlequin.png',price:821},
-            {name:'Anno Domini',img:'Gifts/Anno Domini.png',price:825},
-            {name:'Blue Steel',img:'Gifts/Blue Steel.png',price:825},
-            {name:'8 Ball',img:'Gifts/8 Ball.png',price:867},
-            {name:'Antique',img:'Gifts/Antique.png',price:978},
-            {name:'Barbie',img:'Gifts/Barbie.png',price:987},
-            {name:'Carambola',img:'Gifts/Carambola.png',price:1030},
-            {name:'Amphibian',img:'Gifts/Amphibian.png',price:1069},
-            {name:'Azalea',img:'Gifts/Azalea.png',price:1066},
-            {name:'Anniversary',img:'Gifts/Anniversary.png',price:1139},
-            {name:'Alpha',img:'Gifts/Alpha.png',price:1147},
-            {name:'Anatomy',img:'Gifts/Anatomy.png',price:1173},
-            {name:'Berry Blaster',img:'Gifts/Berry Blaster.png',price:1400},
-            {name:'Amanita',img:'Gifts/Amanita.png',price:1403},
-            {name:'Acid Trip',img:'Gifts/Acid Trip.png',price:1441},
-            {name:'Bee Movie',img:'Gifts/Bee Movie.png',price:1632},
-            {name:'Billiard',img:'Gifts/Billiard.png',price:1755},
-            {name:'Afterglow',img:'Gifts/Afterglow.png',price:1807},
-            {name:'Alien Script',img:'Gifts/Alien Script.png',price:1888},
-            {name:'Alchemy',img:'Gifts/Alchemy.png',price:2040},
-            {name:'Amortentia',img:'Gifts/Amortentia.png',price:2452},
-            {name:'Abyss Heart',img:'Gifts/Abyss Heart.png',price:2454},
-            {name:'Airy Souffle',img:'Gifts/Airy Souffle.png',price:3186},
-            {name:'Aqua Gem',img:'Gifts/Aqua Gem.png',price:3244},
-            {name:'Aquaviolet',img:'Gifts/Aquaviolet.png',price:3285},
-            {name:'3D Glow',img:'Gifts/3D Glow.png',price:3715},
-            {name:'Creepy Po',img:'Gifts/Creepy Po.png',price:4273},
-            {name:'Banana Pox',img:'Gifts/Banana Pox.png',price:5255},
-            {name:'Baller',img:'Gifts/Baller.png',price:6273},
-            {name:'Amazon',img:'Gifts/Amazon.png',price:10265},
-            {name:'Adult Tasks',img:'Gifts/Adult Tasks.png',price:10731},
-            {name:'Aurora Joy',img:'Gifts/Aurora Joy.png',price:11419},
-            {name:'Angry Amethyst',img:'Gifts/Angry Amethyst.png',price:11498},
-            {name:'Agent Orange',img:'Gifts/Agent Orange.png',price:16343},
-            {name:'Boingo',img:'Gifts/Boingo.png',price:18089},
-            {name:'Academic',img:'Gifts/Academic.png',price:24666},
-            {name:'Ardente',img:'Gifts/Ardente.png',price:48395},
-            {name:'Action Film',img:'Gifts/Action Film.png',price:145452}
+            {name:'Amber Adder',img:'Amber Adder.png',price:475},{name:'Amethyst',img:'Amethyst.png',price:525},
+            {name:'Anniversary',img:'Anniversary.png',price:545},{name:'Albino',img:'Albino.png',price:550},
+            {name:'Absinthe',img:'Absinthe.png',price:575},{name:'Azurite',img:'Azurite.png',price:575},
+            {name:'Be Awesome!',img:'Be Awesome!.png',price:575},{name:'Baked Logo',img:'Baked Logo.png',price:578},
+            {name:'Backyard',img:'Backyard.png',price:579},{name:'Adam',img:'Adam.png',price:650},
+            {name:'Blue Beam',img:'Blue Beam.png',price:650},{name:'Apple Fresh',img:'Apple Fresh.png',price:684},
+            {name:'Anniversary',img:'Anniversary.png',price:700},{name:'Alpine Fern',img:'Alpine Fern.png',price:707},
+            {name:'Angry Ghost',img:'Angry Ghost.png',price:743},{name:'Chamomile',img:'Chamomile.png',price:784},
+            {name:'Affection',img:'Affection.png',price:814},{name:'Arlequin',img:'Arlequin.png',price:821},
+            {name:'Anno Domini',img:'Anno Domini.png',price:825},{name:'Blue Steel',img:'Blue Steel.png',price:825},
+            {name:'8 Ball',img:'8 Ball.png',price:867},{name:'Antique',img:'Antique.png',price:978},
+            {name:'Barbie',img:'Barbie.png',price:987},{name:'Carambola',img:'Carambola.png',price:1030},
+            {name:'Amphibian',img:'Amphibian.png',price:1069},{name:'Azalea',img:'Azalea.png',price:1066},
+            {name:'Anniversary',img:'Anniversary.png',price:1139},{name:'Alpha',img:'Alpha.png',price:1147},
+            {name:'Anatomy',img:'Anatomy.png',price:1173},{name:'Berry Blaster',img:'Berry Blaster.png',price:1400},
+            {name:'Amanita',img:'Amanita.png',price:1403},{name:'Acid Trip',img:'Acid Trip.png',price:1441},
+            {name:'Bee Movie',img:'Bee Movie.png',price:1632},{name:'Billiard',img:'Billiard.png',price:1755},
+            {name:'Afterglow',img:'Afterglow.png',price:1807},{name:'Alien Script',img:'Alien Script.png',price:1888},
+            {name:'Alchemy',img:'Alchemy.png',price:2040},{name:'Amortentia',img:'Amortentia.png',price:2452},
+            {name:'Abyss Heart',img:'Abyss Heart.png',price:2454},{name:'Airy Souffle',img:'Airy Souffle.png',price:3186},
+            {name:'Aqua Gem',img:'Aqua Gem.png',price:3244},{name:'Aquaviolet',img:'Aquaviolet.png',price:3285},
+            {name:'3D Glow',img:'3D Glow.png',price:3715},{name:'Creepy Po',img:'Creepy Po.png',price:4273},
+            {name:'Banana Pox',img:'Banana Pox.png',price:5255},{name:'Baller',img:'Baller.png',price:6273},
+            {name:'Amazon',img:'Amazon.png',price:10265},{name:'Adult Tasks',img:'Adult Tasks.png',price:10731},
+            {name:'Aurora Joy',img:'Aurora Joy.png',price:11419},{name:'Angry Amethyst',img:'Angry Amethyst.png',price:11498},
+            {name:'Agent Orange',img:'Agent Orange.png',price:16343},{name:'Boingo',img:'Boingo.png',price:18089},
+            {name:'Academic',img:'Academic.png',price:24666},{name:'Ardente',img:'Ardente.png',price:48395},
+            {name:'Action Film',img:'Action Film.png',price:145452}
         ];
         let currentGiftIndex = -1, wonGift = null, inventory = [];
 
         function updateCrashGift(winAmount) {
             const gEl = document.getElementById('crashGift'), gImg = document.getElementById('crashGiftImg');
+            const pGift = document.getElementById('cpGiftIcon');
             let idx = -1;
             for (let i = giftList.length-1; i >= 0; i--) { if (winAmount >= giftList[i].price) { idx = i; break; } }
             if (idx !== currentGiftIndex && idx >= 0) {
                 currentGiftIndex = idx; wonGift = giftList[idx]; gImg.src = wonGift.img;
                 gEl.style.display = 'block'; gEl.style.animation = 'none'; void gEl.offsetWidth; gEl.style.animation = 'giftPop 0.4s ease-out';
-            } else if (idx < 0) { gEl.style.display = 'none'; wonGift = null; }
+                if (pGift) { pGift.src = wonGift.img; pGift.style.display = 'block'; }
+            } else if (idx < 0) { gEl.style.display = 'none'; wonGift = null; if (pGift) pGift.style.display = 'none'; }
         }
 
-        function resetGiftDisplay() { currentGiftIndex = -1; wonGift = null; document.getElementById('crashGift').style.display = 'none'; }
+        function resetGiftDisplay() {
+            currentGiftIndex = -1; wonGift = null;
+            document.getElementById('crashGift').style.display = 'none';
+            const pGift = document.getElementById('cpGiftIcon');
+            if (pGift) pGift.style.display = 'none';
+        }
 
         function showGiftModal(gift, winAmount) {
             document.getElementById('giftModalImg').src = gift.img;
@@ -2280,9 +2212,7 @@
             dbRemoveInvItem(it.id); inventory.splice(i, 1); renderInventory();
         }
 
-        // ═══════════════════════════════════════════════════════
-        // Bet Menu
-        // ═══════════════════════════════════════════════════════
+        // ─── Bet Menu ───
         function placeBet() { document.getElementById('betMenu').classList.add('show'); document.getElementById('betOverlay').classList.add('show'); }
         function closeBetMenu() { document.getElementById('betMenu').classList.remove('show'); document.getElementById('betOverlay').classList.remove('show'); }
 
@@ -2295,26 +2225,19 @@
             btn.innerHTML = 'Ставка сделана'; btn.classList.add('placed'); btn.onclick = null;
             document.getElementById('crashWaitingText').style.display = 'none';
 
-            // Show own player row
-            addPlayerToWaiting('Вы', myPhoto, amount, myUserId);
+            // Show player in waiting
+            const players = document.getElementById('crashPlayers');
+            const av = myPhoto ? '<img class="cp-avatar" src="'+myPhoto+'" alt="">' : '<div class="cp-avatar-placeholder">'+myName[0]+'</div>';
+            players.innerHTML = '<div class="crash-player-row">'+av+'<div class="cp-name"><span class="cp-name-text">Вы</span><span class="cp-original-bet">'+amount+' <img src="star.png" alt="star"></span></div><span class="cp-amount"><span id="cpGrowingAmount">'+amount+'</span> <img src="star.png" alt="star"></span><img class="cp-gift" id="cpGiftIcon" src="" alt=""></div>';
 
             // Save to DB
-            if (sb && currentRoundId) {
-                sb.from('crash_bets').insert({
-                    round_id: currentRoundId,
-                    user_id: myUserId,
-                    user_name: myName,
-                    user_photo: myPhoto,
-                    amount: amount
-                }).then(() => {});
-            }
+            if (sb && currentRoundId) sb.from('crash_bets').insert({ round_id: currentRoundId, user_id: myUserId, user_name: myName, user_photo: myPhoto, amount: amount }).then(() => {});
         }
 
-        // ═══════════════════════════════════════════════════════
-        // Banner / Referral / Settings / Topup
-        // ═══════════════════════════════════════════════════════
+        // ─── Banner ───
         function openBanner(url) { if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank'); }
 
+        // ─── Referral ───
         function showReferralPage() { document.getElementById('page-profile').classList.remove('active'); document.getElementById('page-referral').classList.add('active'); }
         function hideReferralPage() { document.getElementById('page-referral').classList.remove('active'); document.getElementById('page-profile').classList.add('active'); }
         function copyRefLink() {
@@ -2323,6 +2246,7 @@
             const b = document.querySelector('.ref-copy-btn'); const o = b.textContent; b.textContent = 'Скопировано!'; setTimeout(() => b.textContent = o, 1500);
         }
 
+        // ─── Settings ───
         function openSettings() { document.getElementById('settingsModal').classList.add('show'); }
         function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); document.getElementById('langOptions').classList.remove('show'); document.getElementById('langRow').classList.remove('open'); }
         function closeSettingsOutside(e) { if (e.target === e.currentTarget) closeSettings(); }
@@ -2330,6 +2254,7 @@
         function selectLang(lang, el) { document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); el.classList.add('active'); }
         function openSupport() { closeSettings(); if (tg && tg.openTelegramLink) tg.openTelegramLink('https://t.me/GiftPepeSupport'); else window.open('https://t.me/GiftPepeSupport','_blank'); }
 
+        // ─── Topup ───
         function openTopup() { document.getElementById('topupMenu').classList.add('show'); document.getElementById('topupOverlay').classList.add('show'); }
         function closeTopup() { document.getElementById('topupMenu').classList.remove('show'); document.getElementById('topupOverlay').classList.remove('show'); }
         function addBalance(amount) { setBalance(getBalance() + amount); closeTopup(); }
