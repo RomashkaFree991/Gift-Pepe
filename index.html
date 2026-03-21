@@ -488,6 +488,7 @@
             gap: 7px;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
+            margin-top: 8px;
             margin-bottom: 18px;
             padding: 10px 14px 11px;
             background: rgba(255, 255, 255, 0.06);
@@ -1962,7 +1963,17 @@
     </div>
 
     <!-- Tab Pages -->
-    <div class="tab-page" id="page-top"></div>
+    <div class="tab-page" id="page-top">
+        <div class="top-page">
+            <div class="top-card">
+                <div class="top-card-title" id="topCardTitle">ТОП ПО ПОПОЛНЕНИЯМ</div>
+                <div class="top-card-subtitle" id="topCardSubtitle">В списке 10 игроков, которые хотя бы один раз пополняли баланс.</div>
+                <div class="top-list" id="topList">
+                    <div class="top-empty" id="topEmptyState">Загрузка топа...</div>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="tab-page active" id="page-games">
         <div class="games-page">
             <div class="section-title">Выберите игру</div>
@@ -2283,6 +2294,7 @@
                 // Load from DB
                 initDB(user).finally(async () => {
                     await refreshBalanceFromDB(user);
+                    refreshTopLeaderboard(false);
                     handleLaunchPayload();
                 });
             }
@@ -2353,6 +2365,76 @@
             } catch (e) {
                 console.error('initReferralAwareProfile failed', e);
                 return null;
+            }
+        }
+
+        function topPrizeForRank(rank) {
+            if (rank === 1) return { name: 'Banana Pox', img: 'Gifts/Banana Pox.png' };
+            if (rank === 2) return { name: 'Alien Script', img: 'Gifts/Alien Script.png' };
+            if (rank === 3) return { name: 'Anatomy', img: 'Gifts/Anatomy.png' };
+            return null;
+        }
+
+        function getDisplayUserName(user) {
+            const first = String(user?.first_name || '').trim();
+            const username = String(user?.username || '').trim();
+            if (first) return first;
+            if (username) return username.startsWith('@') ? username : '@' + username;
+            return currentLang === 'en' ? 'Player' : 'Игрок';
+        }
+
+        function renderTopLeaderboard(rows) {
+            const list = document.getElementById('topList');
+            const empty = document.getElementById('topEmptyState');
+            if (!list) return;
+
+            if (!Array.isArray(rows) || rows.length === 0) {
+                list.innerHTML = '<div class="top-empty" id="topEmptyState">' + (currentLang === 'en' ? 'No top-up data yet' : 'Пока нет данных по пополнениям') + '</div>';
+                return;
+            }
+
+            list.innerHTML = rows.map((row, idx) => {
+                const rank = idx + 1;
+                const prize = topPrizeForRank(rank);
+                const name = getDisplayUserName(row);
+                const photo = String(row?.photo_url || '').trim();
+                const total = Math.max(0, parseInt(row?.total_topup, 10) || 0);
+                const avatar = photo
+                    ? '<img class="top-avatar" src="' + escapeHtml(photo) + '" alt="">'
+                    : '<div class="top-avatar-placeholder">' + escapeHtml((name || 'U')[0].toUpperCase()) + '</div>';
+                const giftHtml = prize
+                    ? '<div class="top-gift"><img src="' + encodeURI(prize.img) + '" alt=""><span>' + escapeHtml(prize.name) + '</span></div>'
+                    : '';
+                return '<div class="top-row">' +
+                    '<div class="top-rank top-' + rank + '">' + rank + '</div>' +
+                    '<div class="top-user">' + avatar + '<div class="top-name">' + escapeHtml(name) + '</div></div>' +
+                    '<div class="top-right"><div class="top-total">' + total + ' <img src="star.png" alt=""></div>' + giftHtml + '</div>' +
+                    '</div>';
+            }).join('');
+        }
+
+        async function refreshTopLeaderboard(force) {
+            if (!sb || topLeaderboardLoading) return;
+            if (!force && Array.isArray(topLeaderboardCache) && topLeaderboardCache.length && !document.getElementById('page-top')?.classList.contains('active')) return;
+
+            topLeaderboardLoading = true;
+            const list = document.getElementById('topList');
+            if (list && (!Array.isArray(topLeaderboardCache) || topLeaderboardCache.length === 0)) {
+                list.innerHTML = '<div class="top-empty" id="topEmptyState">' + (currentLang === 'en' ? 'Loading leaderboard...' : 'Загрузка топа...') + '</div>';
+            }
+
+            try {
+                const { data, error } = await sb.rpc('get_top_toppers', { p_limit: 10 });
+                if (error) throw error;
+                topLeaderboardCache = Array.isArray(data) ? data : [];
+                renderTopLeaderboard(topLeaderboardCache);
+            } catch (e) {
+                console.error('refreshTopLeaderboard failed', e);
+                if (list) {
+                    list.innerHTML = '<div class="top-empty" id="topEmptyState">' + (currentLang === 'en' ? 'Failed to load leaderboard' : 'Не удалось загрузить топ') + '</div>';
+                }
+            } finally {
+                topLeaderboardLoading = false;
             }
         }
 
@@ -2715,6 +2797,9 @@
             const idx = parseInt(el.dataset.index);
             document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
             document.getElementById(pages[idx]).classList.add('active');
+            if (pages[idx] === 'page-top') {
+                refreshTopLeaderboard(false);
+            }
         }
 
         // ─── Lottie ───
@@ -2742,6 +2827,9 @@
         let srvOff = 0; // server - client time offset
         let renderedCrashBetKeys = new Set();
         let crashBetsState = new Map();
+        let topLeaderboardLoading = false;
+        let topLeaderboardCache = [];
+
 
         function srvNow() { return Date.now() + srvOff; }
         function mult(ms) { return Math.pow(Math.E, SPEED * ms); }
@@ -2896,6 +2984,7 @@
             }
 
             currentRound = round;
+            clearStickyGiftPreview();
             resetBet();
             await loadBets(round.id);
             subBets(round.id);
@@ -2935,6 +3024,7 @@
 
         function closeCrash() {
             crashActive = false;
+            clearStickyGiftPreview();
             stopAll();
             document.getElementById('page-crash').classList.remove('active');
             document.getElementById('page-games').classList.add('active');
@@ -3382,6 +3472,7 @@
 
                     if (!rocketOn) {
                         rocketOn = true;
+                        clearStickyGiftPreview();
                         crashRunning = true;
                         closeBetMenu();
                         rocketEl.style.display = 'block';
@@ -3804,7 +3895,7 @@
         function getSellAllLabel(total) { return t('sell_all') + ' ' + (Math.max(0, parseInt(total, 10) || 0)); }
         function updateGiftModalTranslations() { const sellAmount = document.getElementById('giftSellAmount')?.textContent || ''; const sellBtn = document.getElementById('giftSellBtn'); const takeBtn = document.getElementById('giftTakeBtn'); if (sellBtn) sellBtn.innerHTML = t('gift_sell') + ' <span id="giftSellAmount">' + sellAmount + '</span> <img src="star.png" alt="">'; if (takeBtn) takeBtn.textContent = t('gift_take'); }
         function updateCheckTranslations() { const subtitle = document.getElementById('checkSubtitle'); const label = document.getElementById('checkLabel'); if (label) label.textContent = t('check_label'); if (subtitle && (!subtitle.textContent || subtitle.dataset.i18n !== 'manual')) subtitle.textContent = t('check_subtitle'); }
-        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = t('games'); if (navSpans[2]) navSpans[2].textContent = t('profile_nav'); const gameTitle = document.querySelector('#page-games .section-title'); if (gameTitle) gameTitle.textContent = t('choose_game'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const crashBack = document.getElementById('crashBackLabel'); if (crashBack) crashBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); }
+        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = t('games'); if (navSpans[2]) navSpans[2].textContent = t('profile_nav'); const gameTitle = document.querySelector('#page-games .section-title'); if (gameTitle) gameTitle.textContent = t('choose_game'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const crashBack = document.getElementById('crashBackLabel'); if (crashBack) crashBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); const topCardTitle = document.getElementById('topCardTitle'); const topCardSubtitle = document.getElementById('topCardSubtitle'); if (topCardTitle) topCardTitle.textContent = currentLang === 'en' ? 'TOP TOP-UPS' : 'ТОП ПО ПОПОЛНЕНИЯМ'; if (topCardSubtitle) topCardSubtitle.textContent = currentLang === 'en' ? '10 players who topped up at least once.' : 'В списке 10 игроков, которые хотя бы один раз пополняли баланс.'; if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
         function closeSettingsOutside(e) { if (e.target === e.currentTarget) closeSettings(); }
         function toggleLang() { document.getElementById('langOptions').classList.toggle('show'); document.getElementById('langRow').classList.toggle('open'); }
         function selectLang(lang, el) { currentLang = I18N[lang] ? lang : 'ru'; localStorage.setItem(LANG_STORAGE_KEY, currentLang); document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); if (el) el.classList.add('active'); applyTranslations(); }
