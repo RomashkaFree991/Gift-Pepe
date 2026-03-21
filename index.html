@@ -1890,7 +1890,7 @@
 
         const WAIT_SEC = 10;
         const PAUSE_SEC = 3;
-        const SPEED = 0.00006; // multiplier growth speed
+        const SPEED = 0.00018; // multiplier growth speed
         let gameLoop = null;
         let crashActive = false;
         let currentRound = null;
@@ -2020,21 +2020,42 @@
         // ─── Main Entry ───
         async function startCrash() {
             if (!crashActive) return;
-            resetBet();
             resetUI();
 
             if (!sb) { startLocalRound(); return; }
 
             await syncServerTime();
-            await loadHistory();
 
-            // Get or create round
-            const { data: round } = await sb.rpc('create_next_round');
+            // Try RPC first, fallback to direct query
+            let round = null;
+            try {
+                const { data, error } = await sb.rpc('create_next_round');
+                if (data && !error) round = data;
+            } catch(e) {}
+
+            // Fallback: find or create manually
+            if (!round) {
+                const { data: existing } = await sb.from('crash_rounds')
+                    .select('*').eq('status', 'waiting')
+                    .order('created_at', { ascending: false }).limit(1).single();
+                if (existing) {
+                    round = existing;
+                } else {
+                    const target = 1.1 + Math.random() * 7.9;
+                    const { data: newR } = await sb.from('crash_rounds')
+                        .insert({ target_multiplier: target, status: 'waiting' })
+                        .select().single();
+                    round = newR;
+                }
+            }
+
             if (!round) { startLocalRound(); return; }
 
             currentRound = round;
-            subscribeBets(round.id);
+            await loadHistory();
+            resetBet();
             await loadBets(round.id);
+            subscribeBets(round.id);
             startGameLoop();
         }
 
@@ -2055,23 +2076,37 @@
 
         async function loadBets(roundId) {
             const { data } = await sb.from('crash_bets').select('*').eq('round_id', roundId);
-            if (!data) return;
+            if (!data || !data.length) return;
             data.forEach(bet => {
                 if (bet.user_id === myUserId) {
-                    betPlaced = true;
-                    currentBet = bet.amount;
-                    if (bet.status === 'won') { didCashOut = true; betPlaced = false; }
-                    showMyBet(bet.amount);
+                    if (bet.status === 'won') {
+                        // Already cashed out
+                        didCashOut = true;
+                        betPlaced = false;
+                        currentBet = bet.amount;
+                        showMyBet(bet.amount);
+                        const btn = document.getElementById('crashBetBtn');
+                        btn.innerHTML = 'Забрали ' + (bet.cashout_amount || bet.amount) + ' <img src="star.png" alt="">';
+                        btn.classList.add('placed');
+                        btn.onclick = null;
+                    } else if (bet.status === 'lost') {
+                        // Already lost
+                        betPlaced = false;
+                        didCashOut = false;
+                    } else {
+                        // Pending bet
+                        betPlaced = true;
+                        currentBet = bet.amount;
+                        showMyBet(bet.amount);
+                        const btn = document.getElementById('crashBetBtn');
+                        btn.innerHTML = 'Ставка сделана';
+                        btn.classList.add('placed');
+                        btn.onclick = null;
+                    }
                 } else {
                     showOtherBet(bet.user_name || 'Player', bet.user_photo || '', bet.amount);
                 }
             });
-            if (betPlaced) {
-                const btn = document.getElementById('crashBetBtn');
-                btn.innerHTML = 'Ставка сделана';
-                btn.classList.add('placed');
-                btn.onclick = null;
-            }
         }
 
         function subscribeBets(roundId) {
