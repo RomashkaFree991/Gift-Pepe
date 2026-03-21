@@ -3136,9 +3136,8 @@
             const t = document.getElementById('crashWaitingText');
             if (t) {
                 t.style.display = '';
-                t.textContent = 'Ожидание ставок';
+                t.textContent = currentRound ? 'Ожидание ставок' : 'Ожидание раунда';
             }
-            renderStickyGiftPreview();
         }
 
         function queueRoundSync(forceReloadBets) {
@@ -3167,11 +3166,11 @@
                 return;
             }
 
-            if (currentRound && round.id !== currentRound.id && holdingCurrentRound) {
+            if (currentRound && String(round.id) !== String(currentRound.id) && holdingCurrentRound) {
                 return;
             }
 
-            const sameRound = !!(currentRound && currentRound.id === round.id);
+            const sameRound = !!(currentRound && String(currentRound.id) === String(round.id));
 
             if (sameRound) {
                 currentRound = round;
@@ -3190,6 +3189,7 @@
             currentRound = round;
             clearStickyGiftPreview();
             resetBet();
+            refreshCrashBetButton();
             await loadBets(round.id);
             subBets(round.id);
             crashShown = false;
@@ -3253,12 +3253,66 @@
             if (c) c.style.display = 'none';
         }
 
+        function refreshCrashBetButton() {
+            const btn = document.getElementById('crashBetBtn');
+            if (!btn || crashActionBusy) return;
+
+            if (!currentRound) {
+                btn.innerHTML = 'Ожидание раунда';
+                btn.classList.remove('placed');
+                btn.classList.add('disabled');
+                btn.onclick = null;
+                return;
+            }
+
+            const now = srvNow();
+            const { gameStart, crashAt, nextAt, target } = getRoundTimes(currentRound);
+
+            if (didCashOut) return;
+
+            if (now < gameStart) {
+                if (betPlaced) {
+                    btn.innerHTML = 'Ставка сделана';
+                    btn.classList.add('placed');
+                    btn.classList.remove('disabled');
+                    btn.onclick = null;
+                } else {
+                    btn.innerHTML = 'Сделать ставку';
+                    btn.classList.remove('placed', 'disabled');
+                    btn.onclick = function(){ placeBet(); };
+                }
+                return;
+            }
+
+            if (now < crashAt) {
+                if (!betPlaced) {
+                    btn.innerHTML = 'Сделать ставку';
+                    btn.classList.remove('placed');
+                    btn.classList.add('disabled');
+                    btn.onclick = null;
+                }
+                return;
+            }
+
+            if (now < nextAt) {
+                btn.innerHTML = 'Краш ' + Number(target).toFixed(2) + 'x';
+                btn.classList.remove('placed');
+                btn.classList.add('disabled');
+                btn.onclick = null;
+                return;
+            }
+
+            btn.innerHTML = 'Ожидание раунда';
+            btn.classList.remove('placed');
+            btn.classList.add('disabled');
+            btn.onclick = null;
+        }
+
         function resetBet() {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
-            const btn = document.getElementById('crashBetBtn');
-            if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
             clearCrashPlayers();
             resetGiftDisplay();
+            refreshCrashBetButton();
         }
 
         // ─── Stars ───
@@ -3665,6 +3719,7 @@
 
                     setActiveHist('Ожидание');
                     crashRunning = false;
+                    refreshCrashBetButton();
                     return;
                 }
 
@@ -3974,42 +4029,8 @@
         }
 
         function renderStickyGiftPreview() {
-            const players = document.getElementById('crashPlayers');
-            const wait = document.getElementById('crashWaitingText');
-            if (!players) return;
-
             removeStickyGiftPreviewRow();
             removeMyWonPreviewRows();
-
-            if (!stickyMyGiftPreview || betPlaced) {
-                if (wait && !players.querySelector('.crash-player-row')) {
-                    wait.style.display = '';
-                    wait.textContent = 'Ожидание ставок';
-                }
-                return;
-            }
-
-            const avatar = myPhoto
-                ? '<img class="cp-avatar" src="' + escapeHtml(myPhoto) + '" alt="">'
-                : '<div class="cp-avatar-placeholder">' + escapeHtml((myName || 'В')[0]) + '</div>';
-
-            const amount = Math.max(0, Math.floor(Number(stickyMyGiftPreview.amount) || 0));
-            const markup = '<div class="crash-player-row me status-won sticky-preview" data-bet-key="sticky-me-gift">' +
-                avatar +
-                '<div class="cp-name"><span class="cp-name-text">Вы</span><span class="cp-original-bet">Подарок</span></div>' +
-                '<span class="cp-amount"><span class="cp-growing-amount">' + amount + '</span> <img src="star.png" alt=""></span>' +
-                '<img class="cp-gift" src="" alt="" style="display:none;">' +
-                '</div>';
-
-            const wrap = document.createElement('div');
-            wrap.innerHTML = markup;
-            const row = wrap.firstChild;
-            players.prepend(row);
-            setPlayerGift(row, amount, 'won');
-
-            if (wait) {
-                wait.style.display = 'none';
-            }
         }
 
         function rememberStickyGiftPreview(item) {
