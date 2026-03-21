@@ -661,6 +661,25 @@
             display: none;
         }
 
+
+        /* ─── Gift Image Loading Spinner ─── */
+        .gift-img-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .gift-img-wrap .mini-spinner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #5eaaff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .gift-img-wrap img.gif-loaded + .mini-spinner,
+        .gift-img-wrap img[src=""] + .mini-spinner { display: none; }
         /* ─── Gift Modal ─── */
         .gift-modal-overlay {
             position: fixed;
@@ -1019,6 +1038,35 @@
         @keyframes giftPop {
             0% { opacity: 0; transform: scale(0.5); }
             100% { opacity: 1; transform: scale(1); }
+        }
+
+        .crash-player-row .cp-gift.loading {
+            display: block;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #5eaaff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            object-position: -9999px -9999px;
+        }
+
+        .gift-modal-img.loading {
+            width: 80px !important;
+            height: 80px !important;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #5eaaff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            object-position: -9999px -9999px;
+        }
+
+        .inv-img.loading {
+            width: 40px !important;
+            height: 40px !important;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #5eaaff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            object-position: -9999px -9999px;
         }
 
         .crash-bottom {
@@ -1710,13 +1758,13 @@
                 </div>
             </div>
             <div class="topup-grid">
-                <div class="topup-item" onclick="addBalance(10)"><img src="star.png" alt=""><span>10</span></div>
-                <div class="topup-item" onclick="addBalance(25)"><img src="star.png" alt=""><span>25</span></div>
-                <div class="topup-item" onclick="addBalance(50)"><img src="star.png" alt=""><span>50</span></div>
-                <div class="topup-item" onclick="addBalance(100)"><img src="star.png" alt=""><span>100</span></div>
-                <div class="topup-item" onclick="addBalance(250)"><img src="star.png" alt=""><span>250</span></div>
-                <div class="topup-item" onclick="addBalance(500)"><img src="star.png" alt=""><span>500</span></div>
-                <div class="topup-item" onclick="addBalance(1000)"><img src="star.png" alt=""><span>1000</span></div>
+                <div class="topup-item" onclick="buyStars(10)"><img src="star.png" alt=""><span>10</span></div>
+                <div class="topup-item" onclick="buyStars(25)"><img src="star.png" alt=""><span>25</span></div>
+                <div class="topup-item" onclick="buyStars(50)"><img src="star.png" alt=""><span>50</span></div>
+                <div class="topup-item" onclick="buyStars(100)"><img src="star.png" alt=""><span>100</span></div>
+                <div class="topup-item" onclick="buyStars(250)"><img src="star.png" alt=""><span>250</span></div>
+                <div class="topup-item" onclick="buyStars(500)"><img src="star.png" alt=""><span>500</span></div>
+                <div class="topup-item" onclick="buyStars(1000)"><img src="star.png" alt=""><span>1000</span></div>
             </div>
         </div>
     </div>
@@ -1800,7 +1848,7 @@
         setTimeout(() => {
             const loader = document.getElementById('loadingScreen');
             if (loader) { loader.classList.add('hide'); setTimeout(() => loader.remove(), 400); }
-        }, 1500);
+        }, 3500);
 
         // ─── Telegram Web App ───
         const tg = window.Telegram?.WebApp;
@@ -2035,10 +2083,10 @@
         // CRASH GAME v5 — Shared realtime round via RPC
         // ═══════════════════════════════════════
         const WAIT_MS = 10000;
-        const PAUSE_MS = 3000;
+        const PAUSE_MS = 6000;
         const SPEED = 0.00018;
         const POLL_MS = 2000;
-        const COUNTDOWN_SMOOTH_MS = 650;
+        // COUNTDOWN_SMOOTH_MS removed to fix double-10 bug
 
         let gameLoop = null, pollLoop = null;
         let crashActive = false, crashRunning = false;
@@ -2159,7 +2207,7 @@
             if (roundSyncTimer) clearTimeout(roundSyncTimer);
             roundSyncTimer = setTimeout(() => {
                 syncCrashRound(!!forceReloadBets).catch(() => {});
-            }, 120);
+            }, 50);
         }
 
         async function syncCrashRound(forceReloadBets) {
@@ -2170,7 +2218,7 @@
                 return;
             }
 
-            const roundChanged = !currentRound || currentRound.id !== round.id || currentRound.created_at !== round.created_at || Number(currentRound.target_multiplier) !== Number(round.target_multiplier);
+            const roundChanged = !currentRound || currentRound.id !== round.id;
             currentRound = round;
 
             if (roundChanged || forceReloadBets) {
@@ -2339,17 +2387,24 @@
             if (status === 'lost') {
                 giftEl.style.display = 'none';
                 giftEl.removeAttribute('src');
+                giftEl.classList.remove('loading');
                 return null;
             }
 
             const gift = deriveGiftForAmount(amount);
             if (gift) {
                 const nextSrc = encodeURI(gift.img);
-                if (giftEl.getAttribute('src') !== nextSrc) giftEl.src = nextSrc;
+                if (giftEl.getAttribute('src') !== nextSrc) {
+                    giftEl.classList.add('loading');
+                    giftEl.onload = function() { this.classList.remove('loading'); };
+                    giftEl.onerror = function() { this.classList.add('loading'); };
+                    giftEl.src = nextSrc;
+                }
                 giftEl.style.display = 'block';
             } else {
                 giftEl.style.display = 'none';
                 giftEl.removeAttribute('src');
+                giftEl.classList.remove('loading');
             }
             return gift;
         }
@@ -2602,7 +2657,11 @@
             pollLoop = setInterval(async () => {
                 if (!crashActive) return;
                 try {
-                    await syncCrashRound(false);
+                    if (!gameLoop && !roundSyncTimer) {
+                        await syncCrashRound(true);
+                    } else {
+                        await syncCrashRound(false);
+                    }
                 } catch(e) {}
             }, POLL_MS);
         }
@@ -2630,7 +2689,7 @@
                     multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
-                    const sec = Math.max(1, Math.min(Math.ceil((gameStart - now + COUNTDOWN_SMOOTH_MS) / 1000), 10));
+                    const sec = Math.max(1, Math.min(Math.ceil((gameStart - now) / 1000), 10));
                     if (sec !== lastCountNum) {
                         lastCountNum = sec;
                         countEl.textContent = sec;
@@ -2677,6 +2736,7 @@
                         if (rocketAnim) rocketAnim.stop();
                         multiEl.textContent = target.toFixed(2)+'x';
                         multiEl.classList.add('crashed');
+                        setBtnState('Краш ' + target.toFixed(2) + 'x', 'disabled');
                         rmActiveHist();
                         if (betPlaced) {
                             if (sb) sb.from('crash_bets').update({ status:'lost' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
@@ -2695,7 +2755,18 @@
                     clearInterval(gameLoop); gameLoop = null;
                     if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
                     currentRound = null;
-                    queueRoundSync(true);
+                    hideAll();
+                    resetBet();
+                    showCrashStatus('Загрузка раунда...', false);
+                    // Give DB time to process crashed status, then create next round
+                    setTimeout(async () => {
+                        if (!crashActive) return;
+                        await syncCrashRound(true).catch(() => {});
+                        // Retry if still no round
+                        if (!currentRound && crashActive) {
+                            setTimeout(() => { if (crashActive) syncCrashRound(true).catch(() => {}); }, 1500);
+                        }
+                    }, 600);
                 }
             }, 50);
         }
@@ -2718,7 +2789,7 @@
         }
 
         function doCash() {
-            if (!crashRunning || !currentRound) return;
+            if (!crashRunning || !currentRound || crashShown) return;
             const now = srvNow();
             const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
             const m = mult(now - gs);
@@ -2861,7 +2932,11 @@
         }
 
         function showGiftModal(gift, w) {
-            document.getElementById('giftModalImg').src = encodeURI(gift.img);
+            const img = document.getElementById('giftModalImg');
+            img.classList.add('loading');
+            img.onload = function() { img.classList.remove('loading'); };
+            img.onerror = function() { img.classList.add('loading'); };
+            img.src = encodeURI(gift.img);
             document.getElementById('giftModalName').textContent = gift.name;
             document.getElementById('giftSellAmount').textContent = w;
             const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = w;
@@ -2877,7 +2952,7 @@
             if (!inventory.length) { empty.style.display = 'flex'; grid.innerHTML = ''; return; }
             empty.style.display = 'none';
             grid.innerHTML = inventory.map((it, i) =>
-                '<div class="inventory-item"><img class="inv-img" src="'+encodeURI(it.img)+'" alt=""><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
+                '<div class="inventory-item"><img class="inv-img loading" src="'+encodeURI(it.img)+'" alt="" onload="this.classList.remove(\'loading\')" onerror="this.classList.add(\'loading\')"><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
             ).join('');
         }
         function sellInvItem(i) { const it = inventory[i]; if (!it) return; setBalance(getBalance()+it.price, { immediate: true }); dbRemoveInvItem(it.id); inventory.splice(i,1); renderInventory(); }
@@ -2906,10 +2981,44 @@
         function selectLang(lang, el) { document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); el.classList.add('active'); }
         function openSupport() { closeSettings(); if (tg && tg.openTelegramLink) tg.openTelegramLink('https://t.me/GiftPepeSupport'); else window.open('https://t.me/GiftPepeSupport','_blank'); }
 
-        // ─── Topup ───
+        // ─── Topup via Telegram Stars ───
+        const BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
+
+        async function buyStars(amount) {
+            if (!tg) { alert('Откройте в Telegram'); return; }
+            const topupItems = document.querySelectorAll('.topup-item');
+            topupItems.forEach(el => el.style.pointerEvents = 'none');
+
+            try {
+                const resp = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/createInvoiceLink', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: amount + ' Stars',
+                        description: 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
+                        payload: 'topup_' + (myUserId || 0) + '_' + amount + '_' + Date.now(),
+                        currency: 'XTR',
+                        prices: [{ label: amount + ' Stars', amount: amount }]
+                    })
+                });
+                const data = await resp.json();
+                if (!data.ok) throw new Error(data.description || 'Invoice error');
+
+                tg.openInvoice(data.result, function(status) {
+                    topupItems.forEach(el => el.style.pointerEvents = '');
+                    if (status === 'paid') {
+                        setBalance(getBalance() + amount, { immediate: true });
+                        closeTopup();
+                    }
+                });
+            } catch (e) {
+                console.error('buyStars error', e);
+                topupItems.forEach(el => el.style.pointerEvents = '');
+            }
+        }
+
         function openTopup() { document.getElementById('topupMenu').classList.add('show'); document.getElementById('topupOverlay').classList.add('show'); }
         function closeTopup() { document.getElementById('topupMenu').classList.remove('show'); document.getElementById('topupOverlay').classList.remove('show'); }
-        function addBalance(amount) { setBalance(getBalance() + amount, { immediate: true }); closeTopup(); }
     </script>
 </body>
 </html>
