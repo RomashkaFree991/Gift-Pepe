@@ -2110,7 +2110,10 @@
                 if (cachedBalance !== null) setBalance(cachedBalance, { persist: false, cache: true });
 
                 // Load from DB
-                initDB(user).finally(handleLaunchPayload);
+                initDB(user).finally(async () => {
+                    await refreshBalanceFromDB(user);
+                    handleLaunchPayload();
+                });
             }
         }
 
@@ -2328,6 +2331,28 @@
             setTimeout(handleLaunchPayload, 80);
         }
 
+        async function refreshBalanceFromDB(forceUser) {
+            const uid = forceUser?.id || myUserId;
+            if (!sb || !uid) return null;
+            try {
+                const { data, error } = await sb.from('users')
+                    .select('balance')
+                    .eq('telegram_id', uid)
+                    .limit(1)
+                    .maybeSingle();
+                if (error) throw error;
+                if (data) {
+                    suppressBalanceSync = true;
+                    setBalance(data.balance || 0, { persist: false, cache: true });
+                    suppressBalanceSync = false;
+                    return data.balance || 0;
+                }
+            } catch (e) {
+                console.error('refreshBalanceFromDB failed', e);
+            }
+            return null;
+        }
+
         async function initDB(user) {
             if (!user?.id) return;
 
@@ -2353,9 +2378,7 @@
                         .update({ first_name: user.first_name || '', username: user.username || '', photo_url: user.photo_url || '' })
                         .eq('telegram_id', user.id);
 
-                    if (cached !== null && Number(cached) !== Number(data.balance || 0)) {
-                        scheduleBalancePersist(cached, true);
-                    }
+
                 } else {
                     const startBalance = cached !== null ? cached : 0;
                     await sb.from('users').insert({
@@ -2420,6 +2443,14 @@
                 console.error('dbRemoveInvItem failed', e);
             }
         }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refreshBalanceFromDB();
+        });
+
+        window.addEventListener('focus', () => {
+            refreshBalanceFromDB();
+        });
 
         window.addEventListener('pagehide', () => {
             if (balanceWriteTimer) {
