@@ -1625,53 +1625,49 @@
             font-size: 26px;
             font-weight: 800;
             color: #fff;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
 
         .check-subtitle {
             font-size: 15px;
-            line-height: 1.4;
-            color: rgba(255, 255, 255, 0.72);
-            max-width: 280px;
-            margin: 0 auto 16px;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.78);
+            max-width: 310px;
+            margin: 0 auto 20px;
         }
 
-        .check-amount-row {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 10px 16px;
-            border-radius: 999px;
-            background: rgba(255, 184, 0, 0.14);
-            border: 1px solid rgba(255, 214, 102, 0.18);
-            margin-bottom: 18px;
-        }
-
-        .check-amount-row img {
-            width: 20px;
-            height: 20px;
-        }
-
-        .check-amount-row span {
-            font-size: 20px;
-            font-weight: 800;
-            color: #fff;
+        .check-subtitle img {
+            width: 16px;
+            height: 16px;
+            object-fit: contain;
+            vertical-align: -3px;
+            margin-left: 4px;
         }
 
         .check-claim-btn {
             width: 100%;
-            height: 54px;
+            height: 56px;
             border: 0;
             outline: none;
             border-radius: 18px;
-            background: linear-gradient(180deg, #ffd556 0%, #f5a623 100%);
-            color: #271300;
+            background: linear-gradient(180deg, #3b82f6 0%, #0a84ff 100%);
+            color: #fff;
             font-size: 18px;
             font-weight: 800;
             cursor: pointer;
-            transition: transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
-            box-shadow: 0 16px 32px rgba(245, 166, 35, 0.22);
+            transition: transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 16px 34px rgba(10, 132, 255, 0.28);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .check-claim-btn img {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            flex-shrink: 0;
         }
 
         .check-claim-btn:active {
@@ -1680,18 +1676,21 @@
 
         .check-claim-btn.disabled,
         .check-claim-btn[disabled] {
-            opacity: 0.55;
-            filter: saturate(0.72);
+            background: rgba(255, 255, 255, 0.12);
+            color: rgba(255, 255, 255, 0.66);
+            opacity: 1;
+            filter: none;
             box-shadow: none;
             cursor: default;
         }
 
+        .check-claim-btn.disabled img,
+        .check-claim-btn[disabled] img {
+            opacity: 0.7;
+        }
+
         .check-hint {
-            margin-top: 12px;
-            font-size: 13px;
-            line-height: 1.45;
-            color: rgba(255, 255, 255, 0.48);
-            min-height: 38px;
+            display: none !important;
         }
 
         .claim-toast {
@@ -2002,13 +2001,9 @@
             <div class="check-card">
                 <img class="check-star" src="star.png" alt="star">
                 <div class="check-label">Чек</div>
-                <div class="check-subtitle">Забери чек и получи звезды</div>
-                <div class="check-amount-row">
-                    <span id="checkAmountText">0</span>
-                    <img src="star.png" alt="star">
-                </div>
-                <button class="check-claim-btn" id="checkClaimBtn" onclick="claimGiftCheck()">Получить</button>
-                <div class="check-hint" id="checkHint">Проверь сумму и нажми кнопку</div>
+                <div class="check-subtitle" id="checkSubtitle">Нажми на кнопку ниже чтобы забрать 0 <img src="star.png" alt="star"></div>
+                <button class="check-claim-btn" id="checkClaimBtn" onclick="claimGiftCheck()">Получить 0 <img src="star.png" alt="star"></button>
+                <div class="check-hint" id="checkHint"></div>
             </div>
         </div>
     </div>
@@ -2137,45 +2132,56 @@
             if (page) page.classList.add('active');
         }
 
-        function setGiftCheckButton(text, disabled, loading) {
+        function setGiftCheckButton(text, disabled, loading, amount, withStar = true) {
             const btn = document.getElementById('checkClaimBtn');
             if (!btn) return;
-            btn.textContent = text;
+            const safeAmount = Math.max(0, parseInt(amount, 10) || 0);
+            if (withStar && safeAmount > 0) {
+                btn.innerHTML = '<span>' + text + ' ' + safeAmount + '</span><img src="star.png" alt="star">';
+            } else {
+                btn.textContent = text;
+            }
             btn.disabled = !!disabled;
             btn.classList.toggle('disabled', !!disabled);
             btn.dataset.loading = loading ? '1' : '0';
         }
 
+        function setGiftCheckSubtitle(amount, text) {
+            const subtitle = document.getElementById('checkSubtitle');
+            if (!subtitle) return;
+            const safeAmount = Math.max(0, parseInt(amount, 10) || 0);
+            subtitle.innerHTML = (text || 'Нажми на кнопку ниже чтобы забрать') + ' ' + safeAmount + ' <img src="star.png" alt="star">';
+        }
+
         function renderGiftCheckState(payload = {}) {
             const amount = Math.max(0, parseInt(payload.amount, 10) || 0);
             currentGiftCheckAmount = amount;
-            const amountEl = document.getElementById('checkAmountText');
             const hintEl = document.getElementById('checkHint');
-            if (amountEl) amountEl.textContent = amount;
-            if (!hintEl) return;
 
             if (!payload.ok) {
-                setGiftCheckButton('Недоступно', true, false);
-                hintEl.textContent = payload.error === 'not_found'
-                    ? 'Этот чек не найден или ссылка устарела.'
-                    : 'Не удалось загрузить чек.';
+                setGiftCheckSubtitle(amount, 'Не удалось загрузить');
+                setGiftCheckButton('Недоступно', true, false, amount, false);
+                if (hintEl) hintEl.textContent = '';
                 return;
             }
 
             if (payload.claimed_by_current_user) {
-                setGiftCheckButton('Получено ' + amount, true, false);
-                hintEl.textContent = 'Этот чек уже на вашем балансе.';
+                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже чтобы забрать');
+                setGiftCheckButton('Получено', true, false, amount, true);
+                if (hintEl) hintEl.textContent = '';
                 return;
             }
 
             if (payload.status === 'claimed') {
-                setGiftCheckButton('Получено', true, false);
-                hintEl.textContent = 'Этот чек уже был получен другим пользователем.';
+                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже чтобы забрать');
+                setGiftCheckButton('Получено', true, false, amount, true);
+                if (hintEl) hintEl.textContent = '';
                 return;
             }
 
-            setGiftCheckButton('Получить', false, false);
-            hintEl.textContent = 'Нажми на кнопку ниже, чтобы забрать ' + amount + ' звёзд.';
+            setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже чтобы забрать');
+            setGiftCheckButton('Получить', false, false, amount, true);
+            if (hintEl) hintEl.textContent = '';
         }
 
         function showClaimToast(success, amount, text) {
@@ -2216,7 +2222,7 @@
         async function claimGiftCheck() {
             if (!sb || !currentGiftCheckCode || !myUserId || giftCheckBusy) return;
             giftCheckBusy = true;
-            setGiftCheckButton('Получаем...', true, true);
+            setGiftCheckButton('Получаем...', true, true, currentGiftCheckAmount || 0, false);
             try {
                 const { data, error } = await sb.rpc('claim_gift_check', {
                     p_code: currentGiftCheckCode,
