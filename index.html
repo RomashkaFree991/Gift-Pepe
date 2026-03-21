@@ -623,7 +623,7 @@
         }
 
         .crash-countdown.pop {
-            animation: countPop 0.9s ease-out forwards;
+            animation: countPop 0.98s ease-out forwards;
         }
 
         @keyframes countPop {
@@ -2083,7 +2083,8 @@
         // CRASH GAME v5 — Shared realtime round via RPC
         // ═══════════════════════════════════════
         const WAIT_MS = 10000;
-        const PAUSE_MS = 6000;
+        const PAUSE_MS = 3000;
+        const CRASH_HOLD_MS = 2800;
         const SPEED = 0.00018;
         const POLL_MS = 2000;
         // COUNTDOWN_SMOOTH_MS removed to fix double-10 bug
@@ -2212,9 +2213,24 @@
 
         async function syncCrashRound(forceReloadBets) {
             if (!crashActive || !sb) return;
-            const round = await getActiveRound({ ensure: true });
+
+            const now = srvNow();
+            const currentTimes = currentRound ? getRoundTimes(currentRound) : null;
+            const holdingCurrentRound = !!(currentTimes && now < Math.max(currentTimes.nextAt, currentTimes.crashAt + CRASH_HOLD_MS));
+
+            if (holdingCurrentRound && !forceReloadBets) {
+                return;
+            }
+
+            const round = await getActiveRound({ ensure: !holdingCurrentRound });
+
             if (!round) {
+                if (holdingCurrentRound) return;
                 showCrashStatus('Не удалось получить общий раунд', true);
+                return;
+            }
+
+            if (currentRound && round.id !== currentRound.id && holdingCurrentRound) {
                 return;
             }
 
@@ -2339,7 +2355,6 @@
             const { data, error } = await sb.from('crash_rounds')
                 .select('target_multiplier')
                 .eq('status', 'crashed')
-                .gt('target_multiplier', 1.05)
                 .order('created_at', { ascending: false })
                 .limit(8);
 
@@ -2670,12 +2685,7 @@
             if (gameLoop) clearInterval(gameLoop);
             let rocketOn = false;
 
-            const created = new Date(currentRound.created_at).getTime();
-            const gameStart = created + WAIT_MS;
-            const target = currentRound.target_multiplier;
-            const crashMs = Math.log(target) / SPEED;
-            const crashAt = gameStart + crashMs;
-            const nextAt = crashAt + PAUSE_MS;
+            const { gameStart, target, crashAt, nextAt } = getRoundTimes(currentRound);
 
             gameLoop = setInterval(async () => {
                 if (!crashActive) { clearInterval(gameLoop); return; }
@@ -2686,15 +2696,22 @@
 
                 // ── COUNTDOWN ──
                 if (now < gameStart) {
-                    multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
+                    multiEl.style.display = 'none';
+                    multiEl.classList.remove('crashed');
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
-                    const sec = Math.max(1, Math.min(Math.ceil((gameStart - now) / 1000), 10));
+
+                    const msLeft = Math.max(0, gameStart - now);
+                    const sec = Math.max(1, Math.min(Math.ceil(msLeft / 1000), 10));
+
                     if (sec !== lastCountNum) {
                         lastCountNum = sec;
                         countEl.textContent = sec;
-                        countEl.classList.remove('pop'); void countEl.offsetWidth; countEl.classList.add('pop');
+                        countEl.classList.remove('pop');
+                        void countEl.offsetWidth;
+                        countEl.classList.add('pop');
                     }
+
                     setActiveHist('Ожидание');
                     crashRunning = false;
                     return;
@@ -2703,23 +2720,33 @@
                 // ── FLYING ──
                 if (now >= gameStart && now < crashAt) {
                     countEl.style.display = 'none';
-                    multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
+                    multiEl.style.display = 'none';
+                    multiEl.classList.remove('crashed');
+
                     if (!rocketOn) {
                         rocketOn = true;
                         crashRunning = true;
                         closeBetMenu();
                         rocketEl.style.display = 'block';
+
                         if (!rocketAnim && typeof lottie !== 'undefined') {
                             rocketAnim = lottie.loadAnimation({ container: rocketEl, renderer: 'svg', loop: true, autoplay: true, path: 'rocket.json' });
-                        } else if (rocketAnim) rocketAnim.goToAndPlay(0);
+                        } else if (rocketAnim) {
+                            rocketAnim.goToAndPlay(0);
+                        }
+
                         if (!betPlaced && !didCashOut) {
                             const btn = document.getElementById('crashBetBtn');
-                            btn.innerHTML = 'Сделать ставку'; btn.classList.add('disabled'); btn.onclick = null;
+                            btn.innerHTML = 'Сделать ставку';
+                            btn.classList.add('disabled');
+                            btn.onclick = null;
                         }
                     }
+
                     const m = mult(now - gameStart);
-                    setActiveHist(m.toFixed(2)+'x');
+                    setActiveHist(m.toFixed(2) + 'x');
                     syncLiveBetAmounts(m);
+
                     if (betPlaced && !didCashOut) {
                         updateCash(m);
                     }
@@ -2734,39 +2761,55 @@
                         countEl.style.display = 'none';
                         rocketEl.style.display = 'none';
                         if (rocketAnim) rocketAnim.stop();
-                        multiEl.textContent = target.toFixed(2)+'x';
+
+                        multiEl.textContent = Number(target).toFixed(2) + 'x';
+                        multiEl.style.display = 'block';
                         multiEl.classList.add('crashed');
-                        setBtnState('Краш ' + target.toFixed(2) + 'x', 'disabled');
+
+                        setBtnState('Краш ' + Number(target).toFixed(2) + 'x', 'disabled');
                         rmActiveHist();
-                        if (betPlaced) {
-                            if (sb) sb.from('crash_bets').update({ status:'lost' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
+
+                        if (betPlaced && sb) {
+                            sb.from('crash_bets').update({ status:'lost' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
                         }
+
                         markAllActiveBetsAsLostLocal();
-                        addHist(target.toFixed(2)+'x', 'past');
-                        betPlaced = false; didCashOut = false; resetGiftDisplay();
-                        // Finalize in DB (first writer wins)
-                        if (sb) sb.from('crash_rounds').update({ status:'crashed', crash_time: new Date(now).toISOString() }).eq('id', currentRound.id).eq('status','active').then(()=>{});
+                        addHist(Number(target).toFixed(2) + 'x', 'past');
+                        betPlaced = false;
+                        didCashOut = false;
+                        resetGiftDisplay();
+
+                        if (sb) {
+                            sb.from('crash_rounds').update({ status:'crashed', crash_time: new Date(now).toISOString() }).eq('id', currentRound.id).eq('status','active').then(()=>{});
+                        }
                     }
                     return;
                 }
 
                 // ── NEXT ROUND ──
                 if (now >= nextAt) {
-                    clearInterval(gameLoop); gameLoop = null;
-                    if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
+                    clearInterval(gameLoop);
+                    gameLoop = null;
+
+                    if (betsSub && sb) {
+                        sb.removeChannel(betsSub);
+                        betsSub = null;
+                    }
+
                     currentRound = null;
                     hideAll();
                     resetBet();
                     showCrashStatus('Загрузка раунда...', false);
-                    // Give DB time to process crashed status, then create next round
+
                     setTimeout(async () => {
                         if (!crashActive) return;
                         await syncCrashRound(true).catch(() => {});
-                        // Retry if still no round
                         if (!currentRound && crashActive) {
-                            setTimeout(() => { if (crashActive) syncCrashRound(true).catch(() => {}); }, 1500);
+                            setTimeout(() => {
+                                if (crashActive) syncCrashRound(true).catch(() => {});
+                            }, 900);
                         }
-                    }, 600);
+                    }, 120);
                 }
             }, 50);
         }
