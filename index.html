@@ -248,6 +248,203 @@
             pointer-events: auto;
         }
 
+
+        /* ─── Top Page ─── */
+        .top-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            padding-top: calc(132px + env(safe-area-inset-top, 0px));
+            padding-bottom: 100px;
+            padding-left: 16px;
+            padding-right: 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .top-card {
+            width: 100%;
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 18px 14px 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-card-title {
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1.05;
+            color: rgba(255,255,255,0.96);
+        }
+
+        .top-card-subtitle {
+            margin-top: 8px;
+            font-size: 13px;
+            line-height: 1.35;
+            color: rgba(255,255,255,0.52);
+        }
+
+        .top-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .top-empty {
+            min-height: 72px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.58);
+            font-size: 13px;
+            padding: 12px;
+        }
+
+        .top-row {
+            width: 100%;
+            min-height: 68px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.045);
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 10px 12px;
+        }
+
+        .top-rank {
+            width: 28px;
+            flex: 0 0 28px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 900;
+            line-height: 1;
+            color: rgba(255,255,255,0.95);
+        }
+
+        .top-rank.top-1 { color: #ffcc37; }
+        .top-rank.top-2 { color: #d8e4f4; }
+        .top-rank.top-3 { color: #ffb15c; }
+
+        .top-user {
+            min-width: 0;
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .top-avatar,
+        .top-avatar-placeholder {
+            width: 42px;
+            height: 42px;
+            flex: 0 0 42px;
+            border-radius: 50%;
+        }
+
+        .top-avatar {
+            object-fit: cover;
+            display: block;
+            border: 1px solid rgba(255,255,255,0.10);
+        }
+
+        .top-avatar-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(100, 170, 255, 0.22);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 800;
+            border: 1px solid rgba(255,255,255,0.10);
+        }
+
+        .top-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 14px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.94);
+        }
+
+        .top-right {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            max-width: 46%;
+            margin-left: auto;
+        }
+
+        .top-total {
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.06);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 800;
+            color: rgba(255,255,255,0.96);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .top-total img {
+            width: 15px;
+            height: 15px;
+            object-fit: contain;
+            display: block;
+            flex-shrink: 0;
+        }
+
+        .top-gift {
+            min-width: 0;
+            max-width: 132px;
+            height: 34px;
+            padding: 0 9px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.06);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: rgba(255,255,255,0.86);
+            flex-shrink: 1;
+            overflow: hidden;
+        }
+
+        .top-gift img {
+            width: 15px;
+            height: 15px;
+            object-fit: contain;
+            display: block;
+            flex-shrink: 0;
+        }
+
+        .top-gift span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+
         /* ─── Profile Page ─── */
         .profile-page {
             display: flex;
@@ -2369,9 +2566,9 @@
         }
 
         function topPrizeForRank(rank) {
-            if (rank === 1) return { name: 'Banana Pox', img: 'Gifts/Banana Pox.png' };
-            if (rank === 2) return { name: 'Alien Script', img: 'Gifts/Alien Script.png' };
-            if (rank === 3) return { name: 'Anatomy', img: 'Gifts/Anatomy.png' };
+            if (rank === 1) return { name: 'Banana Pox', img: 'trophy.svg' };
+            if (rank === 2) return { name: 'Alien Script', img: 'trophy.svg' };
+            if (rank === 3) return { name: 'Anatomy', img: 'trophy.svg' };
             return null;
         }
 
