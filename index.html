@@ -400,7 +400,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-top: calc(140px + env(safe-area-inset-top, 0px));
+            padding-top: calc(112px + env(safe-area-inset-top, 0px));
             padding-bottom: 100px;
             padding-left: 16px;
             padding-right: 16px;
@@ -764,6 +764,68 @@
         }
 
         /* ─── Inventory Items ─── */
+
+        .inventory-header {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px;
+            margin-bottom: 6px;
+        }
+
+        .inventory-header .section-title {
+            width: auto;
+            margin: 0;
+            flex: 0 0 auto;
+        }
+
+        .inventory-count {
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            white-space: nowrap;
+            flex: 0 1 auto;
+        }
+
+        .sell-all-btn {
+            margin-left: auto;
+            height: 34px;
+            padding: 0 12px;
+            border-radius: 12px;
+            border: 1.5px dashed rgba(255, 255, 255, 0.28);
+            background: transparent;
+            color: rgba(255, 255, 255, 0.88);
+            font-size: 12px;
+            font-weight: 800;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            -webkit-tap-highlight-color: transparent;
+            appearance: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .sell-all-btn img {
+            width: 14px;
+            height: 14px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .sell-all-btn:active {
+            transform: scale(0.985);
+        }
+
+        .sell-all-btn.disabled,
+        .sell-all-btn[disabled] {
+            opacity: 0.42;
+            cursor: default;
+        }
+
         .inventory-grid {
             width: 100%;
             display: grid;
@@ -1511,7 +1573,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-top: calc(140px + env(safe-area-inset-top, 0px));
+            padding-top: calc(112px + env(safe-area-inset-top, 0px));
             padding-bottom: 100px;
             padding-left: 16px;
             padding-right: 16px;
@@ -1646,6 +1708,7 @@
         }
 
         .check-claim-btn {
+            position: relative;
             width: 100%;
             height: 56px;
             border: 0;
@@ -1679,6 +1742,13 @@
             height: 18px;
             object-fit: contain;
             flex-shrink: 0;
+        }
+
+
+        .check-claim-btn,
+        .check-claim-btn * {
+            -webkit-tap-highlight-color: transparent;
+            outline: none !important;
         }
 
         .check-claim-btn:active {
@@ -1813,17 +1883,14 @@
     <div class="tab-page" id="page-top"></div>
     <div class="tab-page active" id="page-games">
         <div class="games-page">
-            <div class="ad-banner" onclick="openBanner('https://t.me/GiftPepeChannel')">
-                <img src="baner_1.png" alt="Banner">
-            </div>
             <div class="section-title">Выберите игру</div>
             <div class="game-banner" onclick="openGame('crash')">
                 <img src="Crash.png" alt="Crash">
             </div>
-            <div class="game-banner" style="margin-top: 10px;" onclick="openGame('upgrade')">
+            <div class="game-banner" style="margin-top: 6px;" onclick="openGame('upgrade')">
                 <img src="upgrade.png" alt="Upgrade">
             </div>
-            <div class="game-banner" style="margin-top: 10px;" onclick="openGame('craft')">
+            <div class="game-banner" style="margin-top: 6px;" onclick="openGame('craft')">
                 <img src="craft.png" alt="Craft">
             </div>
         </div>
@@ -1860,7 +1927,11 @@
         </div>
 
         <!-- Gifts card -->
-        <div class="section-title" style="margin-top: 20px;">Инвентарь</div>
+        <div class="inventory-header">
+            <div class="section-title">Инвентарь</div>
+            <div class="inventory-count" id="inventoryCountText">0 подарков</div>
+            <button class="sell-all-btn disabled" id="sellAllBtn" onclick="sellAllInventory()" disabled>Продать все 0 <img src="star.png" alt=""></button>
+        </div>
         <div class="gifts-card" id="emptyInventory">
             <div class="gifts-lottie" id="giftsLottie"></div>
             <div class="gifts-title">Не нашли подарков?</div>
@@ -2478,10 +2549,8 @@
 
                 if (invErr) throw invErr;
 
-                if (inv && inv.length > 0) {
-                    inventory = inv.map(d => ({ id: d.id, name: d.gift_name, img: d.gift_img, price: d.gift_price }));
-                    renderInventory();
-                }
+                inventory = (inv || []).map(d => ({ id: d.id, name: d.gift_name, img: d.gift_img, price: d.gift_price }));
+                renderInventory();
             } catch(e) {
                 console.error('DB init error', e);
             }
@@ -3541,8 +3610,42 @@
             rememberStickyGiftPreview(item);
             m.classList.remove('show');
         }
+
+        function getInventoryCountLabel(n) {
+            const count = Math.max(0, parseInt(n, 10) || 0);
+            const mod10 = count % 10;
+            const mod100 = count % 100;
+            if (mod10 === 1 && mod100 !== 11) return count + ' подарок';
+            if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return count + ' подарка';
+            return count + ' подарков';
+        }
+
+        function updateInventorySummary() {
+            const countEl = document.getElementById('inventoryCountText');
+            const btn = document.getElementById('sellAllBtn');
+            const total = inventory.reduce((sum, it) => sum + (Math.max(0, parseInt(it && it.price, 10) || 0)), 0);
+            if (countEl) countEl.textContent = getInventoryCountLabel(inventory.length);
+            if (btn) {
+                btn.innerHTML = 'Продать все ' + total + ' <img src="star.png" alt="">';
+                const disabled = inventory.length === 0 || total <= 0;
+                btn.disabled = disabled;
+                btn.classList.toggle('disabled', disabled);
+            }
+        }
+
+        async function sellAllInventory() {
+            if (!inventory.length) return;
+            const total = inventory.reduce((sum, it) => sum + (Math.max(0, parseInt(it && it.price, 10) || 0)), 0);
+            const itemsToSell = inventory.slice();
+            setBalance(getBalance() + total, { immediate: true });
+            inventory = [];
+            renderInventory();
+            await Promise.all(itemsToSell.map(it => dbRemoveInvItem(it.id)));
+        }
+
         function renderInventory() {
             const grid = document.getElementById('inventoryGrid'), empty = document.getElementById('emptyInventory');
+            updateInventorySummary();
             if (!inventory.length) { empty.style.display = 'flex'; grid.innerHTML = ''; return; }
             empty.style.display = 'none';
             grid.innerHTML = inventory.map((it, i) =>
