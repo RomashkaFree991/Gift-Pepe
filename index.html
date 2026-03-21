@@ -1629,10 +1629,11 @@
         }
 
         .check-subtitle {
-            font-size: 15px;
-            line-height: 1.45;
+            font-size: 14px;
+            line-height: 1.25;
             color: rgba(255, 255, 255, 0.78);
-            max-width: 310px;
+            max-width: 100%;
+            white-space: nowrap;
             margin: 0 auto 20px;
         }
 
@@ -1661,6 +1662,16 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-appearance: none;
+            appearance: none;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .check-claim-btn:focus,
+        .check-claim-btn:focus-visible {
+            outline: none;
         }
 
         .check-claim-btn img {
@@ -1870,11 +1881,11 @@
         <div class="ref-stats">
             <div class="ref-stat-card">
                 <span class="label">Рефералы</span>
-                <span class="value">0</span>
+                <span class="value" id="refCountValue">0</span>
             </div>
             <div class="ref-stat-card">
                 <span class="label">Заработано</span>
-                <span class="value">0 <img src="star.png" alt="star"></span>
+                <span class="value" id="refEarnedValue">0 <img src="star.png" alt="star"></span>
             </div>
         </div>
 
@@ -1882,7 +1893,7 @@
             <span class="card-title">РЕФЕРАЛЬНАЯ СИСТЕМА</span>
             <span style="font-size:12px;color:rgba(255,255,255,0.4);line-height:1.4;">За каждого приглашённого друга вы получаете 10% от его пополнений</span>
             <div class="ref-link-row">
-                <input class="ref-link-input" id="refLinkInput" type="text" value="https://t.me/GiftPepeBot?start=ref_" readonly>
+                <input class="ref-link-input" id="refLinkInput" type="text" value="https://t.me/GiftPepeRobot?startapp=ref_" readonly>
                 <div class="ref-action-btn ref-copy-icon" onclick="copyRefLink()">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect x="9" y="9" width="13" height="13" rx="3" stroke="rgba(255,255,255,0.8)" stroke-width="1.8"/>
@@ -2001,7 +2012,7 @@
             <div class="check-card">
                 <img class="check-star" src="star.png" alt="star">
                 <div class="check-label">Чек</div>
-                <div class="check-subtitle" id="checkSubtitle">Нажми на кнопку ниже чтобы забрать 0 <img src="star.png" alt="star"></div>
+                <div class="check-subtitle" id="checkSubtitle">Нажми на кнопку ниже, чтобы забрать чек</div>
                 <button class="check-claim-btn" id="checkClaimBtn" onclick="claimGiftCheck()">Получить 0 <img src="star.png" alt="star"></button>
                 <div class="check-hint" id="checkHint"></div>
             </div>
@@ -2042,6 +2053,7 @@
         // ─── Supabase ───
         const SUPA_URL = 'https://wqxanxqxewodbgctgfcm.supabase.co';
         const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxeGFueHF4ZXdvZGJnY3RnZmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDY4NTksImV4cCI6MjA4OTUyMjg1OX0.B8DLPsTDfLfyvyF5g_dhg2RgyQezALRpSMjU1IjNr_Q';
+        const BOT_USERNAME = 'GiftPepeRobot';
         const sb = window.supabase ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
 
         let myUserId = null;
@@ -2052,6 +2064,7 @@
         let currentGiftCheckAmount = 0;
         let giftCheckBusy = false;
         let giftCheckToastTimer = null;
+        let stickyMyGiftPreview = null;
 
 
         // ─── Prevent long-press ───
@@ -2099,7 +2112,7 @@
                     pp.textContent = myName[0]; pp.style.display = 'flex';
                 }
 
-                document.getElementById('refLinkInput').value = 'https://t.me/GiftPepeBot?start=ref_' + user.id;
+                document.getElementById('refLinkInput').value = buildRefLink(user.id);
 
                 const cachedBalance = readCachedBalance(user.id);
                 if (cachedBalance !== null) setBalance(cachedBalance, { persist: false, cache: true });
@@ -2126,6 +2139,60 @@
             }
         }
 
+        function buildRefLink(uid) {
+            return 'https://t.me/' + BOT_USERNAME + '?startapp=ref_' + String(uid || '');
+        }
+
+        function parseReferrerId(payload) {
+            const raw = String(payload || '').trim();
+            if (!/^ref_\d+$/.test(raw)) return null;
+            const refId = parseInt(raw.slice(4), 10);
+            return refId > 0 ? refId : null;
+        }
+
+        async function refreshReferralStats() {
+            if (!sb || !myUserId) return null;
+            try {
+                const { data, error } = await sb.rpc('get_referral_stats', { p_telegram_id: myUserId });
+                if (error) throw error;
+                const count = Math.max(0, parseInt(data?.referrals_count, 10) || 0);
+                const earned = Math.max(0, parseInt(data?.earned_total, 10) || 0);
+                const countEl = document.getElementById('refCountValue');
+                const earnedEl = document.getElementById('refEarnedValue');
+                if (countEl) countEl.textContent = count;
+                if (earnedEl) earnedEl.innerHTML = earned + ' <img src="star.png" alt="star">';
+                return data || null;
+            } catch (e) {
+                console.error('refreshReferralStats failed', e);
+                return null;
+            }
+        }
+
+        async function initReferralAwareProfile(user) {
+            if (!sb || !user?.id) return null;
+            const referrerId = parseReferrerId(getLaunchPayload());
+            try {
+                const { data, error } = await sb.rpc('init_user_profile', {
+                    p_telegram_id: user.id,
+                    p_first_name: user.first_name || '',
+                    p_username: user.username || '',
+                    p_photo_url: user.photo_url || '',
+                    p_referrer_telegram_id: referrerId
+                });
+                if (error) throw error;
+                if (data && typeof data.balance !== 'undefined') {
+                    suppressBalanceSync = true;
+                    setBalance(data.balance || 0, { persist: false, cache: true });
+                    suppressBalanceSync = false;
+                }
+                await refreshReferralStats();
+                return data || null;
+            } catch (e) {
+                console.error('initReferralAwareProfile failed', e);
+                return null;
+            }
+        }
+
         function openCheckPage() {
             document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
             const page = document.getElementById('page-check');
@@ -2149,8 +2216,7 @@
         function setGiftCheckSubtitle(amount, text) {
             const subtitle = document.getElementById('checkSubtitle');
             if (!subtitle) return;
-            const safeAmount = Math.max(0, parseInt(amount, 10) || 0);
-            subtitle.innerHTML = (text || 'Нажми на кнопку ниже чтобы забрать') + ' ' + safeAmount + ' <img src="star.png" alt="star">';
+            subtitle.textContent = text || 'Нажми на кнопку ниже, чтобы забрать чек';
         }
 
         function renderGiftCheckState(payload = {}) {
@@ -2166,20 +2232,20 @@
             }
 
             if (payload.claimed_by_current_user) {
-                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже чтобы забрать');
+                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже, чтобы забрать чек');
                 setGiftCheckButton('Получено', true, false, amount, true);
                 if (hintEl) hintEl.textContent = '';
                 return;
             }
 
             if (payload.status === 'claimed') {
-                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже чтобы забрать');
+                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже, чтобы забрать чек');
                 setGiftCheckButton('Получено', true, false, amount, true);
                 if (hintEl) hintEl.textContent = '';
                 return;
             }
 
-            setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже чтобы забрать');
+            setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже, чтобы забрать чек');
             setGiftCheckButton('Получить', false, false, amount, true);
             if (hintEl) hintEl.textContent = '';
         }
@@ -2269,6 +2335,10 @@
             if (payload && payload.startsWith('check_')) {
                 const code = payload.slice(6).trim();
                 if (code) loadGiftCheck(code);
+                return;
+            }
+            if (payload && payload.startsWith('ref_')) {
+                refreshReferralStats();
             }
         }
 
@@ -2359,6 +2429,7 @@
             return null;
         }
 
+
         async function initDB(user) {
             if (!user?.id) return;
 
@@ -2367,37 +2438,38 @@
 
             if (!sb) return;
             try {
-                const { data, error } = await sb.from('users')
-                    .select('telegram_id, balance')
-                    .eq('telegram_id', user.id)
-                    .limit(1)
-                    .maybeSingle();
+                const initData = await initReferralAwareProfile(user);
 
-                if (error) throw error;
+                if (!initData) {
+                    const { data, error } = await sb.from('users')
+                        .select('telegram_id, balance')
+                        .eq('telegram_id', user.id)
+                        .limit(1)
+                        .maybeSingle();
 
-                if (data) {
-                    suppressBalanceSync = true;
-                    setBalance(data.balance || 0, { persist: false, cache: true });
-                    suppressBalanceSync = false;
+                    if (error) throw error;
 
-                    await sb.from('users')
-                        .update({ first_name: user.first_name || '', username: user.username || '', photo_url: user.photo_url || '' })
-                        .eq('telegram_id', user.id);
+                    if (!data) {
+                        await sb.from('users').insert({
+                            telegram_id: user.id,
+                            first_name: user.first_name || '',
+                            username: user.username || '',
+                            photo_url: user.photo_url || '',
+                            balance: 0
+                        });
+                    } else {
+                        suppressBalanceSync = true;
+                        setBalance(data.balance || 0, { persist: false, cache: true });
+                        suppressBalanceSync = false;
 
-
-                } else {
-                    const startBalance = cached !== null ? cached : 0;
-                    await sb.from('users').insert({
-                        telegram_id: user.id,
-                        first_name: user.first_name || '',
-                        username: user.username || '',
-                        photo_url: user.photo_url || '',
-                        balance: startBalance
-                    });
-                    suppressBalanceSync = true;
-                    setBalance(startBalance, { persist: false, cache: true });
-                    suppressBalanceSync = false;
+                        await sb.from('users')
+                            .update({ first_name: user.first_name || '', username: user.username || '', photo_url: user.photo_url || '' })
+                            .eq('telegram_id', user.id);
+                    }
                 }
+
+                await refreshBalanceFromDB(user);
+                await refreshReferralStats();
 
                 const { data: inv, error: invErr } = await sb.from('inventory')
                     .select('*')
@@ -2612,6 +2684,7 @@
                 t.style.display = '';
                 t.textContent = 'Ожидание ставок';
             }
+            renderStickyGiftPreview();
         }
 
         function queueRoundSync(forceReloadBets) {
@@ -3266,6 +3339,7 @@
         async function submitBetCrash() {
             const amt = parseInt(document.getElementById('betAmount').value) || 0;
             if (amt <= 0 || amt > getBalance() || !currentRound || !sb) return;
+            clearStickyGiftPreview();
             const now = srvNow();
             const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
             if (now >= gs) return; // too late
@@ -3377,10 +3451,68 @@
             if (row) setPlayerGift(row, w, 'active');
         }
 
+
+        function removeStickyGiftPreviewRow() {
+            const row = document.querySelector('.crash-player-row.sticky-preview');
+            if (row) row.remove();
+        }
+
+        function renderStickyGiftPreview() {
+            const players = document.getElementById('crashPlayers');
+            const wait = document.getElementById('crashWaitingText');
+            if (!players) return;
+
+            removeStickyGiftPreviewRow();
+
+            if (!stickyMyGiftPreview || betPlaced) {
+                if (wait && !players.querySelector('.crash-player-row')) {
+                    wait.style.display = '';
+                    wait.textContent = 'Ожидание ставок';
+                }
+                return;
+            }
+
+            const avatar = myPhoto
+                ? '<img class="cp-avatar" src="' + escapeHtml(myPhoto) + '" alt="">'
+                : '<div class="cp-avatar-placeholder">' + escapeHtml((myName || 'В')[0]) + '</div>';
+
+            const amount = Math.max(0, Math.floor(Number(stickyMyGiftPreview.amount) || 0));
+            const markup = '<div class="crash-player-row me status-won sticky-preview" data-bet-key="sticky-me-gift">' +
+                avatar +
+                '<div class="cp-name"><span class="cp-name-text">Вы</span><span class="cp-original-bet">Подарок</span></div>' +
+                '<span class="cp-amount"><span class="cp-growing-amount">' + amount + '</span> <img src="star.png" alt=""></span>' +
+                '<img class="cp-gift" src="" alt="" style="display:none;">' +
+                '</div>';
+
+            const wrap = document.createElement('div');
+            wrap.innerHTML = markup;
+            const row = wrap.firstChild;
+            players.prepend(row);
+            setPlayerGift(row, amount, 'won');
+
+            if (wait) {
+                wait.style.display = 'none';
+            }
+        }
+
+        function rememberStickyGiftPreview(item) {
+            if (!item) return;
+            stickyMyGiftPreview = {
+                amount: Math.max(0, Math.floor(Number(item.price) || 0)),
+                gift: { name: item.name || '', img: item.img || '' }
+            };
+            renderStickyGiftPreview();
+        }
+
+        function clearStickyGiftPreview() {
+            stickyMyGiftPreview = null;
+            removeStickyGiftPreviewRow();
+        }
+
         function resetGiftDisplay() {
             currentGiftIdx = -1;
             wonGift = null;
-            const row = document.querySelector('.crash-player-row.me');
+            const row = document.querySelector('.crash-player-row.me:not(.sticky-preview)');
             if (row) setPlayerGift(row, 0, 'lost');
         }
 
@@ -3394,11 +3526,20 @@
             document.getElementById('giftSellAmount').textContent = w;
             const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = w;
         }
-        function sellGift() { const m = document.getElementById('giftModal'); setBalance(getBalance() + m._win, { immediate: true }); m.classList.remove('show'); }
+        function sellGift() {
+            const m = document.getElementById('giftModal');
+            clearStickyGiftPreview();
+            setBalance(getBalance() + m._win, { immediate: true });
+            m.classList.remove('show');
+        }
         function takeGift() {
             const m = document.getElementById('giftModal');
             const item = { name: m._gift.name, img: m._gift.img, price: m._win };
-            inventory.push(item); renderInventory(); dbSaveInvItem(item); m.classList.remove('show');
+            inventory.push(item);
+            renderInventory();
+            dbSaveInvItem(item);
+            rememberStickyGiftPreview(item);
+            m.classList.remove('show');
         }
         function renderInventory() {
             const grid = document.getElementById('inventoryGrid'), empty = document.getElementById('emptyInventory');
@@ -3418,7 +3559,7 @@
         function openBanner(url) { if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank'); }
 
         // ─── Referral ───
-        function showReferralPage() { document.getElementById('page-profile').classList.remove('active'); document.getElementById('page-referral').classList.add('active'); }
+        function showReferralPage() { document.getElementById('page-profile').classList.remove('active'); document.getElementById('page-referral').classList.add('active'); refreshReferralStats(); }
         function hideReferralPage() { document.getElementById('page-referral').classList.remove('active'); document.getElementById('page-profile').classList.add('active'); }
         function copyRefLink() {
             const link = document.getElementById('refLinkInput').value;
@@ -3442,6 +3583,8 @@
             const topupItems = document.querySelectorAll('.topup-item');
             topupItems.forEach(el => el.style.pointerEvents = 'none');
 
+            const invoicePayload = 'topup_' + (myUserId || 0) + '_' + amount + '_' + Date.now();
+
             try {
                 const resp = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/createInvoiceLink', {
                     method: 'POST',
@@ -3449,7 +3592,7 @@
                     body: JSON.stringify({
                         title: amount + ' Stars',
                         description: 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
-                        payload: 'topup_' + (myUserId || 0) + '_' + amount + '_' + Date.now(),
+                        payload: invoicePayload,
                         currency: 'XTR',
                         prices: [{ label: amount + ' Stars', amount: amount }]
                     })
@@ -3458,11 +3601,38 @@
                 if (!data.ok) throw new Error(data.description || 'Invoice error');
 
                 tg.openInvoice(data.result, function(status) {
-                    topupItems.forEach(el => el.style.pointerEvents = '');
                     if (status === 'paid') {
-                        setBalance(getBalance() + amount, { immediate: true });
-                        closeTopup();
+                        (async () => {
+                            try {
+                                if (sb && myUserId) {
+                                    const { data: rpcData, error: rpcError } = await sb.rpc('apply_topup_and_referral', {
+                                        p_telegram_id: myUserId,
+                                        p_amount: amount,
+                                        p_payload: invoicePayload,
+                                        p_source: 'telegram_xtr'
+                                    });
+                                    if (rpcError) throw rpcError;
+                                    if (rpcData && rpcData.ok) {
+                                        setBalance(rpcData.balance || 0, { persist: false, cache: true });
+                                        await refreshReferralStats();
+                                    } else {
+                                        setBalance(getBalance() + amount, { immediate: true });
+                                    }
+                                } else {
+                                    setBalance(getBalance() + amount, { immediate: true });
+                                }
+                                closeTopup();
+                            } catch (e) {
+                                console.error('apply_topup_and_referral failed', e);
+                                setBalance(getBalance() + amount, { immediate: true });
+                                closeTopup();
+                            } finally {
+                                topupItems.forEach(el => el.style.pointerEvents = '');
+                            }
+                        })();
+                        return;
                     }
+                    topupItems.forEach(el => el.style.pointerEvents = '');
                 });
             } catch (e) {
                 console.error('buyStars error', e);
