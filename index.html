@@ -1872,7 +1872,7 @@
         function switchTab(el) {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
-            crashActive = false; stopGame();
+            crashActive = false; if(typeof stopAll==="function") stopAll();
             const idx = parseInt(el.dataset.index);
             document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
             document.getElementById(pages[idx]).classList.add('active');
@@ -1883,74 +1883,117 @@
             lottie.loadAnimation({ container: document.getElementById('giftsLottie'), renderer: 'svg', loop: true, autoplay: true, path: 'PlushPepe%28blue%29.json' });
         }
 
+        // ═══════════════════════════
         // ═══════════════════════════════════════
-        // CRASH GAME — Fully Deterministic
-        // All clients compute same X from DB timestamps
+        // CRASH GAME v4 — No RPC, Direct Queries
         // ═══════════════════════════════════════
+        const WAIT_MS = 10000;
+        const PAUSE_MS = 3000;
+        const SPEED = 0.00018;
+        const POLL_MS = 2000;
 
-        const WAIT_SEC = 10;
-        const PAUSE_SEC = 3;
-        const SPEED = 0.00018; // multiplier growth speed
-        let gameLoop = null;
-        let crashActive = false;
-        let currentRound = null;
-        let serverOffset = 0; // serverTime - clientTime
-        let betsSub = null;
-
-        // Bet state
+        let gameLoop = null, pollLoop = null;
+        let crashActive = false, crashRunning = false;
+        let currentRound = null, lastCountNum = -1, crashShown = false;
         let currentBet = 0, betPlaced = false, didCashOut = false, cashoutInit = false;
-        let rocketAnim = null;
+        let rocketAnim = null, betsSub = null;
+        let srvOff = 0; // server - client time offset
 
-        // Deterministic multiplier from elapsed ms
-        function calcMult(ms) {
-            return Math.pow(Math.E, SPEED * ms);
-        }
+        function srvNow() { return Date.now() + srvOff; }
+        function mult(ms) { return Math.pow(Math.E, SPEED * ms); }
 
-        // Server-synced time
-        function serverNow() {
-            return Date.now() + serverOffset;
-        }
-
-        async function syncServerTime() {
+        // ─── Sync server clock ───
+        async function syncClock() {
             if (!sb) return;
             try {
-                const before = Date.now();
-                const { data } = await sb.rpc('server_now');
-                const after = Date.now();
-                const rtt = (after - before) / 2;
-                if (data) {
-                    const serverTime = new Date(data).getTime();
-                    serverOffset = serverTime - after + rtt;
+                const t1 = Date.now();
+                const { data } = await sb.from('crash_rounds').select('created_at').limit(1);
+                // Use Supabase response header time or estimate
+                const t2 = Date.now();
+                // Simple approach: query server_now via raw SQL
+                const { data: d2 } = await sb.rpc('server_now');
+                if (d2) {
+                    const serverT = new Date(d2).getTime();
+                    srvOff = serverT - t2 + (t2 - t1) / 2;
                 }
-            } catch(e) { serverOffset = 0; }
+            } catch(e) {
+                // If RPC fails, try timestamp comparison
+                try {
+                    const t1 = Date.now();
+                    const { data } = await sb.from('crash_rounds')
+                        .insert({ target_multiplier: 0, status: 'sync' })
+                        .select('created_at').single();
+                    const t2 = Date.now();
+                    if (data) {
+                        const serverT = new Date(data.created_at).getTime();
+                        srvOff = serverT - (t1 + t2) / 2;
+                        await sb.from('crash_rounds').delete().eq('status', 'sync');
+                    }
+                } catch(e2) { srvOff = 0; }
+            }
+        }
+
+        // ─── Find or create round ───
+        async function getActiveRound() {
+            if (!sb) return null;
+
+            // Cleanup stale (>5min)
+            const cutoff = new Date(Date.now() + srvOff - 300000).toISOString();
+            await sb.from('crash_rounds').update({ status: 'crashed' })
+                .eq('status', 'active').lt('created_at', cutoff);
+
+            // Find active round
+            const { data } = await sb.from('crash_rounds')
+                .select('*').eq('status', 'active')
+                .order('created_at', { ascending: false }).limit(1);
+
+            if (data && data.length > 0) return data[0];
+
+            // Create new
+            const target = 1.1 + Math.random() * 7.9;
+            const { data: newR, error } = await sb.from('crash_rounds')
+                .insert({ target_multiplier: target, status: 'active' })
+                .select().single();
+
+            if (error) {
+                // Maybe someone else just created - fetch again
+                const { data: retry } = await sb.from('crash_rounds')
+                    .select('*').eq('status', 'active')
+                    .order('created_at', { ascending: false }).limit(1);
+                if (retry && retry.length > 0) return retry[0];
+                return null;
+            }
+            return newR;
         }
 
         // ─── Open / Close ───
         function openGame(name) {
             if (name === 'crash') {
-                stopGame();
+                stopAll();
                 document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
                 document.getElementById('page-crash').classList.add('active');
                 crashActive = true;
-                generateStars();
-                startCrash();
+                genStars();
+                initCrash();
             }
         }
 
         function closeCrash() {
             crashActive = false;
-            stopGame();
+            stopAll();
             document.getElementById('page-crash').classList.remove('active');
             document.getElementById('page-games').classList.add('active');
         }
 
-        function stopGame() {
+        function stopAll() {
             if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
+            if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
             if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
-            resetUI();
+            crashRunning = false;
+            hideAll();
         }
 
-        function resetUI() {
+        function hideAll() {
             const m = document.getElementById('crashMultiplier');
             if (m) { m.style.display = 'none'; m.classList.remove('crashed'); }
             const r = document.getElementById('crashRocket');
@@ -1962,422 +2005,295 @@
         function resetBet() {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
             const btn = document.getElementById('crashBetBtn');
-            if (btn) {
-                btn.innerHTML = 'Сделать ставку';
-                btn.classList.remove('placed', 'disabled');
-                btn.onclick = function() { placeBet(); };
-            }
-            const p = document.getElementById('crashPlayers');
-            if (p) p.innerHTML = '';
-            const t = document.getElementById('crashWaitingText');
-            if (t) t.style.display = '';
+            if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
+            const p = document.getElementById('crashPlayers'); if (p) p.innerHTML = '';
+            const t = document.getElementById('crashWaitingText'); if (t) t.style.display = '';
             resetGiftDisplay();
         }
 
         // ─── Stars ───
-        function generateStars() {
+        function genStars() {
             const c = document.getElementById('crashStars');
             if (c.querySelectorAll('.crash-star').length > 0) return;
             for (let i = 0; i < 100; i++) {
-                const s = document.createElement('div');
-                s.className = 'crash-star';
-                s.style.left = Math.random() * 100 + '%';
-                s.style.top = Math.random() * 100 + '%';
-                s.style.opacity = Math.random() * 0.5 + 0.15;
-                const sz = Math.random() * 2.5 + 0.5;
-                s.style.width = sz + 'px';
-                s.style.height = sz + 'px';
+                const s = document.createElement('div'); s.className = 'crash-star';
+                s.style.left = Math.random()*100+'%'; s.style.top = Math.random()*100+'%';
+                s.style.opacity = Math.random()*0.5+0.15;
+                const z = Math.random()*2.5+0.5;
+                s.style.width = z+'px'; s.style.height = z+'px';
                 c.appendChild(s);
             }
         }
 
         // ─── History UI ───
-        function addHistoryItem(text, cls) {
+        function addHist(text, cls) {
             const h = document.getElementById('crashHistory');
-            const el = document.createElement('div');
-            el.className = 'crash-history-item ' + cls;
-            el.textContent = text;
-            h.insertBefore(el, h.firstChild);
+            const e = document.createElement('div');
+            e.className = 'crash-history-item ' + cls; e.textContent = text;
+            h.insertBefore(e, h.firstChild);
             if (h.children.length > 8) h.removeChild(h.lastChild);
         }
-
-        function setActiveHistory(text) {
+        function setActiveHist(text) {
             let a = document.querySelector('.crash-history-item.active');
-            if (!a) {
-                const h = document.getElementById('crashHistory');
-                a = document.createElement('div');
-                a.className = 'crash-history-item active';
-                h.insertBefore(a, h.firstChild);
-            }
+            if (!a) { const h = document.getElementById('crashHistory'); a = document.createElement('div'); a.className = 'crash-history-item active'; h.insertBefore(a, h.firstChild); }
             a.textContent = text;
         }
+        function rmActiveHist() { const a = document.querySelector('.crash-history-item.active'); if (a) a.remove(); }
 
-        function removeActiveHistory() {
-            const a = document.querySelector('.crash-history-item.active');
-            if (a) a.remove();
-        }
-
-        // ─── Main Entry ───
-        async function startCrash() {
-            if (!crashActive) return;
-            resetUI();
-
-            if (!sb) { startLocalRound(); return; }
-
-            await syncServerTime();
-
-            // Try RPC first, fallback to direct query
-            let round = null;
-            try {
-                const { data, error } = await sb.rpc('create_next_round');
-                if (data && !error) round = data;
-            } catch(e) {}
-
-            // Fallback: find or create manually
-            if (!round) {
-                const { data: existing } = await sb.from('crash_rounds')
-                    .select('*').eq('status', 'waiting')
-                    .order('created_at', { ascending: false }).limit(1).single();
-                if (existing) {
-                    round = existing;
-                } else {
-                    const target = 1.1 + Math.random() * 7.9;
-                    const { data: newR } = await sb.from('crash_rounds')
-                        .insert({ target_multiplier: target, status: 'waiting' })
-                        .select().single();
-                    round = newR;
-                }
-            }
-
-            if (!round) { startLocalRound(); return; }
-
-            currentRound = round;
-            await loadHistory();
-            resetBet();
-            await loadBets(round.id);
-            subscribeBets(round.id);
-            startGameLoop();
-        }
-
-        async function loadHistory() {
+        // ─── Load History from DB ───
+        async function loadHist() {
+            if (!sb) return;
             const { data } = await sb.from('crash_rounds')
-                .select('target_multiplier')
-                .eq('status', 'crashed')
-                .gt('target_multiplier', 1.01)
-                .order('created_at', { ascending: false })
-                .limit(8);
-            if (data) {
+                .select('target_multiplier').eq('status', 'crashed').gt('target_multiplier', 1.05)
+                .order('created_at', { ascending: false }).limit(8);
+            if (data && data.length) {
                 document.getElementById('crashHistory').innerHTML = '';
-                data.reverse().forEach(r => {
-                    addHistoryItem(r.target_multiplier.toFixed(2) + 'x', 'past');
-                });
+                data.reverse().forEach(r => addHist(r.target_multiplier.toFixed(2)+'x', 'past'));
             }
         }
 
-        async function loadBets(roundId) {
-            const { data } = await sb.from('crash_bets').select('*').eq('round_id', roundId);
-            if (!data || !data.length) return;
-            data.forEach(bet => {
-                if (bet.user_id === myUserId) {
-                    if (bet.status === 'won') {
-                        // Already cashed out
-                        didCashOut = true;
-                        betPlaced = false;
-                        currentBet = bet.amount;
-                        showMyBet(bet.amount);
-                        const btn = document.getElementById('crashBetBtn');
-                        btn.innerHTML = 'Забрали ' + (bet.cashout_amount || bet.amount) + ' <img src="star.png" alt="">';
-                        btn.classList.add('placed');
-                        btn.onclick = null;
-                    } else if (bet.status === 'lost') {
-                        // Already lost
-                        betPlaced = false;
-                        didCashOut = false;
+        // ─── Load Bets ───
+        async function loadBets(rid) {
+            if (!sb) return;
+            const { data } = await sb.from('crash_bets').select('*').eq('round_id', rid);
+            if (!data) return;
+            data.forEach(b => {
+                if (b.user_id === myUserId) {
+                    currentBet = b.amount;
+                    if (b.status === 'won') {
+                        didCashOut = true; betPlaced = false;
+                        showMyBet(b.amount);
+                        setBtnState('Забрали '+(b.cashout_amount||b.amount)+' <img src="star.png" alt="">','placed');
+                    } else if (b.status === 'lost') {
+                        betPlaced = false; didCashOut = false;
                     } else {
-                        // Pending bet
                         betPlaced = true;
-                        currentBet = bet.amount;
-                        showMyBet(bet.amount);
-                        const btn = document.getElementById('crashBetBtn');
-                        btn.innerHTML = 'Ставка сделана';
-                        btn.classList.add('placed');
-                        btn.onclick = null;
+                        showMyBet(b.amount);
+                        setBtnState('Ставка сделана','placed');
                     }
                 } else {
-                    showOtherBet(bet.user_name || 'Player', bet.user_photo || '', bet.amount);
+                    showOtherBet(b.user_name||'Player', b.user_photo||'', b.amount);
                 }
             });
         }
 
-        function subscribeBets(roundId) {
+        function setBtnState(html, cls) {
+            const btn = document.getElementById('crashBetBtn');
+            btn.innerHTML = html;
+            if (cls) btn.classList.add(cls);
+            btn.onclick = null;
+        }
+
+        // ─── Realtime Bets ───
+        function subBets(rid) {
             if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
             if (!sb) return;
-            betsSub = sb.channel('bets-live-' + roundId)
-                .on('postgres_changes', {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'crash_bets'
-                }, payload => {
-                    const bet = payload.new;
-                    if (!bet || bet.round_id !== roundId || bet.user_id === myUserId) return;
-                    showOtherBet(bet.user_name || 'Player', bet.user_photo || '', bet.amount);
+            betsSub = sb.channel('livebets-'+rid+'-'+Math.random().toString(36).slice(2))
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crash_bets' }, p => {
+                    const b = p.new;
+                    if (!b || b.round_id !== rid || b.user_id === myUserId) return;
+                    showOtherBet(b.user_name||'Player', b.user_photo||'', b.amount);
                 })
                 .subscribe();
         }
 
-        function showMyBet(amount) {
+        function showMyBet(amt) {
             document.getElementById('crashWaitingText').style.display = 'none';
-            const players = document.getElementById('crashPlayers');
-            const av = myPhoto
-                ? '<img class="cp-avatar" src="' + myPhoto + '" alt="">'
-                : '<div class="cp-avatar-placeholder">' + myName[0] + '</div>';
-            players.innerHTML = '<div class="crash-player-row">' + av +
-                '<div class="cp-name"><span class="cp-name-text">Вы</span>' +
-                '<span class="cp-original-bet">' + amount + ' <img src="star.png" alt=""></span></div>' +
-                '<span class="cp-amount"><span id="cpGrowingAmount">' + amount + '</span> <img src="star.png" alt=""></span>' +
-                '<img class="cp-gift" id="cpGiftIcon" src="" alt=""></div>';
+            const pl = document.getElementById('crashPlayers');
+            const av = myPhoto ? '<img class="cp-avatar" src="'+myPhoto+'" alt="">' : '<div class="cp-avatar-placeholder">'+myName[0]+'</div>';
+            pl.innerHTML = '<div class="crash-player-row">'+av+'<div class="cp-name"><span class="cp-name-text">Вы</span><span class="cp-original-bet">'+amt+' <img src="star.png" alt=""></span></div><span class="cp-amount"><span id="cpGrowingAmount">'+amt+'</span> <img src="star.png" alt=""></span><img class="cp-gift" id="cpGiftIcon" src="" alt=""></div>';
         }
 
-        function showOtherBet(name, photo, amount) {
+        function showOtherBet(name, photo, amt) {
             document.getElementById('crashWaitingText').style.display = 'none';
-            const players = document.getElementById('crashPlayers');
-            const av = photo
-                ? '<img class="cp-avatar" src="' + photo + '" alt="">'
-                : '<div class="cp-avatar-placeholder">' + name[0] + '</div>';
-            const row = document.createElement('div');
-            row.innerHTML = '<div class="crash-player-row">' + av +
-                '<div class="cp-name"><span class="cp-name-text">' + name + '</span>' +
-                '<span class="cp-original-bet">' + amount + ' <img src="star.png" alt=""></span></div>' +
-                '<span class="cp-amount">' + amount + ' <img src="star.png" alt=""></span></div>';
-            players.appendChild(row.firstChild);
+            const pl = document.getElementById('crashPlayers');
+            const av = photo ? '<img class="cp-avatar" src="'+photo+'" alt="">' : '<div class="cp-avatar-placeholder">'+name[0]+'</div>';
+            const r = document.createElement('div');
+            r.innerHTML = '<div class="crash-player-row">'+av+'<div class="cp-name"><span class="cp-name-text">'+name+'</span><span class="cp-original-bet">'+amt+' <img src="star.png" alt=""></span></div><span class="cp-amount">'+amt+' <img src="star.png" alt=""></span></div>';
+            pl.appendChild(r.firstChild);
         }
 
         // ═══════════════════════════════════════
-        // THE GAME LOOP — single interval, all states
+        // MAIN INIT + GAME LOOP
         // ═══════════════════════════════════════
-        let lastCountNum = -1;
-        let crashShown = false;
-        let roundFinalized = false;
+        async function initCrash() {
+            if (!crashActive) return;
+            hideAll(); resetBet();
 
-        function startGameLoop() {
-            if (gameLoop) clearInterval(gameLoop);
+            if (!sb) { localRound(); return; }
+
+            await syncClock();
+            await loadHist();
+
+            const round = await getActiveRound();
+            if (!round) { localRound(); return; }
+
+            currentRound = round;
+            resetBet();
+            await loadBets(round.id);
+            subBets(round.id);
             crashShown = false;
-            roundFinalized = false;
             lastCountNum = -1;
+            runLoop();
 
-            const countEl = document.getElementById('crashCountdown');
-            const multiEl = document.getElementById('crashMultiplier');
-            const rocketEl = document.getElementById('crashRocket');
+            // Poll for round changes (backup sync)
+            pollLoop = setInterval(async () => {
+                if (!crashActive || !currentRound) return;
+                try {
+                    const { data } = await sb.from('crash_rounds')
+                        .select('*').eq('id', currentRound.id).single();
+                    if (data && data.status === 'crashed' && !crashShown) {
+                        currentRound = data;
+                        // Force crash display
+                    }
+                } catch(e) {}
+            }, POLL_MS);
+        }
 
-            const roundCreated = new Date(currentRound.created_at).getTime();
-            const gameStart = roundCreated + WAIT_SEC * 1000;
+        function runLoop() {
+            if (gameLoop) clearInterval(gameLoop);
+            let rocketOn = false;
+
+            const created = new Date(currentRound.created_at).getTime();
+            const gameStart = created + WAIT_MS;
             const target = currentRound.target_multiplier;
-
-            // Pre-compute crash time
             const crashMs = Math.log(target) / SPEED;
-            const crashTime = gameStart + crashMs;
-            const nextRoundTime = crashTime + PAUSE_SEC * 1000;
-
-            let rocketStarted = false;
+            const crashAt = gameStart + crashMs;
+            const nextAt = crashAt + PAUSE_MS;
 
             gameLoop = setInterval(async () => {
                 if (!crashActive) { clearInterval(gameLoop); return; }
+                const now = srvNow();
+                const countEl = document.getElementById('crashCountdown');
+                const multiEl = document.getElementById('crashMultiplier');
+                const rocketEl = document.getElementById('crashRocket');
 
-                const now = serverNow();
-
-                // ── STATE 1: Countdown ──
+                // ── COUNTDOWN ──
                 if (now < gameStart) {
-                    multiEl.style.display = 'none';
-                    multiEl.classList.remove('crashed');
+                    multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
-
-                    const remaining = Math.floor((gameStart - now) / 1000);
-                    const display = Math.max(1, Math.min(remaining + 1, WAIT_SEC));
-                    if (display !== lastCountNum) {
-                        lastCountNum = display;
-                        countEl.textContent = display;
-                        countEl.classList.remove('pop');
-                        void countEl.offsetWidth;
-                        countEl.classList.add('pop');
+                    const sec = Math.max(1, Math.min(Math.ceil((gameStart - now) / 1000), 10));
+                    if (sec !== lastCountNum) {
+                        lastCountNum = sec;
+                        countEl.textContent = sec;
+                        countEl.classList.remove('pop'); void countEl.offsetWidth; countEl.classList.add('pop');
                     }
-                    setActiveHistory('Ожидание');
+                    setActiveHist('Ожидание');
+                    crashRunning = false;
                     return;
                 }
 
-                // ── STATE 2: Game running ──
-                if (now >= gameStart && now < crashTime) {
+                // ── FLYING ──
+                if (now >= gameStart && now < crashAt) {
                     countEl.style.display = 'none';
-                    multiEl.style.display = 'none';
-                    multiEl.classList.remove('crashed');
-
-                    if (!rocketStarted) {
-                        rocketStarted = true;
+                    multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
+                    if (!rocketOn) {
+                        rocketOn = true;
+                        crashRunning = true;
                         closeBetMenu();
                         rocketEl.style.display = 'block';
                         if (!rocketAnim && typeof lottie !== 'undefined') {
-                            rocketAnim = lottie.loadAnimation({
-                                container: rocketEl, renderer: 'svg',
-                                loop: true, autoplay: true, path: 'rocket.json'
-                            });
-                        } else if (rocketAnim) {
-                            rocketAnim.goToAndPlay(0);
-                        }
-
-                        // Disable bet button if no bet
+                            rocketAnim = lottie.loadAnimation({ container: rocketEl, renderer: 'svg', loop: true, autoplay: true, path: 'rocket.json' });
+                        } else if (rocketAnim) rocketAnim.goToAndPlay(0);
                         if (!betPlaced && !didCashOut) {
                             const btn = document.getElementById('crashBetBtn');
-                            btn.innerHTML = 'Сделать ставку';
-                            btn.classList.add('disabled');
-                            btn.onclick = null;
+                            btn.innerHTML = 'Сделать ставку'; btn.classList.add('disabled'); btn.onclick = null;
                         }
                     }
-
-                    const elapsed = now - gameStart;
-                    const mult = calcMult(elapsed);
-                    setActiveHistory(mult.toFixed(2) + 'x');
-
+                    const m = mult(now - gameStart);
+                    setActiveHist(m.toFixed(2)+'x');
                     if (betPlaced && !didCashOut) {
-                        updateCashout(mult);
-                        updatePlayerGrow(mult);
-                        updateGift(Math.floor(currentBet * mult));
+                        updateCash(m); updateGrow(m);
+                        updateGift(Math.floor(currentBet * m));
                     }
                     return;
                 }
 
-                // ── STATE 3: Crashed ──
-                if (now >= crashTime && now < nextRoundTime) {
+                // ── CRASHED ──
+                if (now >= crashAt && now < nextAt) {
                     if (!crashShown) {
                         crashShown = true;
+                        crashRunning = false;
                         countEl.style.display = 'none';
                         rocketEl.style.display = 'none';
                         if (rocketAnim) rocketAnim.stop();
-
-                        multiEl.textContent = target.toFixed(2) + 'x';
+                        multiEl.textContent = target.toFixed(2)+'x';
                         multiEl.classList.add('crashed');
-
-                        removeActiveHistory();
+                        rmActiveHist();
                         let cls = 'past';
                         if (betPlaced) {
                             cls = 'lost';
-                            if (sb) sb.from('crash_bets').update({ status: 'lost' })
-                                .eq('round_id', currentRound.id).eq('user_id', myUserId).then(() => {});
-                        } else if (didCashOut) {
-                            cls = 'won';
-                        }
-                        addHistoryItem(target.toFixed(2) + 'x', cls);
-                        betPlaced = false;
-                        didCashOut = false;
-                        resetGiftDisplay();
-
-                        // Finalize round in DB (first writer wins)
-                        if (sb && !roundFinalized) {
-                            roundFinalized = true;
-                            sb.rpc('finalize_round', { round_id_param: currentRound.id }).then(() => {});
-                        }
+                            if (sb) sb.from('crash_bets').update({ status:'lost' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
+                        } else if (didCashOut) cls = 'won';
+                        addHist(target.toFixed(2)+'x', cls);
+                        betPlaced = false; didCashOut = false; resetGiftDisplay();
+                        // Finalize in DB (first writer wins)
+                        if (sb) sb.from('crash_rounds').update({ status:'crashed', crash_time: new Date(now).toISOString() }).eq('id', currentRound.id).eq('status','active').then(()=>{});
                     }
                     return;
                 }
 
-                // ── STATE 4: Next round ──
-                if (now >= nextRoundTime) {
-                    clearInterval(gameLoop);
-                    gameLoop = null;
+                // ── NEXT ROUND ──
+                if (now >= nextAt) {
+                    clearInterval(gameLoop); gameLoop = null;
+                    if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
+                    if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
                     currentRound = null;
-                    startCrash();
+                    initCrash();
                 }
             }, 50);
         }
 
-        // ─── Cashout / Bet Updates ───
-        function updateCashout(mult) {
+        // ─── Cashout ───
+        function updateCash(m) {
             const btn = document.getElementById('crashBetBtn');
-            const win = Math.floor(currentBet * mult);
+            const w = Math.floor(currentBet * m);
             if (!cashoutInit) {
-                btn.innerHTML = 'Забрать <span id="cashoutAmt">' + win + '</span> <img src="star.png" alt="">';
+                btn.innerHTML = 'Забрать <span id="cashAmt">'+w+'</span> <img src="star.png" alt="">';
                 cashoutInit = true;
-                btn.classList.remove('placed', 'disabled');
-                btn.onclick = function () { doCashOut(); };
-            } else {
-                const el = document.getElementById('cashoutAmt');
-                if (el) el.textContent = win;
-            }
+                btn.classList.remove('placed','disabled');
+                btn.onclick = function(){ doCash(); };
+            } else { const e = document.getElementById('cashAmt'); if (e) e.textContent = w; }
         }
 
-        function updatePlayerGrow(mult) {
-            const el = document.getElementById('cpGrowingAmount');
-            if (el) el.textContent = Math.floor(currentBet * mult);
+        function updateGrow(m) {
+            const e = document.getElementById('cpGrowingAmount');
+            if (e) e.textContent = Math.floor(currentBet * m);
         }
 
-        function doCashOut() {
-            if (!currentRound) return;
-            const now = serverNow();
-            const gameStart = new Date(currentRound.created_at).getTime() + WAIT_SEC * 1000;
-            const elapsed = now - gameStart;
-            const mult = calcMult(elapsed);
-            const win = Math.floor(currentBet * mult);
-
-            const btn = document.getElementById('crashBetBtn');
-            btn.innerHTML = 'Забрали ' + win + ' <img src="star.png" alt="">';
-            btn.classList.add('placed');
-            btn.onclick = null;
-            betPlaced = false;
-            didCashOut = true;
-            cashoutInit = false;
-
-            if (sb) sb.from('crash_bets').update({
-                cashout_multiplier: mult, cashout_amount: win, status: 'won'
-            }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(() => {});
-
-            if (wonGift) { showGiftModal(wonGift, win); }
-            else { setBalance(getBalance() + win); }
+        function doCash() {
+            if (!crashRunning || !currentRound) return;
+            const now = srvNow();
+            const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
+            const m = mult(now - gs);
+            const w = Math.floor(currentBet * m);
+            setBtnState('Забрали '+w+' <img src="star.png" alt="">','placed');
+            betPlaced = false; didCashOut = true; cashoutInit = false;
+            if (sb) sb.from('crash_bets').update({ cashout_multiplier: m, cashout_amount: w, status:'won' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
+            if (wonGift) showGiftModal(wonGift, w); else setBalance(getBalance() + w);
         }
 
         // ─── Submit Bet ───
         function submitBetCrash() {
-            const amount = parseInt(document.getElementById('betAmount').value) || 0;
-            if (amount <= 0 || amount > getBalance()) return;
-            if (!currentRound) return;
-
-            // Check still in countdown
-            const now = serverNow();
-            const gameStart = new Date(currentRound.created_at).getTime() + WAIT_SEC * 1000;
-            if (now >= gameStart) return; // too late
-
-            setBalance(getBalance() - amount);
-            currentBet = amount;
-            betPlaced = true;
+            const amt = parseInt(document.getElementById('betAmount').value) || 0;
+            if (amt <= 0 || amt > getBalance() || !currentRound) return;
+            const now = srvNow();
+            const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
+            if (now >= gs) return; // too late
+            setBalance(getBalance() - amt);
+            currentBet = amt; betPlaced = true;
             closeBetMenu();
-
-            const btn = document.getElementById('crashBetBtn');
-            btn.innerHTML = 'Ставка сделана';
-            btn.classList.add('placed');
-            btn.onclick = null;
-
-            showMyBet(amount);
-
-            if (sb) sb.from('crash_bets').insert({
-                round_id: currentRound.id,
-                user_id: myUserId,
-                user_name: myName,
-                user_photo: myPhoto,
-                amount: amount
-            }).then(() => {});
+            setBtnState('Ставка сделана','placed');
+            showMyBet(amt);
+            if (sb) sb.from('crash_bets').insert({ round_id: currentRound.id, user_id: myUserId, user_name: myName, user_photo: myPhoto, amount: amt }).then(()=>{});
         }
 
-        // ─── Local Fallback (no Supabase) ───
-        function startLocalRound() {
-            resetBet(); resetUI();
-            const fakeRound = {
-                id: Date.now(),
-                created_at: new Date().toISOString(),
-                target_multiplier: 1.05 + Math.random() * 7.95,
-                status: 'waiting'
-            };
-            currentRound = fakeRound;
-            crashShown = false;
-            roundFinalized = false;
-            startGameLoop();
+        // ─── Local Fallback ───
+        function localRound() {
+            resetBet(); hideAll(); crashShown = false; lastCountNum = -1;
+            currentRound = { id: Date.now(), created_at: new Date().toISOString(), target_multiplier: 1.1+Math.random()*7.9 };
+            runLoop();
         }
 
         // ─── Gift System ───
@@ -2394,7 +2310,6 @@
             {name:'Adam',img:'Gifts/Adam.png',price:650},
             {name:'Blue Beam',img:'Gifts/Blue Beam.png',price:650},
             {name:'Apple Fresh',img:'Gifts/Apple Fresh.png',price:684},
-            {name:'Anniversary',img:'Gifts/Anniversary.png',price:700},
             {name:'Alpine Fern',img:'Gifts/Alpine Fern.png',price:707},
             {name:'Angry Ghost',img:'Gifts/Angry Ghost.png',price:743},
             {name:'Chamomile',img:'Gifts/Chamomile.png',price:784},
@@ -2437,78 +2352,40 @@
             {name:'Ardente',img:'Gifts/Ardente.png',price:48395},
             {name:'Action Film',img:'Gifts/Action Film.png',price:145452}
         ];
-
         let currentGiftIdx = -1, wonGift = null, inventory = [];
 
-        function updateGift(winAmount) {
-            const pGift = document.getElementById('cpGiftIcon');
-            let idx = -1;
-            for (let i = giftList.length - 1; i >= 0; i--) {
-                if (winAmount >= giftList[i].price) { idx = i; break; }
-            }
-            if (idx !== currentGiftIdx && idx >= 0) {
-                currentGiftIdx = idx;
-                wonGift = giftList[idx];
-                if (pGift) { pGift.src = encodeURI(wonGift.img); pGift.style.display = 'block'; }
-            } else if (idx < 0) {
-                wonGift = null;
-                if (pGift) pGift.style.display = 'none';
-            }
-        }
-
-        function resetGiftDisplay() {
-            currentGiftIdx = -1; wonGift = null;
+        function updateGift(w) {
             const p = document.getElementById('cpGiftIcon');
-            if (p) p.style.display = 'none';
+            let idx = -1;
+            for (let i = giftList.length-1; i >= 0; i--) { if (w >= giftList[i].price) { idx = i; break; } }
+            if (idx !== currentGiftIdx && idx >= 0) {
+                currentGiftIdx = idx; wonGift = giftList[idx];
+                if (p) { p.src = encodeURI(wonGift.img); p.style.display = 'block'; }
+            } else if (idx < 0) { wonGift = null; if (p) p.style.display = 'none'; }
         }
+        function resetGiftDisplay() { currentGiftIdx = -1; wonGift = null; const p = document.getElementById('cpGiftIcon'); if (p) p.style.display = 'none'; }
 
-        function showGiftModal(gift, win) {
+        function showGiftModal(gift, w) {
             document.getElementById('giftModalImg').src = encodeURI(gift.img);
             document.getElementById('giftModalName').textContent = gift.name;
-            document.getElementById('giftSellAmount').textContent = win;
-            const m = document.getElementById('giftModal');
-            m.classList.add('show');
-            m._gift = gift;
-            m._win = win;
+            document.getElementById('giftSellAmount').textContent = w;
+            const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = w;
         }
-
-        function sellGift() {
-            const m = document.getElementById('giftModal');
-            setBalance(getBalance() + m._win);
-            m.classList.remove('show');
-        }
-
+        function sellGift() { const m = document.getElementById('giftModal'); setBalance(getBalance() + m._win); m.classList.remove('show'); }
         function takeGift() {
             const m = document.getElementById('giftModal');
             const item = { name: m._gift.name, img: m._gift.img, price: m._win };
-            inventory.push(item);
-            renderInventory();
-            dbSaveInvItem(item);
-            m.classList.remove('show');
+            inventory.push(item); renderInventory(); dbSaveInvItem(item); m.classList.remove('show');
         }
-
         function renderInventory() {
-            const grid = document.getElementById('inventoryGrid');
-            const empty = document.getElementById('emptyInventory');
+            const grid = document.getElementById('inventoryGrid'), empty = document.getElementById('emptyInventory');
             if (!inventory.length) { empty.style.display = 'flex'; grid.innerHTML = ''; return; }
             empty.style.display = 'none';
             grid.innerHTML = inventory.map((it, i) =>
-                '<div class="inventory-item"><img class="inv-img" src="' + encodeURI(it.img) + '" alt="">' +
-                '<div class="inv-name">' + it.name + '</div><div class="inv-btns">' +
-                '<button class="inv-btn sell" onclick="sellInvItem(' + i + ')">Продать ' + it.price +
-                ' <img src="star.png" alt=""></button>' +
-                '<button class="inv-btn withdraw">Вывести</button></div></div>'
+                '<div class="inventory-item"><img class="inv-img" src="'+encodeURI(it.img)+'" alt=""><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
             ).join('');
         }
-
-        function sellInvItem(i) {
-            const it = inventory[i];
-            if (!it) return;
-            setBalance(getBalance() + it.price);
-            dbRemoveInvItem(it.id);
-            inventory.splice(i, 1);
-            renderInventory();
-        }
+        function sellInvItem(i) { const it = inventory[i]; if (!it) return; setBalance(getBalance()+it.price); dbRemoveInvItem(it.id); inventory.splice(i,1); renderInventory(); }
 
         // ─── Bet Menu ───
         function placeBet() { document.getElementById('betMenu').classList.add('show'); document.getElementById('betOverlay').classList.add('show'); }
