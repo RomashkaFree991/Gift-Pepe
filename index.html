@@ -395,6 +395,72 @@
             pointer-events: auto;
         }
 
+
+        .promo-block {
+            width: 100%;
+            margin: 14px 0 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .promo-title {
+            width: 100%;
+            font-size: 16px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.9);
+            text-align: left;
+        }
+
+        .promo-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            background: rgba(35,35,40,0.55);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .promo-input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 48px;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.92);
+            font-size: 14px;
+            font-weight: 600;
+            padding: 0 14px;
+            outline: none;
+            font-family: inherit;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .promo-input::placeholder {
+            color: rgba(255,255,255,0.42);
+        }
+
+        .promo-apply-btn {
+            flex: 0 0 46%;
+            height: 48px;
+            border-radius: 14px;
+            border: none;
+            background: #0A84FF;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: inherit;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .promo-apply-btn:active {
+            transform: scale(0.99);
+            filter: brightness(0.98);
+        }
+
+
         /* ─── Referral Page ─── */
         .referral-page {
             display: flex;
@@ -409,13 +475,17 @@
         }
 
         .ref-back {
-            width: 100%;
-            display: flex;
+            align-self: flex-start;
+            display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
-            margin-bottom: 16px;
+            margin-bottom: 18px;
+            padding: 10px 14px 11px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 999px;
         }
 
         .ref-back svg {
@@ -428,6 +498,7 @@
             font-size: 15px;
             font-weight: 500;
             color: rgba(255, 255, 255, 0.7);
+            transform: translateY(1px);
         }
 
         .ref-stats {
@@ -1573,7 +1644,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-top: calc(112px + env(safe-area-inset-top, 0px));
+            padding-top: calc(128px + env(safe-area-inset-top, 0px));
             padding-bottom: 100px;
             padding-left: 16px;
             padding-right: 16px;
@@ -1581,6 +1652,10 @@
             -webkit-overflow-scrolling: touch;
             width: 100%;
             height: 100%;
+        }
+
+        .games-page .section-title {
+            margin-bottom: 10px;
         }
 
         .game-banner {
@@ -1725,11 +1800,14 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            -webkit-tap-highlight-color: transparent;
+            -webkit-tap-highlight-color: rgba(0,0,0,0);
             -webkit-appearance: none;
             appearance: none;
             touch-action: manipulation;
             user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-focus-ring-color: transparent;
+            box-sizing: border-box;
         }
 
         .check-claim-btn:focus,
@@ -1887,10 +1965,10 @@
             <div class="game-banner" onclick="openGame('crash')">
                 <img src="Crash.png" alt="Crash">
             </div>
-            <div class="game-banner" style="margin-top: 6px;" onclick="openGame('upgrade')">
+            <div class="game-banner" style="margin-top: 4px;" onclick="openGame('upgrade')">
                 <img src="upgrade.png" alt="Upgrade">
             </div>
-            <div class="game-banner" style="margin-top: 6px;" onclick="openGame('craft')">
+            <div class="game-banner" style="margin-top: 4px;" onclick="openGame('craft')">
                 <img src="craft.png" alt="Craft">
             </div>
         </div>
@@ -1911,6 +1989,15 @@
             </div>
             <div class="profile-name" id="profileName">User</div>
             <div class="profile-username" id="profileUsername">@username</div>
+        </div>
+
+
+        <div class="promo-block">
+            <div class="promo-title" id="promoTitle">Промокод</div>
+            <div class="promo-row">
+                <input class="promo-input" id="promoInput" type="text" placeholder="GiftPepeRobot" autocapitalize="none" autocomplete="off" spellcheck="false">
+                <button class="promo-apply-btn" id="promoApplyBtn" onclick="applyPromoCode()">Применить</button>
+            </div>
         </div>
 
         <!-- Invite button -->
@@ -1962,7 +2049,7 @@
 
         <div class="ref-link-card">
             <span class="card-title">РЕФЕРАЛЬНАЯ СИСТЕМА</span>
-            <span style="font-size:12px;color:rgba(255,255,255,0.4);line-height:1.4;">За каждого приглашённого друга вы получаете 10% от его пополнений</span>
+            <span class="ref-desc" id="refBonusText" style="font-size:12px;color:rgba(255,255,255,0.4);line-height:1.4;">За каждого приглашённого друга вы получаете 10% от его пополнений</span>
             <div class="ref-link-row">
                 <input class="ref-link-input" id="refLinkInput" type="text" value="https://t.me/GiftPepeRobot?startapp=ref_" readonly>
                 <div class="ref-action-btn ref-copy-icon" onclick="copyRefLink()">
@@ -2131,12 +2218,220 @@
         let myName = 'User';
         let myPhoto = '';
 
+
         let currentGiftCheckCode = '';
         let currentGiftCheckAmount = 0;
         let giftCheckBusy = false;
         let giftCheckToastTimer = null;
         let stickyMyGiftPreview = null;
 
+        const LANG_STORAGE_KEY = 'giftpepe_lang';
+        let currentLang = localStorage.getItem(LANG_STORAGE_KEY) || 'ru';
+        const I18N = {
+            ru: {
+                choose_game: 'Выберите игру',
+                profile: 'Профиль',
+                inventory: 'Инвентарь',
+                invite_friend: 'ПРИГЛАСИТЬ ДРУГА',
+                get_bonuses: 'Получайте бонусы',
+                promo_title: 'Промокод',
+                promo_placeholder: 'GiftPepeRobot',
+                apply: 'Применить',
+                promo_enter: 'Введите промокод',
+                promo_unavailable: 'Промокоды пока недоступны',
+                no_gifts_title: 'Не нашли подарков?',
+                no_gifts_desc_html: 'Пополните в <a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a> или выиграйте в играх.',
+                back: 'Назад',
+                referrals: 'Рефералы',
+                earned: 'Заработано',
+                referral_system: 'РЕФЕРАЛЬНАЯ СИСТЕМА',
+                referral_desc: 'За каждого приглашённого друга вы получаете 10% от его пополнений',
+                copy_link: 'Скопировать ссылку',
+                copied: 'Скопировано!',
+                topup: 'Пополнение',
+                bet: 'Ставка',
+                make_bet: 'Сделать ставку',
+                bet_done: 'Ставка сделана',
+                bet_sending: 'Ставка отправляется...',
+                waiting_bets: 'Ожидание ставок',
+                language: 'Язык',
+                support: 'Поддержка',
+                save_continue: 'Сохранить и продолжить',
+                check: 'Чек',
+                check_subtitle: 'Нажми на кнопку ниже, чтобы забрать чек',
+                top: 'Топ',
+                games: 'Игры',
+                profile_nav: 'Профиль',
+                loading_check: 'Загружаем чек...',
+                unable_load: 'Не удалось загрузить',
+                unavailable: 'Недоступно',
+                received: 'Получено',
+                get: 'Получить',
+                getting: 'Получаем...',
+                success: 'Успешно',
+                error: 'Ошибка',
+                received_text: 'Получено',
+                already_claimed: 'Чек уже получен',
+                claim_failed: 'Не удалось получить чек',
+                claim_error: 'Ошибка при получении',
+                waiting_round: 'Ожидание раунда',
+                no_connection: 'Нет соединения',
+                failed_round: 'Не удалось получить общий раунд',
+                round_loading: 'Загрузка раунда...',
+                local_off: 'Локальный режим отключён',
+                waiting: 'Ожидание',
+                you: 'Вы',
+                gift: 'Подарок',
+                collected: 'Забрали',
+                sell_all: 'Продать все',
+                sell: 'Продать',
+                withdraw: 'Вывести',
+                open_in_telegram: 'Откройте в Telegram'
+            },
+            en: {
+                choose_game: 'Choose a game',
+                profile: 'Profile',
+                inventory: 'Inventory',
+                invite_friend: 'INVITE A FRIEND',
+                get_bonuses: 'Get bonuses',
+                promo_title: 'Promo code',
+                promo_placeholder: 'GiftPepeRobot',
+                apply: 'Apply',
+                promo_enter: 'Enter a promo code',
+                promo_unavailable: 'Promo codes are not available yet',
+                no_gifts_title: 'No gifts found?',
+                no_gifts_desc_html: 'Top up at <a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a> or win in games.',
+                back: 'Back',
+                referrals: 'Referrals',
+                earned: 'Earned',
+                referral_system: 'REFERRAL SYSTEM',
+                referral_desc: 'For each invited friend, you receive 10% of their top-ups',
+                copy_link: 'Copy link',
+                copied: 'Copied!',
+                topup: 'Top up',
+                bet: 'Bet',
+                make_bet: 'Place bet',
+                bet_done: 'Bet placed',
+                bet_sending: 'Sending bet...',
+                waiting_bets: 'Waiting for bets',
+                language: 'Language',
+                support: 'Support',
+                save_continue: 'Save and continue',
+                check: 'Check',
+                check_subtitle: 'Tap the button below to claim the check',
+                top: 'Top',
+                games: 'Games',
+                profile_nav: 'Profile',
+                loading_check: 'Loading check...',
+                unable_load: 'Failed to load',
+                unavailable: 'Unavailable',
+                received: 'Received',
+                get: 'Claim',
+                getting: 'Claiming...',
+                success: 'Success',
+                error: 'Error',
+                received_text: 'Received',
+                already_claimed: 'Check already claimed',
+                claim_failed: 'Failed to claim the check',
+                claim_error: 'Claim error',
+                waiting_round: 'Waiting for round',
+                no_connection: 'No connection',
+                failed_round: 'Failed to get shared round',
+                round_loading: 'Loading round...',
+                local_off: 'Local mode is disabled',
+                waiting: 'Waiting',
+                you: 'You',
+                gift: 'Gift',
+                collected: 'Collected',
+                sell_all: 'Sell all',
+                sell: 'Sell',
+                withdraw: 'Withdraw',
+                open_in_telegram: 'Open in Telegram'
+            }
+        };
+
+        function t(key) {
+            const dict = I18N[currentLang] || I18N.ru;
+            return dict[key] || I18N.ru[key] || key;
+        }
+
+        function applyTranslations() {
+            document.documentElement.lang = currentLang;
+            const navSpans = document.querySelectorAll('.nav-item span');
+            if (navSpans[0]) navSpans[0].textContent = t('top');
+            if (navSpans[1]) navSpans[1].textContent = t('games');
+            if (navSpans[2]) navSpans[2].textContent = t('profile_nav');
+
+            const gameTitle = document.querySelector('#page-games .section-title');
+            if (gameTitle) gameTitle.textContent = t('choose_game');
+            const profileTitle = document.querySelector('#page-profile > .section-title');
+            if (profileTitle) profileTitle.textContent = t('profile');
+            const inventoryTitle = document.querySelector('.inventory-header .section-title');
+            if (inventoryTitle) inventoryTitle.textContent = t('inventory');
+
+            const inviteMain = document.querySelector('.invite-btn-text .main');
+            const inviteSub = document.querySelector('.invite-btn-text .sub');
+            if (inviteMain) inviteMain.textContent = t('invite_friend');
+            if (inviteSub) inviteSub.textContent = t('get_bonuses');
+
+            const promoTitle = document.getElementById('promoTitle');
+            const promoInput = document.getElementById('promoInput');
+            const promoApplyBtn = document.getElementById('promoApplyBtn');
+            if (promoTitle) promoTitle.textContent = t('promo_title');
+            if (promoInput) promoInput.placeholder = t('promo_placeholder');
+            if (promoApplyBtn) promoApplyBtn.textContent = t('apply');
+
+            const giftsTitle = document.querySelector('.gifts-title');
+            const giftsDesc = document.querySelector('.gifts-desc');
+            if (giftsTitle) giftsTitle.textContent = t('no_gifts_title');
+            if (giftsDesc) giftsDesc.innerHTML = t('no_gifts_desc_html');
+
+            const refBack = document.querySelector('.ref-back span');
+            if (refBack) refBack.textContent = t('back');
+            const refLabels = document.querySelectorAll('.ref-stat-card .label');
+            if (refLabels[0]) refLabels[0].textContent = t('referrals');
+            if (refLabels[1]) refLabels[1].textContent = t('earned');
+            const refTitle = document.querySelector('.ref-link-card .card-title');
+            if (refTitle) refTitle.textContent = t('referral_system');
+            const refBonusText = document.getElementById('refBonusText');
+            if (refBonusText) refBonusText.textContent = t('referral_desc');
+            const refCopyBtn = document.querySelector('.ref-copy-btn');
+            if (refCopyBtn) refCopyBtn.textContent = t('copy_link');
+
+            const crashBack = document.querySelector('.crash-back span');
+            if (crashBack) crashBack.textContent = t('back');
+            const crashBetBtn = document.getElementById('crashBetBtn');
+            if (crashBetBtn && !crashBetBtn.classList.contains('placed') && !crashBetBtn.classList.contains('disabled')) crashBetBtn.textContent = t('make_bet');
+            const crashWait = document.getElementById('crashWaitingText');
+            if (crashWait && (!crashWait.textContent || crashWait.textContent === I18N.ru.waiting_bets || crashWait.textContent === I18N.en.waiting_bets)) crashWait.textContent = t('waiting_bets');
+
+            const topupTitle = document.querySelector('.topup-title');
+            if (topupTitle) topupTitle.textContent = t('topup');
+            const betTitle = document.querySelector('.bet-menu-title');
+            if (betTitle) betTitle.textContent = t('bet');
+            const betSubmit = document.querySelector('.bet-submit-btn');
+            if (betSubmit) betSubmit.textContent = t('make_bet');
+
+            const modalRows = document.querySelectorAll('.modal-row span:first-child');
+            if (modalRows[0]) modalRows[0].textContent = t('language');
+            if (modalRows[1]) modalRows[1].textContent = t('support');
+            const saveBtn = document.querySelector('.modal-save-btn');
+            if (saveBtn) saveBtn.textContent = t('save_continue');
+
+            const checkLabel = document.querySelector('.check-label');
+            if (checkLabel) checkLabel.textContent = t('check');
+
+            updateInventorySummary();
+        }
+
+        function initLanguage() {
+            if (!I18N[currentLang]) currentLang = 'ru';
+            document.querySelectorAll('.lang-pill').forEach(p => p.classList.toggle('active', p.dataset.lang === currentLang));
+            applyTranslations();
+        }
+
+
+        initLanguage();
 
         // ─── Prevent long-press ───
         document.addEventListener('contextmenu', e => e.preventDefault());
@@ -2184,6 +2479,7 @@
                 }
 
                 document.getElementById('refLinkInput').value = buildRefLink(user.id);
+                applyTranslations();
 
                 const cachedBalance = readCachedBalance(user.id);
                 if (cachedBalance !== null) setBalance(cachedBalance, { persist: false, cache: true });
@@ -2287,7 +2583,7 @@
         function setGiftCheckSubtitle(amount, text) {
             const subtitle = document.getElementById('checkSubtitle');
             if (!subtitle) return;
-            subtitle.textContent = text || 'Нажми на кнопку ниже, чтобы забрать чек';
+            subtitle.textContent = text || t('check_subtitle');
         }
 
         function renderGiftCheckState(payload = {}) {
@@ -2296,28 +2592,28 @@
             const hintEl = document.getElementById('checkHint');
 
             if (!payload.ok) {
-                setGiftCheckSubtitle(amount, 'Не удалось загрузить');
-                setGiftCheckButton('Недоступно', true, false, amount, false);
+                setGiftCheckSubtitle(amount, t('unable_load'));
+                setGiftCheckButton(t('unavailable'), true, false, amount, false);
                 if (hintEl) hintEl.textContent = '';
                 return;
             }
 
             if (payload.claimed_by_current_user) {
-                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже, чтобы забрать чек');
-                setGiftCheckButton('Получено', true, false, amount, true);
+                setGiftCheckSubtitle(amount, t('check_subtitle'));
+                setGiftCheckButton(t('received'), true, false, amount, true);
                 if (hintEl) hintEl.textContent = '';
                 return;
             }
 
             if (payload.status === 'claimed') {
-                setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже, чтобы забрать чек');
-                setGiftCheckButton('Получено', true, false, amount, true);
+                setGiftCheckSubtitle(amount, t('check_subtitle'));
+                setGiftCheckButton(t('received'), true, false, amount, true);
                 if (hintEl) hintEl.textContent = '';
                 return;
             }
 
-            setGiftCheckSubtitle(amount, 'Нажми на кнопку ниже, чтобы забрать чек');
-            setGiftCheckButton('Получить', false, false, amount, true);
+            setGiftCheckSubtitle(amount, t('check_subtitle'));
+            setGiftCheckButton(t('get'), false, false, amount, true);
             if (hintEl) hintEl.textContent = '';
         }
 
@@ -2330,7 +2626,7 @@
             toast.classList.remove('success', 'error', 'show');
             toast.classList.add(success ? 'success' : 'error');
             if (icon) icon.textContent = success ? '✓' : '!';
-            if (title) title.textContent = success ? 'Успешно' : 'Ошибка';
+            if (title) title.textContent = success ? t('success') : t('error');
             if (body) body.innerHTML = (text || '') + (amount > 0 ? ' <img src="star.png" alt="star"> ' + amount : '');
             clearTimeout(giftCheckToastTimer);
             requestAnimationFrame(() => toast.classList.add('show'));
@@ -2342,7 +2638,7 @@
             currentGiftCheckCode = code;
             openCheckPage();
             renderGiftCheckState({ ok: true, amount: 0, status: 'loading' });
-            document.getElementById('checkHint').textContent = 'Загружаем чек...';
+            document.getElementById('checkHint').textContent = t('loading_check');
             try {
                 const { data, error } = await sb.rpc('get_gift_check_public', {
                     p_code: code,
@@ -2359,7 +2655,7 @@
         async function claimGiftCheck() {
             if (!sb || !currentGiftCheckCode || !myUserId || giftCheckBusy) return;
             giftCheckBusy = true;
-            setGiftCheckButton('Получаем...', true, true, currentGiftCheckAmount || 0, false);
+            setGiftCheckButton(t('getting'), true, true, currentGiftCheckAmount || 0, false);
             try {
                 const { data, error } = await sb.rpc('claim_gift_check', {
                     p_code: currentGiftCheckCode,
@@ -2383,18 +2679,18 @@
                         status: 'claimed',
                         claimed_by_current_user: true
                     });
-                    showClaimToast(true, payload.amount || currentGiftCheckAmount, 'Получено');
+                    showClaimToast(true, payload.amount || currentGiftCheckAmount, t('received_text'));
                 } else {
                     renderGiftCheckState(payload);
                     if (payload.error === 'already_claimed') {
-                        showClaimToast(false, 0, 'Чек уже получен');
+                        showClaimToast(false, 0, t('already_claimed'));
                     } else {
-                        showClaimToast(false, 0, 'Не удалось получить чек');
+                        showClaimToast(false, 0, t('claim_failed'));
                     }
                 }
             } catch (e) {
                 console.error('claimGiftCheck error', e);
-                showClaimToast(false, 0, 'Ошибка при получении');
+                showClaimToast(false, 0, t('claim_error'));
                 renderGiftCheckState({ ok: true, amount: currentGiftCheckAmount, status: 'active' });
             } finally {
                 giftCheckBusy = false;
@@ -2736,7 +3032,7 @@
                 wait.style.opacity = isError ? '1' : '';
             }
             if (btn) {
-                btn.innerHTML = isError ? 'Нет соединения' : 'Ожидание раунда';
+                btn.innerHTML = isError ? t('no_connection') : t('waiting_round');
                 btn.classList.add('disabled');
                 btn.classList.remove('placed');
                 btn.onclick = null;
@@ -2751,7 +3047,7 @@
             const t = document.getElementById('crashWaitingText');
             if (t) {
                 t.style.display = '';
-                t.textContent = 'Ожидание ставок';
+                t.textContent = t('waiting_bets');
             }
             renderStickyGiftPreview();
         }
@@ -2778,7 +3074,7 @@
 
             if (!round) {
                 if (holdingCurrentRound) return;
-                showCrashStatus('Не удалось получить общий раунд', true);
+                showCrashStatus(t('failed_round'), true);
                 return;
             }
 
@@ -2857,7 +3153,7 @@
         function resetBet() {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
             const btn = document.getElementById('crashBetBtn');
-            if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
+            if (btn) { btn.innerHTML = t('make_bet'); btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
             clearCrashPlayers();
             resetGiftDisplay();
         }
@@ -3010,7 +3306,7 @@
             if (wait) wait.style.display = 'none';
 
             let row = players.querySelector('[data-bet-key="' + safeKey + '"]');
-            const displayName = isMe ? 'Вы' : (name || 'Player');
+            const displayName = isMe ? t('you') : (name || 'Player');
             const avatar = photo
                 ? '<img class="cp-avatar" src="' + escapeHtml(photo) + '" alt="">'
                 : '<div class="cp-avatar-placeholder">' + escapeHtml((displayName || 'P')[0]) + '</div>';
@@ -3046,7 +3342,7 @@
                 didCashOut = true;
                 betPlaced = false;
                 cashoutInit = false;
-                setBtnState('Забрали ' + (rec.cashout_amount || rec.amount) + ' <img src="star.png" alt="">', 'placed');
+                setBtnState(t('collected') + ' ' + (rec.cashout_amount || rec.amount) + ' <img src="star.png" alt="">', 'placed');
             } else if (rec.status === 'lost') {
                 betPlaced = false;
                 didCashOut = false;
@@ -3055,7 +3351,7 @@
                 betPlaced = true;
                 didCashOut = false;
                 cashoutInit = false;
-                setBtnState('Ставка сделана', 'placed');
+                setBtnState(t('bet_done'), 'placed');
             }
         }
 
@@ -3211,7 +3507,7 @@
             hideAll(); resetBet();
 
             if (!sb) {
-                showCrashStatus('Нет подключения к серверу', true);
+                showCrashStatus(t('no_connection'), true);
                 return;
             }
 
@@ -3264,7 +3560,7 @@
                         countEl.classList.add('pop');
                     }
 
-                    setActiveHist('Ожидание');
+                    setActiveHist(t('waiting'));
                     crashRunning = false;
                     return;
                 }
@@ -3289,7 +3585,7 @@
 
                         if (!betPlaced && !didCashOut) {
                             const btn = document.getElementById('crashBetBtn');
-                            btn.innerHTML = 'Сделать ставку';
+                            btn.innerHTML = t('make_bet');
                             btn.classList.add('disabled');
                             btn.onclick = null;
                         }
@@ -3351,7 +3647,7 @@
                     currentRound = null;
                     hideAll();
                     resetBet();
-                    showCrashStatus('Загрузка раунда...', false);
+                    showCrashStatus(t('round_loading'), false);
 
                     setTimeout(async () => {
                         if (!crashActive) return;
@@ -3371,7 +3667,7 @@
             const btn = document.getElementById('crashBetBtn');
             const w = Math.floor(currentBet * m);
             if (!cashoutInit) {
-                btn.innerHTML = 'Забрать <span id="cashAmt">'+w+'</span> <img src="star.png" alt="">';
+                btn.innerHTML = t('get') + ' <span id="cashAmt">'+w+'</span> <img src="star.png" alt="">';
                 cashoutInit = true;
                 btn.classList.remove('placed','disabled');
                 btn.onclick = function(){ doCash(); };
@@ -3398,7 +3694,7 @@
                 crashBetsState.set(myKey, existing);
                 renderBetRecord(existing);
             }
-            setBtnState('Забрали '+w+' <img src="star.png" alt="">','placed');
+            setBtnState(t('collected')+' '+w+' <img src="star.png" alt="">','placed');
             betPlaced = false; didCashOut = true; cashoutInit = false;
             if (sb) sb.from('crash_bets').update({ cashout_multiplier: m, cashout_amount: w, status:'won' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
             if (wonGift) showGiftModal(wonGift, w); else setBalance(getBalance() + w, { immediate: true });
@@ -3422,7 +3718,7 @@
             didCashOut = false;
             cashoutInit = false;
             closeBetMenu();
-            setBtnState('Ставка отправляется...','disabled');
+            setBtnState(t('bet_sending'),'disabled');
             showMyBet(amt);
 
             const { error } = await sb.from('crash_bets').upsert(
@@ -3441,19 +3737,19 @@
                 if (row) row.remove();
                 const btn = document.getElementById('crashBetBtn');
                 if (btn) {
-                    btn.innerHTML = 'Сделать ставку';
+                    btn.innerHTML = t('make_bet');
                     btn.classList.remove('placed', 'disabled');
                     btn.onclick = function(){ placeBet(); };
                 }
                 return;
             }
 
-            setBtnState('Ставка сделана','placed');
+            setBtnState(t('make_bet'),'placed');
         }
 
         // ─── Crash offline state ───
         function localRound() {
-            showCrashStatus('Локальный режим отключён', true);
+            showCrashStatus(t('local_off'), true);
         }
 
         // ─── Gift System ───
@@ -3536,7 +3832,7 @@
             if (!stickyMyGiftPreview || betPlaced) {
                 if (wait && !players.querySelector('.crash-player-row')) {
                     wait.style.display = '';
-                    wait.textContent = 'Ожидание ставок';
+                    wait.textContent = t('waiting_bets');
                 }
                 return;
             }
@@ -3548,7 +3844,7 @@
             const amount = Math.max(0, Math.floor(Number(stickyMyGiftPreview.amount) || 0));
             const markup = '<div class="crash-player-row me status-won sticky-preview" data-bet-key="sticky-me-gift">' +
                 avatar +
-                '<div class="cp-name"><span class="cp-name-text">Вы</span><span class="cp-original-bet">Подарок</span></div>' +
+                '<div class="cp-name"><span class="cp-name-text">'+t('you')+'</span><span class="cp-original-bet">'+t('gift')+'</span></div>' +
                 '<span class="cp-amount"><span class="cp-growing-amount">' + amount + '</span> <img src="star.png" alt=""></span>' +
                 '<img class="cp-gift" src="" alt="" style="display:none;">' +
                 '</div>';
@@ -3613,6 +3909,7 @@
 
         function getInventoryCountLabel(n) {
             const count = Math.max(0, parseInt(n, 10) || 0);
+            if (currentLang === 'en') return count + ' ' + (count === 1 ? 'gift' : 'gifts');
             const mod10 = count % 10;
             const mod100 = count % 100;
             if (mod10 === 1 && mod100 !== 11) return count + ' подарок';
@@ -3626,7 +3923,7 @@
             const total = inventory.reduce((sum, it) => sum + (Math.max(0, parseInt(it && it.price, 10) || 0)), 0);
             if (countEl) countEl.textContent = getInventoryCountLabel(inventory.length);
             if (btn) {
-                btn.innerHTML = 'Продать все ' + total + ' <img src="star.png" alt="">';
+                btn.innerHTML = t('sell_all') + ' ' + total + ' <img src="star.png" alt="">';
                 const disabled = inventory.length === 0 || total <= 0;
                 btn.disabled = disabled;
                 btn.classList.toggle('disabled', disabled);
@@ -3649,7 +3946,7 @@
             if (!inventory.length) { empty.style.display = 'flex'; grid.innerHTML = ''; return; }
             empty.style.display = 'none';
             grid.innerHTML = inventory.map((it, i) =>
-                '<div class="inventory-item"><img class="inv-img loading" src="'+encodeURI(it.img)+'" alt="" onload="this.classList.remove(\'loading\')" onerror="this.classList.add(\'loading\')"><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
+                '<div class="inventory-item"><img class="inv-img loading" src="'+encodeURI(it.img)+'" alt="" onload="this.classList.remove(\'loading\')" onerror="this.classList.add(\'loading\')"><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">'+t('sell')+' '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">'+t('withdraw')+'</button></div></div>'
             ).join('');
         }
         function sellInvItem(i) { const it = inventory[i]; if (!it) return; setBalance(getBalance()+it.price, { immediate: true }); dbRemoveInvItem(it.id); inventory.splice(i,1); renderInventory(); }
@@ -3667,7 +3964,12 @@
         function copyRefLink() {
             const link = document.getElementById('refLinkInput').value;
             if (navigator.clipboard) navigator.clipboard.writeText(link); else { document.getElementById('refLinkInput').select(); document.execCommand('copy'); }
-            const b = document.querySelector('.ref-copy-btn'); const o = b.textContent; b.textContent = 'Скопировано!'; setTimeout(() => b.textContent = o, 1500);
+            const b = document.querySelector('.ref-copy-btn');
+            const o = t('copy_link');
+            if (b) {
+                b.textContent = t('copied');
+                setTimeout(() => b.textContent = o, 1500);
+            }
         }
 
         // ─── Settings ───
@@ -3675,14 +3977,50 @@
         function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); document.getElementById('langOptions').classList.remove('show'); document.getElementById('langRow').classList.remove('open'); }
         function closeSettingsOutside(e) { if (e.target === e.currentTarget) closeSettings(); }
         function toggleLang() { document.getElementById('langOptions').classList.toggle('show'); document.getElementById('langRow').classList.toggle('open'); }
-        function selectLang(lang, el) { document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); el.classList.add('active'); }
+        function selectLang(lang, el) {
+            currentLang = I18N[lang] ? lang : 'ru';
+            localStorage.setItem(LANG_STORAGE_KEY, currentLang);
+            document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+            if (el) el.classList.add('active');
+            applyTranslations();
+            renderInventory();
+            if (currentGiftCheckCode) {
+                renderGiftCheckState({ ok: true, amount: currentGiftCheckAmount, status: 'active' });
+            } else {
+                setGiftCheckSubtitle(0, t('check_subtitle'));
+            }
+        }
         function openSupport() { closeSettings(); if (tg && tg.openTelegramLink) tg.openTelegramLink('https://t.me/GiftPepeSupport'); else window.open('https://t.me/GiftPepeSupport','_blank'); }
+
+        async function applyPromoCode() {
+            const input = document.getElementById('promoInput');
+            const code = (input?.value || '').trim();
+            if (!code) {
+                showClaimToast(false, 0, t('promo_enter'));
+                return;
+            }
+            try {
+                if (sb && myUserId) {
+                    const { data, error } = await sb.rpc('apply_promo_code', { p_telegram_id: myUserId, p_code: code });
+                    if (error) throw error;
+                    if (data?.ok) {
+                        if (typeof data.balance !== 'undefined') setBalance(data.balance, { persist: false, cache: true });
+                        showClaimToast(true, Math.max(0, parseInt(data.reward, 10) || 0), t('received_text'));
+                        if (input) input.value = '';
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('applyPromoCode failed', e);
+            }
+            showClaimToast(false, 0, t('promo_unavailable'));
+        }
 
         // ─── Topup via Telegram Stars ───
         const BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
 
         async function buyStars(amount) {
-            if (!tg) { alert('Откройте в Telegram'); return; }
+            if (!tg) { alert(t('open_in_telegram')); return; }
             const topupItems = document.querySelectorAll('.topup-item');
             topupItems.forEach(el => el.style.pointerEvents = 'none');
 
@@ -3694,7 +4032,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         title: amount + ' Stars',
-                        description: 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
+                        description: (currentLang === 'ru' ? ('Пополнение баланса на ' + amount + ' звёзд в Gift Pepe') : ('Gift Pepe balance top-up for ' + amount + ' stars')),
                         payload: invoicePayload,
                         currency: 'XTR',
                         prices: [{ label: amount + ' Stars', amount: amount }]
