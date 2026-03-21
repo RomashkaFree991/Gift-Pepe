@@ -1583,6 +1583,193 @@
             vertical-align: top;
             object-fit: cover;
         }
+
+        /* ─── Gift Check Page ─── */
+        .check-page {
+            padding: 150px 16px 120px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .check-page.active {
+            display: flex;
+        }
+
+        .check-wrap {
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .check-card {
+            width: 100%;
+            background: rgba(35, 35, 40, 0.58);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 28px;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            padding: 28px 18px 22px;
+            text-align: center;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+        }
+
+        .check-star {
+            width: 96px;
+            height: 96px;
+            object-fit: contain;
+            margin: 0 auto 14px;
+            filter: drop-shadow(0 10px 22px rgba(255, 186, 0, 0.22));
+        }
+
+        .check-label {
+            font-size: 26px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .check-subtitle {
+            font-size: 15px;
+            line-height: 1.4;
+            color: rgba(255, 255, 255, 0.72);
+            max-width: 280px;
+            margin: 0 auto 16px;
+        }
+
+        .check-amount-row {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(255, 184, 0, 0.14);
+            border: 1px solid rgba(255, 214, 102, 0.18);
+            margin-bottom: 18px;
+        }
+
+        .check-amount-row img {
+            width: 20px;
+            height: 20px;
+        }
+
+        .check-amount-row span {
+            font-size: 20px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .check-claim-btn {
+            width: 100%;
+            height: 54px;
+            border: 0;
+            outline: none;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #ffd556 0%, #f5a623 100%);
+            color: #271300;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
+            box-shadow: 0 16px 32px rgba(245, 166, 35, 0.22);
+        }
+
+        .check-claim-btn:active {
+            transform: scale(0.99);
+        }
+
+        .check-claim-btn.disabled,
+        .check-claim-btn[disabled] {
+            opacity: 0.55;
+            filter: saturate(0.72);
+            box-shadow: none;
+            cursor: default;
+        }
+
+        .check-hint {
+            margin-top: 12px;
+            font-size: 13px;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.48);
+            min-height: 38px;
+        }
+
+        .claim-toast {
+            position: fixed;
+            top: calc(140px + env(safe-area-inset-top, 0px));
+            left: 16px;
+            right: 16px;
+            z-index: 140;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 20px;
+            background: rgba(29, 31, 39, 0.94);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
+            opacity: 0;
+            transform: translateY(-12px);
+            pointer-events: none;
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        .claim-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .claim-toast.success .claim-toast-icon {
+            background: rgba(31, 191, 110, 0.18);
+            color: #35d07f;
+        }
+
+        .claim-toast.error .claim-toast-icon {
+            background: rgba(244, 92, 92, 0.18);
+            color: #ff7575;
+        }
+
+        .claim-toast-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        .claim-toast-body {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .claim-toast-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .claim-toast-text {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.72);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .claim-toast-text img {
+            width: 15px;
+            height: 15px;
+        }
+
     </style>
 </head>
 <body>
@@ -1808,6 +1995,32 @@
         </div>
     </div>
 
+
+    <!-- Gift Check Page -->
+    <div class="tab-page check-page" id="page-check">
+        <div class="check-wrap">
+            <div class="check-card">
+                <img class="check-star" src="star.png" alt="star">
+                <div class="check-label">Чек</div>
+                <div class="check-subtitle">Забери чек и получи звезды</div>
+                <div class="check-amount-row">
+                    <span id="checkAmountText">0</span>
+                    <img src="star.png" alt="star">
+                </div>
+                <button class="check-claim-btn" id="checkClaimBtn" onclick="claimGiftCheck()">Получить</button>
+                <div class="check-hint" id="checkHint">Проверь сумму и нажми кнопку</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="claim-toast" id="claimToast">
+        <div class="claim-toast-icon" id="claimToastIcon">✓</div>
+        <div class="claim-toast-body">
+            <div class="claim-toast-title" id="claimToastTitle">Успешно</div>
+            <div class="claim-toast-text" id="claimToastText">Получено 0 <img src="star.png" alt="star"></div>
+        </div>
+    </div>
+
     <!-- Bottom Navigation -->
     <nav class="bottom-nav">
         <div class="nav-items" id="navItems">
@@ -1839,6 +2052,12 @@
         let myUserId = null;
         let myName = 'User';
         let myPhoto = '';
+
+        let currentGiftCheckCode = '';
+        let currentGiftCheckAmount = 0;
+        let giftCheckBusy = false;
+        let giftCheckToastTimer = null;
+
 
         // ─── Prevent long-press ───
         document.addEventListener('contextmenu', e => e.preventDefault());
@@ -1891,7 +2110,156 @@
                 if (cachedBalance !== null) setBalance(cachedBalance, { persist: false, cache: true });
 
                 // Load from DB
-                initDB(user);
+                initDB(user).finally(handleLaunchPayload);
+            }
+        }
+
+
+        function getLaunchPayload() {
+            try {
+                const direct = tg?.initDataUnsafe?.start_param;
+                if (direct) return String(direct);
+            } catch (e) {}
+            try {
+                const u = new URL(window.location.href);
+                return u.searchParams.get('tgWebAppStartParam') || u.searchParams.get('startapp') || u.searchParams.get('start') || '';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function openCheckPage() {
+            document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+            const page = document.getElementById('page-check');
+            if (page) page.classList.add('active');
+        }
+
+        function setGiftCheckButton(text, disabled, loading) {
+            const btn = document.getElementById('checkClaimBtn');
+            if (!btn) return;
+            btn.textContent = text;
+            btn.disabled = !!disabled;
+            btn.classList.toggle('disabled', !!disabled);
+            btn.dataset.loading = loading ? '1' : '0';
+        }
+
+        function renderGiftCheckState(payload = {}) {
+            const amount = Math.max(0, parseInt(payload.amount, 10) || 0);
+            currentGiftCheckAmount = amount;
+            const amountEl = document.getElementById('checkAmountText');
+            const hintEl = document.getElementById('checkHint');
+            if (amountEl) amountEl.textContent = amount;
+            if (!hintEl) return;
+
+            if (!payload.ok) {
+                setGiftCheckButton('Недоступно', true, false);
+                hintEl.textContent = payload.error === 'not_found'
+                    ? 'Этот чек не найден или ссылка устарела.'
+                    : 'Не удалось загрузить чек.';
+                return;
+            }
+
+            if (payload.claimed_by_current_user) {
+                setGiftCheckButton('Получено ' + amount, true, false);
+                hintEl.textContent = 'Этот чек уже на вашем балансе.';
+                return;
+            }
+
+            if (payload.status === 'claimed') {
+                setGiftCheckButton('Получено', true, false);
+                hintEl.textContent = 'Этот чек уже был получен другим пользователем.';
+                return;
+            }
+
+            setGiftCheckButton('Получить', false, false);
+            hintEl.textContent = 'Нажми на кнопку ниже, чтобы забрать ' + amount + ' звёзд.';
+        }
+
+        function showClaimToast(success, amount, text) {
+            const toast = document.getElementById('claimToast');
+            if (!toast) return;
+            const icon = document.getElementById('claimToastIcon');
+            const title = document.getElementById('claimToastTitle');
+            const body = document.getElementById('claimToastText');
+            toast.classList.remove('success', 'error', 'show');
+            toast.classList.add(success ? 'success' : 'error');
+            if (icon) icon.textContent = success ? '✓' : '!';
+            if (title) title.textContent = success ? 'Успешно' : 'Ошибка';
+            if (body) body.innerHTML = (text || '') + (amount > 0 ? ' <img src="star.png" alt="star"> ' + amount : '');
+            clearTimeout(giftCheckToastTimer);
+            requestAnimationFrame(() => toast.classList.add('show'));
+            giftCheckToastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+        }
+
+        async function loadGiftCheck(code) {
+            if (!sb || !code) return;
+            currentGiftCheckCode = code;
+            openCheckPage();
+            renderGiftCheckState({ ok: true, amount: 0, status: 'loading' });
+            document.getElementById('checkHint').textContent = 'Загружаем чек...';
+            try {
+                const { data, error } = await sb.rpc('get_gift_check_public', {
+                    p_code: code,
+                    p_telegram_id: myUserId || 0
+                });
+                if (error) throw error;
+                renderGiftCheckState(data || { ok: false, error: 'not_found' });
+            } catch (e) {
+                console.error('loadGiftCheck error', e);
+                renderGiftCheckState({ ok: false, error: 'load_failed' });
+            }
+        }
+
+        async function claimGiftCheck() {
+            if (!sb || !currentGiftCheckCode || !myUserId || giftCheckBusy) return;
+            giftCheckBusy = true;
+            setGiftCheckButton('Получаем...', true, true);
+            try {
+                const { data, error } = await sb.rpc('claim_gift_check', {
+                    p_code: currentGiftCheckCode,
+                    p_telegram_id: myUserId,
+                    p_name: myName || '',
+                    p_username: (tg?.initDataUnsafe?.user?.username) || '',
+                    p_photo: myPhoto || ''
+                });
+                if (error) throw error;
+
+                const payload = data || {};
+                if (payload.ok) {
+                    if (typeof payload.balance !== 'undefined') {
+                        setBalance(payload.balance, { persist: false, cache: true });
+                    } else {
+                        setBalance(getBalance() + (payload.amount || 0), { persist: false, cache: true });
+                    }
+                    renderGiftCheckState({
+                        ok: true,
+                        amount: payload.amount || currentGiftCheckAmount,
+                        status: 'claimed',
+                        claimed_by_current_user: true
+                    });
+                    showClaimToast(true, payload.amount || currentGiftCheckAmount, 'Получено');
+                } else {
+                    renderGiftCheckState(payload);
+                    if (payload.error === 'already_claimed') {
+                        showClaimToast(false, 0, 'Чек уже получен');
+                    } else {
+                        showClaimToast(false, 0, 'Не удалось получить чек');
+                    }
+                }
+            } catch (e) {
+                console.error('claimGiftCheck error', e);
+                showClaimToast(false, 0, 'Ошибка при получении');
+                renderGiftCheckState({ ok: true, amount: currentGiftCheckAmount, status: 'active' });
+            } finally {
+                giftCheckBusy = false;
+            }
+        }
+
+        function handleLaunchPayload() {
+            const payload = getLaunchPayload();
+            if (payload && payload.startsWith('check_')) {
+                const code = payload.slice(6).trim();
+                if (code) loadGiftCheck(code);
             }
         }
 
@@ -1953,6 +2321,11 @@
                 persistBalance(val);
                 balanceWriteTimer = null;
             }, 180);
+        }
+
+
+        if (!tg) {
+            setTimeout(handleLaunchPayload, 80);
         }
 
         async function initDB(user) {
