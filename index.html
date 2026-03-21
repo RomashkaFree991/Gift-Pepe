@@ -924,6 +924,24 @@
             padding: 10px 14px;
             background: rgba(255, 255, 255, 0.04);
             border-radius: 14px;
+            border: 1px solid transparent;
+            transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .crash-player-row.status-active {
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .crash-player-row.status-won {
+            border-color: rgba(52, 199, 89, 0.95);
+            background: rgba(52, 199, 89, 0.12);
+            box-shadow: 0 0 0 1px rgba(52, 199, 89, 0.18) inset;
+        }
+
+        .crash-player-row.status-lost {
+            border-color: rgba(255, 59, 48, 0.95);
+            background: rgba(255, 59, 48, 0.12);
+            box-shadow: 0 0 0 1px rgba(255, 59, 48, 0.18) inset;
         }
 
         .crash-player-row .cp-avatar {
@@ -1821,45 +1839,174 @@
 
                 document.getElementById('refLinkInput').value = 'https://t.me/GiftPepeBot?start=ref_' + user.id;
 
+                const cachedBalance = readCachedBalance(user.id);
+                if (cachedBalance !== null) setBalance(cachedBalance, { persist: false, cache: true });
+
                 // Load from DB
                 initDB(user);
             }
         }
 
         // ─── DB Functions ───
-        async function initDB(user) {
-            if (!sb || !user?.id) return;
+        const BALANCE_CACHE_PREFIX = 'giftpepe_balance_';
+        let balanceWriteTimer = null;
+        let suppressBalanceSync = false;
+
+        function balanceCacheKey(uid = myUserId) {
+            return BALANCE_CACHE_PREFIX + String(uid || 'guest');
+        }
+
+        function readCachedBalance(uid = myUserId) {
             try {
-                const { data } = await sb.from('users').select('*').eq('telegram_id', user.id).single();
+                const raw = localStorage.getItem(balanceCacheKey(uid));
+                if (raw === null || raw === undefined || raw === '') return null;
+                return Math.max(0, parseInt(raw, 10) || 0);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function cacheBalance(val, uid = myUserId) {
+            try {
+                if (!uid) return;
+                localStorage.setItem(balanceCacheKey(uid), String(Math.max(0, parseInt(val, 10) || 0)));
+            } catch (e) {}
+        }
+
+        async function persistBalance(val) {
+            if (!sb || !myUserId) return;
+            const safeBalance = Math.max(0, parseInt(val, 10) || 0);
+            try {
+                const payload = {
+                    telegram_id: myUserId,
+                    first_name: myName || '',
+                    username: (tg?.initDataUnsafe?.user?.username) || '',
+                    photo_url: myPhoto || '',
+                    balance: safeBalance
+                };
+                const { error } = await sb.from('users').upsert(payload, { onConflict: 'telegram_id' });
+                if (error) throw error;
+            } catch (e) {
+                console.error('persistBalance failed', e);
+            }
+        }
+
+        function scheduleBalancePersist(val, immediate) {
+            cacheBalance(val);
+            if (balanceWriteTimer) {
+                clearTimeout(balanceWriteTimer);
+                balanceWriteTimer = null;
+            }
+            if (immediate) {
+                persistBalance(val);
+                return;
+            }
+            balanceWriteTimer = setTimeout(() => {
+                persistBalance(val);
+                balanceWriteTimer = null;
+            }, 180);
+        }
+
+        async function initDB(user) {
+            if (!user?.id) return;
+
+            const cached = readCachedBalance(user.id);
+            if (cached !== null) setBalance(cached, { persist: false, cache: true });
+
+            if (!sb) return;
+            try {
+                const { data, error } = await sb.from('users')
+                    .select('telegram_id, balance')
+                    .eq('telegram_id', user.id)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (error) throw error;
+
                 if (data) {
-                    await sb.from('users').update({ first_name: user.first_name||'', username: user.username||'', photo_url: user.photo_url||'' }).eq('telegram_id', user.id);
-                    setBalance(data.balance || 0);
+                    suppressBalanceSync = true;
+                    setBalance(data.balance || 0, { persist: false, cache: true });
+                    suppressBalanceSync = false;
+
+                    await sb.from('users')
+                        .update({ first_name: user.first_name || '', username: user.username || '', photo_url: user.photo_url || '' })
+                        .eq('telegram_id', user.id);
+
+                    if (cached !== null && Number(cached) !== Number(data.balance || 0)) {
+                        scheduleBalancePersist(cached, true);
+                    }
                 } else {
-                    await sb.from('users').insert({ telegram_id: user.id, first_name: user.first_name||'', username: user.username||'', photo_url: user.photo_url||'', balance: 0 });
+                    const startBalance = cached !== null ? cached : 0;
+                    await sb.from('users').insert({
+                        telegram_id: user.id,
+                        first_name: user.first_name || '',
+                        username: user.username || '',
+                        photo_url: user.photo_url || '',
+                        balance: startBalance
+                    });
+                    suppressBalanceSync = true;
+                    setBalance(startBalance, { persist: false, cache: true });
+                    suppressBalanceSync = false;
                 }
-                // Load inventory
-                const { data: inv } = await sb.from('inventory').select('*').eq('user_id', user.id);
+
+                const { data: inv, error: invErr } = await sb.from('inventory')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (invErr) throw invErr;
+
                 if (inv && inv.length > 0) {
                     inventory = inv.map(d => ({ id: d.id, name: d.gift_name, img: d.gift_img, price: d.gift_price }));
                     renderInventory();
                 }
-            } catch(e) { console.error('DB init error', e); }
+            } catch(e) {
+                console.error('DB init error', e);
+            }
         }
 
-        function getBalance() { return parseInt(document.querySelector('.star-balance').textContent) || 0; }
+        function getBalance() {
+            return Math.max(0, parseInt(document.querySelector('.star-balance').textContent, 10) || 0);
+        }
 
-        function setBalance(val) {
-            document.querySelector('.star-balance').textContent = val;
-            if (sb && myUserId) sb.from('users').update({ balance: val }).eq('telegram_id', myUserId).then(() => {});
+        function setBalance(val, opts = {}) {
+            const safeBalance = Math.max(0, parseInt(val, 10) || 0);
+            document.querySelector('.star-balance').textContent = safeBalance;
+            if (opts.cache !== false) cacheBalance(safeBalance);
+            if (opts.persist !== false && !suppressBalanceSync) scheduleBalancePersist(safeBalance, !!opts.immediate);
         }
 
         async function dbSaveInvItem(item) {
             if (!sb || !myUserId) return;
-            const { data } = await sb.from('inventory').insert({ user_id: myUserId, gift_name: item.name, gift_img: item.img, gift_price: item.price }).select().single();
-            if (data) item.id = data.id;
+            try {
+                const { data, error } = await sb.from('inventory')
+                    .insert({ user_id: myUserId, gift_name: item.name, gift_img: item.img, gift_price: item.price })
+                    .select()
+                    .single();
+                if (error) throw error;
+                if (data) item.id = data.id;
+            } catch (e) {
+                console.error('dbSaveInvItem failed', e);
+            }
         }
 
-        async function dbRemoveInvItem(id) { if (sb && id) await sb.from('inventory').delete().eq('id', id); }
+        async function dbRemoveInvItem(id) {
+            if (!sb || !id) return;
+            try {
+                const { error } = await sb.from('inventory').delete().eq('id', id);
+                if (error) throw error;
+            } catch (e) {
+                console.error('dbRemoveInvItem failed', e);
+            }
+        }
+
+        window.addEventListener('pagehide', () => {
+            if (balanceWriteTimer) {
+                clearTimeout(balanceWriteTimer);
+                balanceWriteTimer = null;
+            }
+            if (myUserId) persistBalance(getBalance());
+        });
 
         // ─── Navigation ───
         const navItems = document.getElementById('navItems');
@@ -1891,6 +2038,7 @@
         const PAUSE_MS = 3000;
         const SPEED = 0.00018;
         const POLL_MS = 2000;
+        const COUNTDOWN_SMOOTH_MS = 650;
 
         let gameLoop = null, pollLoop = null;
         let crashActive = false, crashRunning = false;
@@ -1900,6 +2048,7 @@
         let roundSyncTimer = null;
         let srvOff = 0; // server - client time offset
         let renderedCrashBetKeys = new Set();
+        let crashBetsState = new Map();
 
         function srvNow() { return Date.now() + srvOff; }
         function mult(ms) { return Math.pow(Math.E, SPEED * ms); }
@@ -1996,6 +2145,7 @@
 
         function clearCrashPlayers() {
             renderedCrashBetKeys.clear();
+            crashBetsState.clear();
             const p = document.getElementById('crashPlayers');
             if (p) p.innerHTML = '';
             const t = document.getElementById('crashWaitingText');
@@ -2114,35 +2264,127 @@
         function addHist(text, cls) {
             const h = document.getElementById('crashHistory');
             const e = document.createElement('div');
-            e.className = 'crash-history-item ' + cls; e.textContent = text;
+            e.className = 'crash-history-item ' + cls;
+            e.textContent = text;
             h.insertBefore(e, h.firstChild);
             if (h.children.length > 8) h.removeChild(h.lastChild);
         }
+
         function setActiveHist(text) {
             let a = document.querySelector('.crash-history-item.active');
-            if (!a) { const h = document.getElementById('crashHistory'); a = document.createElement('div'); a.className = 'crash-history-item active'; h.insertBefore(a, h.firstChild); }
+            if (!a) {
+                const h = document.getElementById('crashHistory');
+                a = document.createElement('div');
+                a.className = 'crash-history-item active';
+                h.insertBefore(a, h.firstChild);
+            }
             a.textContent = text;
         }
-        function rmActiveHist() { const a = document.querySelector('.crash-history-item.active'); if (a) a.remove(); }
 
-        // ─── Load History from DB ───
+        function rmActiveHist() {
+            const a = document.querySelector('.crash-history-item.active');
+            if (a) a.remove();
+        }
+
         async function loadHist() {
             if (!sb) return;
-            const { data } = await sb.from('crash_rounds')
-                .select('target_multiplier').eq('status', 'crashed').gt('target_multiplier', 1.05)
-                .order('created_at', { ascending: false }).limit(8);
+            const { data, error } = await sb.from('crash_rounds')
+                .select('target_multiplier')
+                .eq('status', 'crashed')
+                .gt('target_multiplier', 1.05)
+                .order('created_at', { ascending: false })
+                .limit(8);
+
+            if (error) {
+                console.error('loadHist failed', error);
+                return;
+            }
+
+            document.getElementById('crashHistory').innerHTML = '';
             if (data && data.length) {
-                document.getElementById('crashHistory').innerHTML = '';
-                data.reverse().forEach(r => addHist(r.target_multiplier.toFixed(2)+'x', 'past'));
+                data.reverse().forEach(r => {
+                    const text = Number(r.target_multiplier || 1).toFixed(2) + 'x';
+                    addHist(text, 'past');
+                });
             }
         }
 
-        // ─── Load Bets ───
-        function upsertCrashPlayerRow({ key, name, photo, amount, currentAmount, isMe }) {
+        function deriveGiftForAmount(amount) {
+            const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
+            for (let i = giftList.length - 1; i >= 0; i--) {
+                if (safeAmount >= giftList[i].price) return giftList[i];
+            }
+            return null;
+        }
+
+        function trackMyPotentialGift(amount) {
+            const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
+            let idx = -1;
+            for (let i = giftList.length - 1; i >= 0; i--) {
+                if (safeAmount >= giftList[i].price) {
+                    idx = i;
+                    break;
+                }
+            }
+            currentGiftIdx = idx;
+            wonGift = idx >= 0 ? giftList[idx] : null;
+            return wonGift;
+        }
+
+        function setPlayerGift(row, amount, status) {
+            if (!row) return null;
+            const giftEl = row.querySelector('.cp-gift');
+            if (!giftEl) return null;
+
+            if (status === 'lost') {
+                giftEl.style.display = 'none';
+                giftEl.removeAttribute('src');
+                return null;
+            }
+
+            const gift = deriveGiftForAmount(amount);
+            if (gift) {
+                const nextSrc = encodeURI(gift.img);
+                if (giftEl.getAttribute('src') !== nextSrc) giftEl.src = nextSrc;
+                giftEl.style.display = 'block';
+            } else {
+                giftEl.style.display = 'none';
+                giftEl.removeAttribute('src');
+            }
+            return gift;
+        }
+
+        function setPlayerRowStatus(row, status) {
+            if (!row) return;
+            row.classList.remove('status-active', 'status-won', 'status-lost');
+            if (status === 'won') row.classList.add('status-won');
+            else if (status === 'lost') row.classList.add('status-lost');
+            else row.classList.add('status-active');
+        }
+
+        function normalizeBetRecord(b) {
+            const record = {
+                key: crashBetKey(b),
+                round_id: b.round_id,
+                user_id: b.user_id,
+                user_name: b.user_name || '',
+                user_photo: b.user_photo || '',
+                amount: Math.max(0, Math.floor(Number(b.amount) || 0)),
+                status: (b.status || 'active').toLowerCase(),
+                cashout_amount: b.cashout_amount == null ? null : Math.max(0, Math.floor(Number(b.cashout_amount) || 0)),
+                cashout_multiplier: b.cashout_multiplier == null ? null : Number(b.cashout_multiplier),
+                created_at: b.created_at,
+                isMe: Number(b.user_id) === Number(myUserId)
+            };
+            if (record.status !== 'won' && record.status !== 'lost') record.status = 'active';
+            return record;
+        }
+
+        function upsertCrashPlayerRow({ key, name, photo, amount, currentAmount, isMe, status }) {
             const safeKey = escapeHtml(key);
             const players = document.getElementById('crashPlayers');
             const wait = document.getElementById('crashWaitingText');
-            if (!players) return;
+            if (!players) return null;
             if (wait) wait.style.display = 'none';
 
             let row = players.querySelector('[data-bet-key="' + safeKey + '"]');
@@ -2150,12 +2392,13 @@
             const avatar = photo
                 ? '<img class="cp-avatar" src="' + escapeHtml(photo) + '" alt="">'
                 : '<div class="cp-avatar-placeholder">' + escapeHtml((displayName || 'P')[0]) + '</div>';
-            const liveValue = currentAmount != null ? currentAmount : amount;
+
+            const shownAmount = Math.max(0, Math.floor(Number(currentAmount != null ? currentAmount : amount) || 0));
             const markup = '<div class="crash-player-row' + (isMe ? ' me' : '') + '" data-bet-key="' + safeKey + '">' +
                 avatar +
                 '<div class="cp-name"><span class="cp-name-text">' + escapeHtml(displayName) + '</span><span class="cp-original-bet">' + amount + ' <img src="star.png" alt=""></span></div>' +
-                '<span class="cp-amount">' + (isMe ? '<span class="cp-growing-amount">' + liveValue + '</span>' : liveValue) + ' <img src="star.png" alt=""></span>' +
-                (isMe ? '<img class="cp-gift" src="" alt="" style="display:none;">' : '') +
+                '<span class="cp-amount"><span class="cp-growing-amount">' + shownAmount + '</span> <img src="star.png" alt=""></span>' +
+                '<img class="cp-gift" src="" alt="" style="display:none;">' +
                 '</div>';
 
             if (!row) {
@@ -2165,38 +2408,120 @@
                 if (isMe) players.prepend(row); else players.appendChild(row);
             } else {
                 row.outerHTML = markup;
+                row = players.querySelector('[data-bet-key="' + safeKey + '"]');
             }
 
+            setPlayerRowStatus(row, status || 'active');
             renderedCrashBetKeys.add(String(key));
+            return row;
+        }
+
+        function syncMyBetStateFromRecord(rec) {
+            if (!rec.isMe) return;
+            currentBet = rec.amount;
+
+            if (rec.status === 'won') {
+                didCashOut = true;
+                betPlaced = false;
+                cashoutInit = false;
+                setBtnState('Забрали ' + (rec.cashout_amount || rec.amount) + ' <img src="star.png" alt="">', 'placed');
+            } else if (rec.status === 'lost') {
+                betPlaced = false;
+                didCashOut = false;
+                cashoutInit = false;
+            } else {
+                betPlaced = true;
+                didCashOut = false;
+                cashoutInit = false;
+                setBtnState('Ставка сделана', 'placed');
+            }
+        }
+
+        function renderBetRecord(rec) {
+            const shownAmount = rec.status === 'won' && rec.cashout_amount ? rec.cashout_amount : rec.amount;
+            const row = upsertCrashPlayerRow({
+                key: rec.key,
+                name: rec.isMe ? myName : (rec.user_name || 'Player'),
+                photo: rec.isMe ? myPhoto : (rec.user_photo || ''),
+                amount: rec.amount,
+                currentAmount: shownAmount,
+                isMe: rec.isMe,
+                status: rec.status
+            });
+
+            if (rec.status === 'won') {
+                setPlayerGift(row, rec.cashout_amount || rec.amount, rec.status);
+            } else if (rec.status === 'active') {
+                setPlayerGift(row, shownAmount, rec.status);
+            } else {
+                setPlayerGift(row, 0, rec.status);
+            }
+
+            if (rec.isMe) {
+                if (rec.status === 'won') trackMyPotentialGift(rec.cashout_amount || rec.amount);
+                else if (rec.status === 'active') trackMyPotentialGift(shownAmount);
+                else trackMyPotentialGift(0);
+                syncMyBetStateFromRecord(rec);
+            }
+        }
+
+        function applyBetPayload(payloadBet) {
+            const rec = normalizeBetRecord(payloadBet);
+            crashBetsState.set(rec.key, rec);
+            renderBetRecord(rec);
+        }
+
+        function markAllActiveBetsAsLostLocal() {
+            crashBetsState.forEach((rec, key) => {
+                if (rec.status === 'active') {
+                    rec.status = 'lost';
+                    crashBetsState.set(key, rec);
+                    renderBetRecord(rec);
+                }
+            });
+            trackMyPotentialGift(0);
+        }
+
+        function syncLiveBetAmounts(multiplier) {
+            crashBetsState.forEach(rec => {
+                const row = document.querySelector('[data-bet-key="' + escapeHtml(rec.key) + '"]');
+                if (!row) return;
+
+                if (rec.status === 'active') {
+                    const liveAmount = Math.max(0, Math.floor(rec.amount * multiplier));
+                    const amountEl = row.querySelector('.cp-growing-amount');
+                    if (amountEl) amountEl.textContent = liveAmount;
+                    setPlayerGift(row, liveAmount, rec.status);
+                    if (rec.isMe) trackMyPotentialGift(liveAmount);
+                } else if (rec.status === 'won') {
+                    const frozen = rec.cashout_amount || rec.amount;
+                    const amountEl = row.querySelector('.cp-growing-amount');
+                    if (amountEl) amountEl.textContent = frozen;
+                    setPlayerGift(row, frozen, rec.status);
+                    if (rec.isMe) trackMyPotentialGift(frozen);
+                } else {
+                    const amountEl = row.querySelector('.cp-growing-amount');
+                    if (amountEl) amountEl.textContent = rec.amount;
+                    setPlayerGift(row, 0, rec.status);
+                }
+            });
         }
 
         async function loadBets(rid) {
             if (!sb) return;
             clearCrashPlayers();
-            const { data } = await sb.from('crash_bets').select('*').eq('round_id', rid);
+            const { data, error } = await sb.from('crash_bets')
+                .select('*')
+                .eq('round_id', rid)
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                console.error('loadBets failed', error);
+                return;
+            }
+
             if (!data || !data.length) return;
-
-            data.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
-
-            data.forEach(b => {
-                const key = crashBetKey(b);
-                const shownAmount = b.status === 'won' && b.cashout_amount ? b.cashout_amount : b.amount;
-                if (b.user_id === myUserId) {
-                    currentBet = b.amount;
-                    upsertCrashPlayerRow({ key, name: myName, photo: myPhoto, amount: b.amount, currentAmount: shownAmount, isMe: true });
-                    if (b.status === 'won') {
-                        didCashOut = true; betPlaced = false; cashoutInit = false;
-                        setBtnState('Забрали ' + (b.cashout_amount || b.amount) + ' <img src="star.png" alt="">', 'placed');
-                    } else if (b.status === 'lost') {
-                        betPlaced = false; didCashOut = false; cashoutInit = false;
-                    } else {
-                        betPlaced = true; didCashOut = false; cashoutInit = false;
-                        setBtnState('Ставка сделана', 'placed');
-                    }
-                } else {
-                    upsertCrashPlayerRow({ key, name: b.user_name || 'Player', photo: b.user_photo || '', amount: b.amount, currentAmount: shownAmount, isMe: false });
-                }
-            });
+            data.forEach(applyBetPayload);
         }
 
         function setBtnState(html, cls) {
@@ -2207,39 +2532,53 @@
             btn.onclick = null;
         }
 
-        // ─── Realtime Bets ───
         function subBets(rid) {
-            if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
+            if (betsSub && sb) {
+                sb.removeChannel(betsSub);
+                betsSub = null;
+            }
             if (!sb) return;
+
             betsSub = sb.channel('livebets-' + rid + '-' + Math.random().toString(36).slice(2))
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_bets', filter: 'round_id=eq.' + rid }, payload => {
                     const b = payload.new || payload.old;
                     if (!b) return;
+
                     const key = crashBetKey(b);
                     if (payload.eventType === 'DELETE') {
                         const row = document.querySelector('[data-bet-key="' + escapeHtml(key) + '"]');
                         if (row) row.remove();
                         renderedCrashBetKeys.delete(String(key));
+                        crashBetsState.delete(String(key));
                         return;
                     }
 
-                    const shownAmount = b.status === 'won' && b.cashout_amount ? b.cashout_amount : b.amount;
-                    if (b.user_id === myUserId) {
-                        upsertCrashPlayerRow({ key, name: myName, photo: myPhoto, amount: b.amount, currentAmount: shownAmount, isMe: true });
-                    } else {
-                        upsertCrashPlayerRow({ key, name: b.user_name || 'Player', photo: b.user_photo || '', amount: b.amount, currentAmount: shownAmount, isMe: false });
-                    }
+                    applyBetPayload(b);
                 })
                 .subscribe();
         }
 
         function showMyBet(amt) {
-            const key = crashBetKey({ round_id: currentRound ? currentRound.id : 'round', user_id: myUserId || 'guest' });
-            upsertCrashPlayerRow({ key, name: myName, photo: myPhoto, amount: amt, currentAmount: amt, isMe: true });
+            const rec = {
+                round_id: currentRound ? currentRound.id : 'round',
+                user_id: myUserId || 'guest',
+                user_name: myName,
+                user_photo: myPhoto,
+                amount: amt,
+                status: 'active'
+            };
+            applyBetPayload(rec);
         }
 
         function showOtherBet(name, photo, amt, key) {
-            upsertCrashPlayerRow({ key: key || ('other-' + escapeHtml(name) + '-' + escapeHtml(photo) + '-' + amt), name, photo, amount: amt, currentAmount: amt, isMe: false });
+            applyBetPayload({
+                round_id: currentRound ? currentRound.id : 'round',
+                user_id: key || (name + ':' + photo + ':' + amt),
+                user_name: name,
+                user_photo: photo,
+                amount: amt,
+                status: 'active'
+            });
         }
 
         // ═══════════════════════════════════════
@@ -2291,7 +2630,7 @@
                     multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
-                    const sec = Math.max(1, Math.min(Math.ceil((gameStart - now) / 1000), 10));
+                    const sec = Math.max(1, Math.min(Math.ceil((gameStart - now + COUNTDOWN_SMOOTH_MS) / 1000), 10));
                     if (sec !== lastCountNum) {
                         lastCountNum = sec;
                         countEl.textContent = sec;
@@ -2321,9 +2660,9 @@
                     }
                     const m = mult(now - gameStart);
                     setActiveHist(m.toFixed(2)+'x');
+                    syncLiveBetAmounts(m);
                     if (betPlaced && !didCashOut) {
-                        updateCash(m); updateGrow(m);
-                        updateGift(Math.floor(currentBet * m));
+                        updateCash(m);
                     }
                     return;
                 }
@@ -2339,12 +2678,11 @@
                         multiEl.textContent = target.toFixed(2)+'x';
                         multiEl.classList.add('crashed');
                         rmActiveHist();
-                        let cls = 'past';
                         if (betPlaced) {
-                            cls = 'lost';
                             if (sb) sb.from('crash_bets').update({ status:'lost' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
-                        } else if (didCashOut) cls = 'won';
-                        addHist(target.toFixed(2)+'x', cls);
+                        }
+                        markAllActiveBetsAsLostLocal();
+                        addHist(target.toFixed(2)+'x', 'past');
                         betPlaced = false; didCashOut = false; resetGiftDisplay();
                         // Finalize in DB (first writer wins)
                         if (sb) sb.from('crash_rounds').update({ status:'crashed', crash_time: new Date(now).toISOString() }).eq('id', currentRound.id).eq('status','active').then(()=>{});
@@ -2385,10 +2723,19 @@
             const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
             const m = mult(now - gs);
             const w = Math.floor(currentBet * m);
+            const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
+            const existing = crashBetsState.get(myKey);
+            if (existing) {
+                existing.status = 'won';
+                existing.cashout_multiplier = m;
+                existing.cashout_amount = w;
+                crashBetsState.set(myKey, existing);
+                renderBetRecord(existing);
+            }
             setBtnState('Забрали '+w+' <img src="star.png" alt="">','placed');
             betPlaced = false; didCashOut = true; cashoutInit = false;
             if (sb) sb.from('crash_bets').update({ cashout_multiplier: m, cashout_amount: w, status:'won' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
-            if (wonGift) showGiftModal(wonGift, w); else setBalance(getBalance() + w);
+            if (wonGift) showGiftModal(wonGift, w); else setBalance(getBalance() + w, { immediate: true });
         }
 
         // ─── Submit Bet ───
@@ -2402,7 +2749,7 @@
             const prevBalance = getBalance();
             const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
 
-            setBalance(prevBalance - amt);
+            setBalance(prevBalance - amt, { immediate: true });
             currentBet = amt;
             betPlaced = true;
             didCashOut = false;
@@ -2418,7 +2765,7 @@
 
             if (error) {
                 console.error('submitBetCrash failed', error);
-                setBalance(prevBalance);
+                setBalance(prevBalance, { immediate: true });
                 currentBet = 0;
                 betPlaced = false;
                 didCashOut = false;
@@ -2501,15 +2848,17 @@
         let currentGiftIdx = -1, wonGift = null, inventory = [];
 
         function updateGift(w) {
-            const p = document.querySelector('.crash-player-row.me .cp-gift');
-            let idx = -1;
-            for (let i = giftList.length-1; i >= 0; i--) { if (w >= giftList[i].price) { idx = i; break; } }
-            if (idx !== currentGiftIdx && idx >= 0) {
-                currentGiftIdx = idx; wonGift = giftList[idx];
-                if (p) { p.src = encodeURI(wonGift.img); p.style.display = 'block'; }
-            } else if (idx < 0) { wonGift = null; if (p) p.style.display = 'none'; }
+            const row = document.querySelector('.crash-player-row.me');
+            trackMyPotentialGift(w);
+            if (row) setPlayerGift(row, w, 'active');
         }
-        function resetGiftDisplay() { currentGiftIdx = -1; wonGift = null; const p = document.querySelector('.crash-player-row.me .cp-gift'); if (p) p.style.display = 'none'; }
+
+        function resetGiftDisplay() {
+            currentGiftIdx = -1;
+            wonGift = null;
+            const row = document.querySelector('.crash-player-row.me');
+            if (row) setPlayerGift(row, 0, 'lost');
+        }
 
         function showGiftModal(gift, w) {
             document.getElementById('giftModalImg').src = encodeURI(gift.img);
@@ -2517,7 +2866,7 @@
             document.getElementById('giftSellAmount').textContent = w;
             const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = w;
         }
-        function sellGift() { const m = document.getElementById('giftModal'); setBalance(getBalance() + m._win); m.classList.remove('show'); }
+        function sellGift() { const m = document.getElementById('giftModal'); setBalance(getBalance() + m._win, { immediate: true }); m.classList.remove('show'); }
         function takeGift() {
             const m = document.getElementById('giftModal');
             const item = { name: m._gift.name, img: m._gift.img, price: m._win };
@@ -2531,7 +2880,7 @@
                 '<div class="inventory-item"><img class="inv-img" src="'+encodeURI(it.img)+'" alt=""><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
             ).join('');
         }
-        function sellInvItem(i) { const it = inventory[i]; if (!it) return; setBalance(getBalance()+it.price); dbRemoveInvItem(it.id); inventory.splice(i,1); renderInventory(); }
+        function sellInvItem(i) { const it = inventory[i]; if (!it) return; setBalance(getBalance()+it.price, { immediate: true }); dbRemoveInvItem(it.id); inventory.splice(i,1); renderInventory(); }
 
         // ─── Bet Menu ───
         function placeBet() { document.getElementById('betMenu').classList.add('show'); document.getElementById('betOverlay').classList.add('show'); }
@@ -2560,7 +2909,7 @@
         // ─── Topup ───
         function openTopup() { document.getElementById('topupMenu').classList.add('show'); document.getElementById('topupOverlay').classList.add('show'); }
         function closeTopup() { document.getElementById('topupMenu').classList.remove('show'); document.getElementById('topupOverlay').classList.remove('show'); }
-        function addBalance(amount) { setBalance(getBalance() + amount); closeTopup(); }
+        function addBalance(amount) { setBalance(getBalance() + amount, { immediate: true }); closeTopup(); }
     </script>
 </body>
 </html>
