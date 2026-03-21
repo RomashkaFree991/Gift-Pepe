@@ -2879,17 +2879,29 @@
                 return;
             }
 
-            const roundChanged = !currentRound || currentRound.id !== round.id;
-            currentRound = round;
+            const sameRound = !!(currentRound && currentRound.id === round.id);
 
-            if (roundChanged || forceReloadBets) {
-                resetBet();
-                await loadBets(round.id);
-                subBets(round.id);
-                crashShown = false;
-                lastCountNum = -1;
-                runLoop();
+            if (sameRound) {
+                currentRound = round;
+                if (!betsSub) subBets(round.id);
+                if (forceReloadBets && crashBetsState.size === 0) {
+                    await loadBets(round.id);
+                }
+                if (!gameLoop) {
+                    crashShown = false;
+                    lastCountNum = -1;
+                    runLoop();
+                }
+                return;
             }
+
+            currentRound = round;
+            resetBet();
+            await loadBets(round.id);
+            subBets(round.id);
+            crashShown = false;
+            lastCountNum = -1;
+            runLoop();
         }
 
         function subRounds() {
@@ -3619,12 +3631,19 @@
             if (row) row.remove();
         }
 
+        function removeMyWonPreviewRows() {
+            document.querySelectorAll('.crash-player-row.me:not(.sticky-preview)').forEach(row => {
+                if (row.classList.contains('status-won')) row.remove();
+            });
+        }
+
         function renderStickyGiftPreview() {
             const players = document.getElementById('crashPlayers');
             const wait = document.getElementById('crashWaitingText');
             if (!players) return;
 
             removeStickyGiftPreviewRow();
+            removeMyWonPreviewRows();
 
             if (!stickyMyGiftPreview || betPlaced) {
                 if (wait && !players.querySelector('.crash-player-row')) {
@@ -3686,22 +3705,30 @@
             img.src = encodeURI(gift.img);
             document.getElementById('giftModalName').textContent = gift.name;
             document.getElementById('giftSellAmount').textContent = w;
-            const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = w;
+            const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = w; m.dataset.busy = '0';
         }
         function sellGift() {
             const m = document.getElementById('giftModal');
+            if (!m || m.dataset.busy === '1') return;
+            m.dataset.busy = '1';
             clearStickyGiftPreview();
             setBalance(getBalance() + m._win, { immediate: true });
             m.classList.remove('show');
+            setTimeout(() => { m.dataset.busy = '0'; }, 250);
         }
         function takeGift() {
             const m = document.getElementById('giftModal');
+            if (!m || !m._gift || m.dataset.busy === '1') return;
+            m.dataset.busy = '1';
+
             const item = { name: m._gift.name, img: m._gift.img, price: m._win };
             inventory.push(item);
             renderInventory();
             dbSaveInvItem(item);
             rememberStickyGiftPreview(item);
             m.classList.remove('show');
+
+            setTimeout(() => { m.dataset.busy = '0'; }, 250);
         }
 
         function getInventoryCountLabel(n) {
