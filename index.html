@@ -269,30 +269,29 @@
             background: rgba(35, 35, 40, 0.55);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
-            padding: 18px 14px 14px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
         }
 
-        .top-card-title {
-            font-size: 20px;
-            font-weight: 800;
-            line-height: 1.05;
-            color: rgba(255,255,255,0.96);
+        .top-card-plain {
+            padding-top: 10px;
         }
 
+        .top-card-title,
         .top-card-subtitle {
-            margin-top: 8px;
-            font-size: 13px;
-            line-height: 1.35;
-            color: rgba(255,255,255,0.52);
+            display: none;
         }
 
         .top-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            margin-top: 14px;
+            gap: 7px;
+            margin-top: 0;
+        }
+
+        .top-list-nohead {
+            margin-top: 0;
         }
 
         .top-empty {
@@ -413,35 +412,29 @@
         }
 
         .top-gift {
-            min-width: 0;
-            max-width: 132px;
-            height: 34px;
-            padding: 0 9px;
-            border-radius: 999px;
+            width: 40px;
+            height: 40px;
+            flex: 0 0 40px;
+            border-radius: 14px;
             background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.07);
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            color: rgba(255,255,255,0.86);
-            flex-shrink: 1;
+            justify-content: center;
             overflow: hidden;
+            padding: 5px;
         }
 
         .top-gift img {
-            width: 15px;
-            height: 15px;
+            width: 100%;
+            height: 100%;
             object-fit: contain;
             display: block;
             flex-shrink: 0;
         }
 
         .top-gift span {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 11px;
-            font-weight: 700;
+            display: none;
         }
 
 
@@ -2162,10 +2155,8 @@
     <!-- Tab Pages -->
     <div class="tab-page" id="page-top">
         <div class="top-page">
-            <div class="top-card">
-                <div class="top-card-title" id="topCardTitle">ТОП ПО ПОПОЛНЕНИЯМ</div>
-                <div class="top-card-subtitle" id="topCardSubtitle">В списке 10 игроков, которые хотя бы один раз пополняли баланс.</div>
-                <div class="top-list" id="topList">
+            <div class="top-card top-card-plain">
+                <div class="top-list top-list-nohead" id="topList">
                     <div class="top-empty" id="topEmptyState">Загрузка топа...</div>
                 </div>
             </div>
@@ -2566,9 +2557,9 @@
         }
 
         function topPrizeForRank(rank) {
-            if (rank === 1) return { name: 'Banana Pox', img: 'trophy.svg' };
-            if (rank === 2) return { name: 'Alien Script', img: 'trophy.svg' };
-            if (rank === 3) return { name: 'Anatomy', img: 'trophy.svg' };
+            if (rank === 1) return { name: 'Banana Pox', img: 'Gifts/Banana Pox.png' };
+            if (rank === 2) return { name: 'Alien Script', img: 'Gifts/Alien Script.png' };
+            if (rank === 3) return { name: 'Anatomy', img: 'Gifts/Anatomy.png' };
             return null;
         }
 
@@ -2600,7 +2591,7 @@
                     ? '<img class="top-avatar" src="' + escapeHtml(photo) + '" alt="">'
                     : '<div class="top-avatar-placeholder">' + escapeHtml((name || 'U')[0].toUpperCase()) + '</div>';
                 const giftHtml = prize
-                    ? '<div class="top-gift"><img src="' + encodeURI(prize.img) + '" alt=""><span>' + escapeHtml(prize.name) + '</span></div>'
+                    ? '<div class="top-gift" title="' + escapeHtml(prize.name) + '"><img src="' + encodeURI(prize.img) + '" alt="' + escapeHtml(prize.name) + '"></div>'
                     : '';
                 return '<div class="top-row">' +
                     '<div class="top-rank top-' + rank + '">' + rank + '</div>' +
@@ -2811,22 +2802,8 @@
             } catch (e) {}
         }
 
-        async function persistBalance(val) {
-            if (!sb || !myUserId) return;
-            const safeBalance = Math.max(0, parseInt(val, 10) || 0);
-            try {
-                const payload = {
-                    telegram_id: myUserId,
-                    first_name: myName || '',
-                    username: (tg?.initDataUnsafe?.user?.username) || '',
-                    photo_url: myPhoto || '',
-                    balance: safeBalance
-                };
-                const { error } = await sb.from('users').upsert(payload, { onConflict: 'telegram_id' });
-                if (error) throw error;
-            } catch (e) {
-                console.error('persistBalance failed', e);
-            }
+        async function persistBalance(_val) {
+            return null;
         }
 
         function scheduleBalancePersist(val, immediate) {
@@ -2835,12 +2812,8 @@
                 clearTimeout(balanceWriteTimer);
                 balanceWriteTimer = null;
             }
-            if (immediate) {
-                persistBalance(val);
-                return;
-            }
+            if (immediate) return;
             balanceWriteTimer = setTimeout(() => {
-                persistBalance(val);
                 balanceWriteTimer = null;
             }, 180);
         }
@@ -2939,6 +2912,17 @@
             if (opts.persist !== false && !suppressBalanceSync) scheduleBalancePersist(safeBalance, !!opts.immediate);
         }
 
+        async function rpcCall(fn, payload = {}) {
+            if (!sb) throw new Error('Supabase unavailable');
+            const { data, error } = await sb.rpc(fn, payload);
+            if (error) throw error;
+            return data;
+        }
+
+        function normalizeRpcObject(data) {
+            return Array.isArray(data) ? (data[0] || {}) : (data || {});
+        }
+
         async function dbSaveInvItem(item) {
             if (!sb || !myUserId) return;
             try {
@@ -2976,7 +2960,6 @@
                 clearTimeout(balanceWriteTimer);
                 balanceWriteTimer = null;
             }
-            if (myUserId) persistBalance(getBalance());
         });
 
         // ─── Navigation ───
@@ -3021,6 +3004,7 @@
         let currentBet = 0, betPlaced = false, didCashOut = false, cashoutInit = false;
         let rocketAnim = null, betsSub = null, roundsSub = null;
         let roundSyncTimer = null;
+        let crashActionBusy = false, crashStateSyncBusy = false;
         let srvOff = 0; // server - client time offset
         let renderedCrashBetKeys = new Set();
         let crashBetsState = new Map();
@@ -3032,13 +3016,17 @@
         function mult(ms) { return Math.pow(Math.E, SPEED * ms); }
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
         function roundCreatedMs(round) { return new Date(round.created_at).getTime(); }
+        function roundStartMs(round) {
+            if (round && round.start_at) return new Date(round.start_at).getTime();
+            return roundCreatedMs(round) + WAIT_MS;
+        }
         function getRoundTimes(round) {
             const created = roundCreatedMs(round);
             const target = Math.max(Number(round.target_multiplier || 1.01), 1.01);
-            const gameStart = created + WAIT_MS;
+            const gameStart = roundStartMs(round);
             const crashMs = Math.log(target) / SPEED;
-            const crashAt = gameStart + crashMs;
-            const nextAt = crashAt + PAUSE_MS;
+            const crashAt = (round && round.crash_at) ? new Date(round.crash_at).getTime() : (gameStart + crashMs);
+            const nextAt = (round && round.next_round_at) ? new Date(round.next_round_at).getTime() : (crashAt + PAUSE_MS);
             return { created, target, gameStart, crashMs, crashAt, nextAt };
         }
         function creatorDelayMs() {
@@ -3082,15 +3070,19 @@
             const ensure = opts.ensure !== false;
 
             if (ensure) {
-                const { data, error } = await sb.rpc('get_or_create_active_crash_round');
-                if (!error && data) return Array.isArray(data) ? data[0] : data;
-                if (error) console.error('get_or_create_active_crash_round failed', error);
+                try {
+                    const data = await rpcCall('get_or_create_active_crash_round_v2', {});
+                    const obj = normalizeRpcObject(data);
+                    if (obj && obj.id) return obj;
+                } catch (e) {
+                    console.error('get_or_create_active_crash_round_v2 failed', e);
+                }
             }
 
             const { data, error } = await sb.from('crash_rounds')
                 .select('*')
                 .eq('status', 'active')
-                .order('created_at', { ascending: true })
+                .order('created_at', { ascending: false })
                 .limit(1);
 
             if (error) {
@@ -3099,6 +3091,21 @@
             }
 
             return Array.isArray(data) && data.length ? data[0] : null;
+        }
+
+        async function crashServerSync() {
+            if (!sb || crashStateSyncBusy) return null;
+            crashStateSyncBusy = true;
+            try {
+                const data = await rpcCall('get_or_create_active_crash_round_v2', {});
+                const obj = normalizeRpcObject(data);
+                return obj && obj.id ? obj : null;
+            } catch (e) {
+                console.error('crashServerSync failed', e);
+                return null;
+            } finally {
+                crashStateSyncBusy = false;
+            }
         }
 
         function showCrashStatus(text, isError) {
@@ -3200,7 +3207,7 @@
                     if (row.status === 'active' || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
                         queueRoundSync(false);
                     }
-                    if (row.status === 'crashed' || payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+                    if (row.status === 'finished' || row.status === 'crashed' || payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
                         loadHist().catch(() => {});
                     }
                 })
@@ -3298,7 +3305,7 @@
             if (!sb) return;
             const { data, error } = await sb.from('crash_rounds')
                 .select('target_multiplier')
-                .eq('status', 'crashed')
+                .in('status', ['finished', 'crashed'])
                 .order('created_at', { ascending: false })
                 .limit(8);
 
@@ -3714,8 +3721,14 @@
                         setBtnState('Краш ' + Number(target).toFixed(2) + 'x', 'disabled');
                         rmActiveHist();
 
-                        if (betPlaced && sb) {
-                            sb.from('crash_bets').update({ status:'lost' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
+                        if (betPlaced) {
+                            const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
+                            const existing = crashBetsState.get(myKey);
+                            if (existing && existing.status === 'active') {
+                                existing.status = 'lost';
+                                crashBetsState.set(myKey, existing);
+                                renderBetRecord(existing);
+                            }
                         }
 
                         markAllActiveBetsAsLostLocal();
@@ -3725,7 +3738,10 @@
                         resetGiftDisplay();
 
                         if (sb) {
-                            sb.from('crash_rounds').update({ status:'crashed', crash_time: new Date(now).toISOString() }).eq('id', currentRound.id).eq('status','active').then(()=>{});
+                            crashServerSync().then(() => {
+                                if (currentRound) loadBets(currentRound.id).catch(() => {});
+                                loadHist().catch(() => {});
+                            });
                         }
                     }
                     return;
@@ -3776,40 +3792,61 @@
             if (e) e.textContent = Math.floor(currentBet * m);
         }
 
-        function doCash() {
-            if (!crashRunning || !currentRound || crashShown) return;
-            const now = srvNow();
-            const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
-            const m = mult(now - gs);
-            const w = Math.floor(currentBet * m);
-            const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
-            const existing = crashBetsState.get(myKey);
-            if (existing) {
-                existing.status = 'won';
-                existing.cashout_multiplier = m;
-                existing.cashout_amount = w;
-                crashBetsState.set(myKey, existing);
-                renderBetRecord(existing);
+        async function doCash() {
+            if (!crashRunning || !currentRound || crashShown || crashActionBusy || !sb || !myUserId) return;
+            crashActionBusy = true;
+            setBtnState('Забираем...','disabled');
+            try {
+                const payload = normalizeRpcObject(await rpcCall('crash_cashout', {
+                    p_round_id: currentRound.id,
+                    p_telegram_id: myUserId
+                }));
+
+                if (!payload.ok) throw new Error(payload.error || 'cashout_failed');
+
+                const m = Number(payload.cashout_multiplier || 1);
+                const w = Math.max(0, parseInt(payload.cashout_amount, 10) || 0);
+                const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
+                const existing = crashBetsState.get(myKey);
+                if (existing) {
+                    existing.status = 'won';
+                    existing.cashout_multiplier = m;
+                    existing.cashout_amount = w;
+                    crashBetsState.set(myKey, existing);
+                    renderBetRecord(existing);
+                }
+                if (typeof payload.balance !== 'undefined') {
+                    setBalance(payload.balance || 0, { persist: false, cache: true });
+                } else {
+                    await refreshBalanceFromDB();
+                }
+                setBtnState('Забрали '+w+' <img src="star.png" alt="">','placed');
+                betPlaced = false;
+                didCashOut = true;
+                cashoutInit = false;
+                if (wonGift) showGiftModal(wonGift, w);
+            } catch (e) {
+                console.error('crash_cashout failed', e);
+                await crashServerSync();
+                if (currentRound) await loadBets(currentRound.id).catch(() => {});
+                await refreshBalanceFromDB();
+                setBtnState('Раунд уже закрыт','disabled');
+            } finally {
+                crashActionBusy = false;
             }
-            setBtnState('Забрали '+w+' <img src="star.png" alt="">','placed');
-            betPlaced = false; didCashOut = true; cashoutInit = false;
-            if (sb) sb.from('crash_bets').update({ cashout_multiplier: m, cashout_amount: w, status:'won' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
-            if (wonGift) showGiftModal(wonGift, w); else setBalance(getBalance() + w, { immediate: true });
         }
 
         // ─── Submit Bet ───
         async function submitBetCrash() {
             const amt = parseInt(document.getElementById('betAmount').value) || 0;
-            if (amt <= 0 || amt > getBalance() || !currentRound || !sb) return;
+            if (amt <= 0 || amt > getBalance() || !currentRound || !sb || !myUserId) return;
             clearStickyGiftPreview();
             const now = srvNow();
-            const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
+            const gs = roundStartMs(currentRound);
             if (now >= gs) return; // too late
 
-            const prevBalance = getBalance();
             const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
 
-            setBalance(prevBalance - amt, { immediate: true });
             currentBet = amt;
             betPlaced = true;
             didCashOut = false;
@@ -3818,20 +3855,33 @@
             setBtnState('Ставка отправляется...','disabled');
             showMyBet(amt);
 
-            const { error } = await sb.from('crash_bets').upsert(
-                { round_id: currentRound.id, user_id: myUserId, user_name: myName, user_photo: myPhoto, amount: amt, status: 'active' },
-                { onConflict: 'round_id,user_id' }
-            );
+            try {
+                const payload = normalizeRpcObject(await rpcCall('crash_place_bet', {
+                    p_round_id: currentRound.id,
+                    p_telegram_id: myUserId,
+                    p_user_name: myName || '',
+                    p_user_photo: myPhoto || '',
+                    p_amount: amt
+                }));
 
-            if (error) {
-                console.error('submitBetCrash failed', error);
-                setBalance(prevBalance, { immediate: true });
+                if (!payload.ok) throw new Error(payload.error || 'place_bet_failed');
+
+                if (typeof payload.balance !== 'undefined') {
+                    setBalance(payload.balance || 0, { persist: false, cache: true });
+                } else {
+                    await refreshBalanceFromDB();
+                }
+
+                setBtnState('Ставка сделана','placed');
+            } catch (e) {
+                console.error('submitBetCrash failed', e);
                 currentBet = 0;
                 betPlaced = false;
                 didCashOut = false;
                 cashoutInit = false;
                 const row = document.querySelector('[data-bet-key="' + escapeHtml(myKey) + '"]');
                 if (row) row.remove();
+                await refreshBalanceFromDB();
                 const btn = document.getElementById('crashBetBtn');
                 if (btn) {
                     btn.innerHTML = 'Сделать ставку';
@@ -3840,8 +3890,6 @@
                 }
                 return;
             }
-
-            setBtnState('Ставка сделана','placed');
         }
 
         // ─── Crash offline state ───
@@ -4000,23 +4048,45 @@
             if (!m || m.dataset.busy === '1') return;
             m.dataset.busy = '1';
             clearStickyGiftPreview();
-            setBalance(getBalance() + m._win, { immediate: true });
             m.classList.remove('show');
             setTimeout(() => { m.dataset.busy = '0'; }, 250);
         }
-        function takeGift() {
+        async function takeGift() {
             const m = document.getElementById('giftModal');
-            if (!m || !m._gift || m.dataset.busy === '1') return;
+            if (!m || !m._gift || m.dataset.busy === '1' || !sb || !myUserId) return;
             m.dataset.busy = '1';
 
-            const item = { name: m._gift.name, img: m._gift.img, price: m._win };
-            inventory.push(item);
-            renderInventory();
-            dbSaveInvItem(item);
-            rememberStickyGiftPreview(item);
-            m.classList.remove('show');
+            try {
+                const payload = normalizeRpcObject(await rpcCall('inventory_take_gift_from_balance', {
+                    p_telegram_id: myUserId,
+                    p_gift_name: m._gift.name,
+                    p_gift_img: m._gift.img,
+                    p_gift_price: Math.max(0, parseInt(m._win, 10) || 0)
+                }));
 
-            setTimeout(() => { m.dataset.busy = '0'; }, 250);
+                if (!payload.ok) throw new Error(payload.error || 'take_gift_failed');
+
+                const item = {
+                    id: payload.item_id || null,
+                    name: m._gift.name,
+                    img: m._gift.img,
+                    price: Math.max(0, parseInt(m._win, 10) || 0)
+                };
+                inventory.unshift(item);
+                renderInventory();
+                rememberStickyGiftPreview(item);
+                if (typeof payload.balance !== 'undefined') {
+                    setBalance(payload.balance || 0, { persist: false, cache: true });
+                } else {
+                    await refreshBalanceFromDB();
+                }
+                m.classList.remove('show');
+            } catch (e) {
+                console.error('takeGift failed', e);
+                await refreshBalanceFromDB();
+            } finally {
+                setTimeout(() => { m.dataset.busy = '0'; }, 250);
+            }
         }
 
         function getInventoryCountLabel(n) {
@@ -4042,13 +4112,23 @@
         }
 
         async function sellAllInventory() {
-            if (!inventory.length) return;
-            const total = inventory.reduce((sum, it) => sum + (Math.max(0, parseInt(it && it.price, 10) || 0)), 0);
-            const itemsToSell = inventory.slice();
-            setBalance(getBalance() + total, { immediate: true });
-            inventory = [];
-            renderInventory();
-            await Promise.all(itemsToSell.map(it => dbRemoveInvItem(it.id)));
+            if (!inventory.length || !sb || !myUserId) return;
+            try {
+                const payload = normalizeRpcObject(await rpcCall('sell_all_inventory', {
+                    p_telegram_id: myUserId
+                }));
+                if (!payload.ok) throw new Error(payload.error || 'sell_all_failed');
+                inventory = [];
+                renderInventory();
+                if (typeof payload.balance !== 'undefined') {
+                    setBalance(payload.balance || 0, { persist: false, cache: true });
+                } else {
+                    await refreshBalanceFromDB();
+                }
+            } catch (e) {
+                console.error('sellAllInventory failed', e);
+                await refreshBalanceFromDB();
+            }
         }
 
         function renderInventory() {
@@ -4060,7 +4140,27 @@
                 '<div class="inventory-item"><img class="inv-img loading" src="'+encodeURI(it.img)+'" alt="" onload="this.classList.remove(\'loading\')" onerror="this.classList.add(\'loading\')"><div class="inv-name">'+it.name+'</div><div class="inv-btns"><button class="inv-btn sell" onclick="sellInvItem('+i+')">Продать '+it.price+' <img src="star.png" alt=""></button><button class="inv-btn withdraw">Вывести</button></div></div>'
             ).join('');
         }
-        function sellInvItem(i) { const it = inventory[i]; if (!it) return; setBalance(getBalance()+it.price, { immediate: true }); dbRemoveInvItem(it.id); inventory.splice(i,1); renderInventory(); }
+        async function sellInvItem(i) {
+            const it = inventory[i];
+            if (!it || !it.id || !sb || !myUserId) return;
+            try {
+                const payload = normalizeRpcObject(await rpcCall('sell_inventory_item', {
+                    p_telegram_id: myUserId,
+                    p_inventory_id: it.id
+                }));
+                if (!payload.ok) throw new Error(payload.error || 'sell_item_failed');
+                inventory.splice(i, 1);
+                renderInventory();
+                if (typeof payload.balance !== 'undefined') {
+                    setBalance(payload.balance || 0, { persist: false, cache: true });
+                } else {
+                    await refreshBalanceFromDB();
+                }
+            } catch (e) {
+                console.error('sellInvItem failed', e);
+                await refreshBalanceFromDB();
+            }
+        }
 
         // ─── Bet Menu ───
         function placeBet() { document.getElementById('betMenu').classList.add('show'); document.getElementById('betOverlay').classList.add('show'); }
@@ -4092,7 +4192,7 @@
         function getSellAllLabel(total) { return t('sell_all') + ' ' + (Math.max(0, parseInt(total, 10) || 0)); }
         function updateGiftModalTranslations() { const sellAmount = document.getElementById('giftSellAmount')?.textContent || ''; const sellBtn = document.getElementById('giftSellBtn'); const takeBtn = document.getElementById('giftTakeBtn'); if (sellBtn) sellBtn.innerHTML = t('gift_sell') + ' <span id="giftSellAmount">' + sellAmount + '</span> <img src="star.png" alt="">'; if (takeBtn) takeBtn.textContent = t('gift_take'); }
         function updateCheckTranslations() { const subtitle = document.getElementById('checkSubtitle'); const label = document.getElementById('checkLabel'); if (label) label.textContent = t('check_label'); if (subtitle && (!subtitle.textContent || subtitle.dataset.i18n !== 'manual')) subtitle.textContent = t('check_subtitle'); }
-        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = t('games'); if (navSpans[2]) navSpans[2].textContent = t('profile_nav'); const gameTitle = document.querySelector('#page-games .section-title'); if (gameTitle) gameTitle.textContent = t('choose_game'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const crashBack = document.getElementById('crashBackLabel'); if (crashBack) crashBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); const topCardTitle = document.getElementById('topCardTitle'); const topCardSubtitle = document.getElementById('topCardSubtitle'); if (topCardTitle) topCardTitle.textContent = currentLang === 'en' ? 'TOP TOP-UPS' : 'ТОП ПО ПОПОЛНЕНИЯМ'; if (topCardSubtitle) topCardSubtitle.textContent = currentLang === 'en' ? '10 players who topped up at least once.' : 'В списке 10 игроков, которые хотя бы один раз пополняли баланс.'; if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
+        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = t('games'); if (navSpans[2]) navSpans[2].textContent = t('profile_nav'); const gameTitle = document.querySelector('#page-games .section-title'); if (gameTitle) gameTitle.textContent = t('choose_game'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const crashBack = document.getElementById('crashBackLabel'); if (crashBack) crashBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
         function closeSettingsOutside(e) { if (e.target === e.currentTarget) closeSettings(); }
         function toggleLang() { document.getElementById('langOptions').classList.toggle('show'); document.getElementById('langRow').classList.toggle('open'); }
         function selectLang(lang, el) { currentLang = I18N[lang] ? lang : 'ru'; localStorage.setItem(LANG_STORAGE_KEY, currentLang); document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); if (el) el.classList.add('active'); applyTranslations(); }
@@ -4106,56 +4206,44 @@
         })();
 
         // ─── Topup via Telegram Stars ───
-        const BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
+        const PAYMENTS_API_URL = window.GIFTPEPE_PAYMENTS_API_URL || 'https://REPLACE-WITH-YOUR-BOT-DOMAIN/api/create-invoice-link';
+
+        async function waitForTopupSync(prevBalance, retries = 8, delay = 1100) {
+            for (let i = 0; i < retries; i++) {
+                await sleep(delay);
+                const balance = await refreshBalanceFromDB();
+                if (balance !== null && balance > prevBalance) return balance;
+            }
+            return await refreshBalanceFromDB();
+        }
 
         async function buyStars(amount) {
             if (!tg) { alert(currentLang === 'en' ? 'Open this inside Telegram' : 'Откройте в Telegram'); return; }
             const topupItems = document.querySelectorAll('.topup-item');
             topupItems.forEach(el => el.style.pointerEvents = 'none');
-
-            const invoicePayload = 'topup_' + (myUserId || 0) + '_' + amount + '_' + Date.now();
+            const prevBalance = getBalance();
 
             try {
-                const resp = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/createInvoiceLink', {
+                const resp = await fetch(PAYMENTS_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        title: amount + ' Stars',
-                        description: 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
-                        payload: invoicePayload,
-                        currency: 'XTR',
-                        prices: [{ label: amount + ' Stars', amount: amount }]
+                        amount: amount,
+                        user_id: myUserId || 0
                     })
                 });
                 const data = await resp.json();
-                if (!data.ok) throw new Error(data.description || 'Invoice error');
+                if (!resp.ok || !data.ok || !data.invoice_link) throw new Error(data.error || 'Invoice error');
 
-                tg.openInvoice(data.result, function(status) {
+                tg.openInvoice(data.invoice_link, function(status) {
                     if (status === 'paid') {
                         (async () => {
                             try {
-                                if (sb && myUserId) {
-                                    const { data: rpcData, error: rpcError } = await sb.rpc('apply_topup_and_referral', {
-                                        p_telegram_id: myUserId,
-                                        p_amount: amount,
-                                        p_payload: invoicePayload,
-                                        p_source: 'telegram_xtr'
-                                    });
-                                    if (rpcError) throw rpcError;
-                                    if (rpcData && rpcData.ok) {
-                                        setBalance(rpcData.balance || 0, { persist: false, cache: true });
-                                        await refreshReferralStats();
-                                    } else {
-                                        setBalance(getBalance() + amount, { immediate: true });
-                                    }
-                                } else {
-                                    setBalance(getBalance() + amount, { immediate: true });
-                                }
+                                await waitForTopupSync(prevBalance);
+                                await refreshReferralStats();
                                 closeTopup();
                             } catch (e) {
-                                console.error('apply_topup_and_referral failed', e);
-                                setBalance(getBalance() + amount, { immediate: true });
-                                closeTopup();
+                                console.error('topup sync failed', e);
                             } finally {
                                 topupItems.forEach(el => el.style.pointerEvents = '');
                             }
