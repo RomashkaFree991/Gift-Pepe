@@ -3029,15 +3029,22 @@
             const nextAt = (round && round.next_round_at) ? new Date(round.next_round_at).getTime() : (crashAt + PAUSE_MS);
             return { created, target, gameStart, crashMs, crashAt, nextAt };
         }
-        function isRoundExpired(round, now = srvNow()) {
-            if (!round) return true;
-            const t = getRoundTimes(round);
-            return now >= Math.max(t.nextAt, t.crashAt + CRASH_HOLD_MS);
+        function isFiniteRoundTime(val) {
+            return Number.isFinite(val) && !Number.isNaN(val);
         }
-        function isBettingWindowOpen(round, now = srvNow()) {
-            if (!round) return false;
-            const t = getRoundTimes(round);
-            return now < t.gameStart;
+        function getRoundPhase(round, now = srvNow()) {
+            if (!round) return 'none';
+            const { gameStart, crashAt, nextAt } = getRoundTimes(round);
+            if (!isFiniteRoundTime(gameStart) || !isFiniteRoundTime(crashAt) || !isFiniteRoundTime(nextAt)) return 'invalid';
+            if (nextAt <= gameStart || crashAt <= gameStart) return 'invalid';
+            if (now < gameStart) return 'countdown';
+            if (now < crashAt) return 'flying';
+            if (now < nextAt) return 'crashed';
+            return 'expired';
+        }
+        function isRoundUsable(round, now = srvNow()) {
+            const phase = getRoundPhase(round, now);
+            return phase === 'countdown' || phase === 'flying' || phase === 'crashed';
         }
         function creatorDelayMs() {
             const seed = Math.abs(Number(myUserId || 0)) || Math.floor(Math.random() * 997);
@@ -3078,13 +3085,12 @@
         async function getActiveRound(opts = {}) {
             if (!sb) return null;
             const ensure = opts.ensure !== false;
-            const now = srvNow();
 
             if (ensure) {
                 try {
                     const data = await rpcCall('get_or_create_active_crash_round_v2', {});
                     const obj = normalizeRpcObject(data);
-                    if (obj && obj.id && !isRoundExpired(obj, now)) return obj;
+                    if (obj && obj.id) return obj;
                 } catch (e) {
                     console.error('get_or_create_active_crash_round_v2 failed', e);
                 }
@@ -3094,16 +3100,14 @@
                 .select('*')
                 .eq('status', 'active')
                 .order('created_at', { ascending: false })
-                .limit(3);
+                .limit(1);
 
             if (error) {
                 console.error('read active round failed', error);
                 return null;
             }
 
-            if (!Array.isArray(data) || !data.length) return null;
-            const fresh = data.find(r => !isRoundExpired(r, now));
-            return fresh || null;
+            return Array.isArray(data) && data.length ? data[0] : null;
         }
 
         async function crashServerSync() {
@@ -3141,15 +3145,15 @@
             }
         }
 
-        function clearCrashPlayers(waitText = 'Ожидание ставок') {
+        function clearCrashPlayers(waitingText = null) {
             renderedCrashBetKeys.clear();
             crashBetsState.clear();
             const p = document.getElementById('crashPlayers');
             if (p) p.innerHTML = '';
             const t = document.getElementById('crashWaitingText');
-            if (t) {
+            if (t && waitingText !== null) {
                 t.style.display = '';
-                t.textContent = waitText;
+                t.textContent = waitingText;
             }
             renderStickyGiftPreview();
         }
@@ -3157,6 +3161,7 @@
         function queueRoundSync(forceReloadBets) {
             if (roundSyncTimer) clearTimeout(roundSyncTimer);
             roundSyncTimer = setTimeout(() => {
+                roundSyncTimer = null;
                 syncCrashRound(!!forceReloadBets).catch(() => {});
             }, 50);
         }
@@ -3166,29 +3171,31 @@
 
             const now = srvNow();
             const currentTimes = currentRound ? getRoundTimes(currentRound) : null;
-            const holdingCurrentRound = !!(currentTimes && now < Math.max(currentTimes.nextAt, currentTimes.crashAt + CRASH_HOLD_MS));
+            const currentPhase = currentRound ? getRoundPhase(currentRound, now) : 'none';
+            const holdingCurrentRound = !!(currentTimes && (currentPhase === 'countdown' || currentPhase === 'flying' || now < Math.max(currentTimes.nextAt, currentTimes.crashAt + CRASH_HOLD_MS)));
 
             if (holdingCurrentRound && !forceReloadBets) {
                 return;
             }
 
-            const round = await getActiveRound({ ensure: !holdingCurrentRound });
+            let round = await getActiveRound({ ensure: !holdingCurrentRound });
+            let phase = round ? getRoundPhase(round, now) : 'none';
 
-            if (!round) {
-                if (holdingCurrentRound) return;
-                currentRound = null;
-                resetBet('Загрузка раунда...');
-                showCrashStatus('Загрузка раунда...', false);
-                return;
+            if (round && !isRoundUsable(round, now)) {
+                round = null;
+                phase = 'none';
             }
 
-            if (isRoundExpired(round, now)) {
+            if (!round) {
+                if (holdingCurrentRound || currentPhase === 'crashed') return;
                 currentRound = null;
-                resetBet('Загрузка раунда...');
                 showCrashStatus('Загрузка раунда...', false);
-                setTimeout(() => {
-                    if (crashActive) syncCrashRound(true).catch(() => {});
-                }, 250);
+                if (!roundSyncTimer) {
+                    roundSyncTimer = setTimeout(() => {
+                        roundSyncTimer = null;
+                        if (crashActive) syncCrashRound(true).catch(() => {});
+                    }, 700);
+                }
                 return;
             }
 
@@ -3197,16 +3204,12 @@
             }
 
             const sameRound = !!(currentRound && currentRound.id === round.id);
-            const bettingOpen = isBettingWindowOpen(round, now);
 
             if (sameRound) {
                 currentRound = round;
                 if (!betsSub) subBets(round.id);
                 if (forceReloadBets && crashBetsState.size === 0) {
-                    await loadBets(round.id);
-                }
-                if (!betPlaced && !didCashOut && bettingOpen) {
-                    setCrashBetOpenState();
+                    await loadBets(round.id, { preserveStatus: phase !== 'countdown' });
                 }
                 if (!gameLoop) {
                     crashShown = false;
@@ -3218,12 +3221,9 @@
 
             currentRound = round;
             clearStickyGiftPreview();
-            resetBet(bettingOpen ? 'Ожидание ставок' : 'Ожидание раунда');
-            await loadBets(round.id);
+            resetBet(false);
+            await loadBets(round.id, { preserveStatus: phase !== 'countdown' });
             subBets(round.id);
-            if (!betPlaced && !didCashOut && bettingOpen) {
-                setCrashBetOpenState();
-            }
             crashShown = false;
             lastCountNum = -1;
             runLoop();
@@ -3285,16 +3285,22 @@
             if (c) c.style.display = 'none';
         }
 
-        function resetBet(waitText = 'Ожидание раунда') {
+        function resetBet(enableButton = false) {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
             const btn = document.getElementById('crashBetBtn');
             if (btn) {
-                btn.innerHTML = 'Ожидание раунда';
-                btn.classList.add('disabled');
-                btn.classList.remove('placed');
-                btn.onclick = null;
+                if (enableButton) {
+                    btn.innerHTML = 'Сделать ставку';
+                    btn.classList.remove('placed','disabled');
+                    btn.onclick = function(){ placeBet(); };
+                } else {
+                    btn.innerHTML = 'Ожидание раунда';
+                    btn.classList.add('disabled');
+                    btn.classList.remove('placed');
+                    btn.onclick = null;
+                }
             }
-            clearCrashPlayers(waitText);
+            clearCrashPlayers();
             resetGiftDisplay();
         }
 
@@ -3565,9 +3571,9 @@
             });
         }
 
-        async function loadBets(rid) {
+        async function loadBets(rid, opts = {}) {
             if (!sb) return;
-            clearCrashPlayers();
+            clearCrashPlayers(opts.preserveStatus ? null : 'Ожидание ставок');
             const { data, error } = await sb.from('crash_bets')
                 .select('*')
                 .eq('round_id', rid)
@@ -3689,6 +3695,21 @@
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
 
+                    const waitText = document.getElementById('crashWaitingText');
+                    if (waitText) {
+                        waitText.style.display = '';
+                        waitText.textContent = 'Ожидание ставок';
+                    }
+
+                    if (!betPlaced && !didCashOut) {
+                        const btn = document.getElementById('crashBetBtn');
+                        if (btn) {
+                            btn.innerHTML = 'Сделать ставку';
+                            btn.classList.remove('placed', 'disabled');
+                            btn.onclick = function(){ placeBet(); };
+                        }
+                    }
+
                     const msLeft = Math.max(0, gameStart - now);
                     const sec = Math.max(1, Math.min(Math.ceil(msLeft / 1000), 10));
 
@@ -3698,15 +3719,6 @@
                         countEl.classList.remove('pop');
                         void countEl.offsetWidth;
                         countEl.classList.add('pop');
-                    }
-
-                    const wait = document.getElementById('crashWaitingText');
-                    if (wait && crashBetsState.size === 0) {
-                        wait.style.display = '';
-                        wait.textContent = 'Ожидание ставок';
-                    }
-                    if (!betPlaced && !didCashOut) {
-                        setCrashBetOpenState();
                     }
 
                     setActiveHist('Ожидание');
@@ -3805,7 +3817,7 @@
 
                     currentRound = null;
                     hideAll();
-                    resetBet('Загрузка раунда...');
+                    resetBet(false);
                     showCrashStatus('Загрузка раунда...', false);
 
                     setTimeout(async () => {
