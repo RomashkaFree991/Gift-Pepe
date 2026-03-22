@@ -3115,6 +3115,7 @@
             const players = document.getElementById('crashPlayers');
             if (players) players.innerHTML = '';
             renderedCrashBetKeys.clear();
+            crashBetsState.clear();
             if (wait) {
                 wait.style.display = '';
                 wait.textContent = text;
@@ -3174,15 +3175,18 @@
 
             if (sameRound) {
                 currentRound = round;
+                refreshCrashBetButton();
                 if (!betsSub) subBets(round.id);
                 if (forceReloadBets && crashBetsState.size === 0) {
                     await loadBets(round.id);
                 }
-                if (!gameLoop) {
-                    crashShown = false;
-                    lastCountNum = -1;
-                    runLoop();
+                crashShown = false;
+                lastCountNum = -1;
+                if (gameLoop) {
+                    clearInterval(gameLoop);
+                    gameLoop = null;
                 }
+                runLoop();
                 return;
             }
 
@@ -3332,49 +3336,22 @@
         // ─── History UI ───
         function addHist(text, cls) {
             const h = document.getElementById('crashHistory');
-            const e = document.createElement('div');
-            e.className = 'crash-history-item ' + cls;
-            e.textContent = text;
-            h.insertBefore(e, h.firstChild);
-            if (h.children.length > 8) h.removeChild(h.lastChild);
+            if (h) h.innerHTML = '';
         }
 
         function setActiveHist(text) {
-            let a = document.querySelector('.crash-history-item.active');
-            if (!a) {
-                const h = document.getElementById('crashHistory');
-                a = document.createElement('div');
-                a.className = 'crash-history-item active';
-                h.insertBefore(a, h.firstChild);
-            }
-            a.textContent = text;
+            const h = document.getElementById('crashHistory');
+            if (h) h.innerHTML = '';
         }
 
         function rmActiveHist() {
-            const a = document.querySelector('.crash-history-item.active');
-            if (a) a.remove();
+            const h = document.getElementById('crashHistory');
+            if (h) h.innerHTML = '';
         }
 
         async function loadHist() {
-            if (!sb) return;
-            const { data, error } = await sb.from('crash_rounds')
-                .select('target_multiplier')
-                .in('status', ['finished', 'crashed'])
-                .order('created_at', { ascending: false })
-                .limit(8);
-
-            if (error) {
-                console.error('loadHist failed', error);
-                return;
-            }
-
-            document.getElementById('crashHistory').innerHTML = '';
-            if (data && data.length) {
-                data.reverse().forEach(r => {
-                    const text = Number(r.target_multiplier || 1).toFixed(2) + 'x';
-                    addHist(text, 'past');
-                });
-            }
+            const h = document.getElementById('crashHistory');
+            if (h) h.innerHTML = '';
         }
 
         function deriveGiftForAmount(amount) {
@@ -3557,6 +3534,16 @@
             trackMyPotentialGift(0);
         }
 
+        function markAllActiveBetsAsLostSilent() {
+            crashBetsState.forEach((rec, key) => {
+                if (rec.status === 'active') {
+                    rec.status = 'lost';
+                    crashBetsState.set(key, rec);
+                }
+            });
+            trackMyPotentialGift(0);
+        }
+
         function syncLiveBetAmounts(multiplier) {
             crashBetsState.forEach(rec => {
                 const row = document.querySelector('[data-bet-key="' + escapeHtml(rec.key) + '"]');
@@ -3618,6 +3605,9 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_bets', filter: 'round_id=eq.' + rid }, payload => {
                     const b = payload.new || payload.old;
                     if (!b) return;
+                    if (!currentRound || String(b.round_id) !== String(currentRound.id)) return;
+                    const rt = getRoundTimes(currentRound);
+                    if (srvNow() >= rt.crashAt) return;
 
                     const key = crashBetKey(b);
                     if (payload.eventType === 'DELETE') {
@@ -3690,14 +3680,20 @@
             if (gameLoop) clearInterval(gameLoop);
             let rocketOn = false;
 
-            const { gameStart, target, crashAt, nextAt } = getRoundTimes(currentRound);
-
             gameLoop = setInterval(async () => {
                 if (!crashActive) { clearInterval(gameLoop); return; }
+                if (!currentRound) {
+                    hideAll();
+                    refreshCrashBetButton();
+                    return;
+                }
+
+                const { gameStart, target, crashAt, nextAt } = getRoundTimes(currentRound);
                 const now = srvNow();
                 const countEl = document.getElementById('crashCountdown');
                 const multiEl = document.getElementById('crashMultiplier');
                 const rocketEl = document.getElementById('crashRocket');
+                if (!countEl || !multiEl || !rocketEl) return;
 
                 // ── COUNTDOWN ──
                 if (now < gameStart) {
@@ -3786,8 +3782,8 @@
                             }
                         }
 
-                        markAllActiveBetsAsLostLocal();
-                        addHist(Number(target).toFixed(2) + 'x', 'past');
+                        markAllActiveBetsAsLostSilent();
+                        clearCrashPlayers();
                         betPlaced = false;
                         didCashOut = false;
                         resetGiftDisplay();
@@ -3815,7 +3811,7 @@
                     currentRound = null;
                     hideAll();
                     resetBet();
-                    showCrashStatus('Загрузка раунда...', false);
+                    showCrashStatus('Ожидание раунда', false);
 
                     setTimeout(async () => {
                         if (!crashActive) return;
@@ -4227,7 +4223,7 @@
         })();
 
         // ─── Topup via Telegram Stars ───
-        const PAYMENTS_API_URL = window.GIFTPEPE_PAYMENTS_API_URL || 'https://REPLACE-WITH-YOUR-BOT-DOMAIN/api/create-invoice-link';
+        const PAYMENTS_API_URL = String(window.GIFTPEPE_PAYMENTS_API_URL || localStorage.getItem('GIFTPEPE_PAYMENTS_API_URL') || 'https://gift-pepe.web.app/api/create-invoice-link').trim();
 
         async function waitForTopupSync(prevBalance, retries = 8, delay = 1100) {
             for (let i = 0; i < retries; i++) {
@@ -4238,6 +4234,36 @@
             return await refreshBalanceFromDB();
         }
 
+        async function requestInvoiceLink(amount) {
+            const payload = { amount: amount, user_id: myUserId || 0 };
+
+            if (window.GIFTPEPE_BOT_TOKEN) {
+                const resp = await fetch('https://api.telegram.org/bot' + String(window.GIFTPEPE_BOT_TOKEN).trim() + '/createInvoiceLink', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: amount + ' Stars',
+                        description: 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
+                        payload: 'topup_' + (myUserId || 0) + '_' + amount + '_' + Date.now(),
+                        currency: 'XTR',
+                        prices: [{ label: amount + ' Stars', amount: amount }]
+                    })
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || !data.ok || !data.result) throw new Error(data.description || 'Invoice error');
+                return data.result;
+            }
+
+            const resp = await fetch(PAYMENTS_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.ok || !data.invoice_link) throw new Error(data.error || ('HTTP ' + resp.status));
+            return data.invoice_link;
+        }
+
         async function buyStars(amount) {
             if (!tg) { alert(currentLang === 'en' ? 'Open this inside Telegram' : 'Откройте в Telegram'); return; }
             const topupItems = document.querySelectorAll('.topup-item');
@@ -4245,18 +4271,9 @@
             const prevBalance = getBalance();
 
             try {
-                const resp = await fetch(PAYMENTS_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        amount: amount,
-                        user_id: myUserId || 0
-                    })
-                });
-                const data = await resp.json();
-                if (!resp.ok || !data.ok || !data.invoice_link) throw new Error(data.error || 'Invoice error');
+                const invoiceLink = await requestInvoiceLink(amount);
 
-                tg.openInvoice(data.invoice_link, function(status) {
+                tg.openInvoice(invoiceLink, function(status) {
                     if (status === 'paid') {
                         (async () => {
                             try {
@@ -4275,6 +4292,7 @@
                 });
             } catch (e) {
                 console.error('buyStars error', e);
+                alert((currentLang === 'en' ? 'Top up is unavailable. Check payment API URL.' : 'Пополнение недоступно. Проверь URL payment API.') + '\n' + (e?.message || 'Unknown error'));
                 topupItems.forEach(el => el.style.pointerEvents = '');
             }
         }
