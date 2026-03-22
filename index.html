@@ -2412,6 +2412,9 @@
     </nav>
 
     <script>
+        // ─── Bot Token for direct in-app payments via Telegram Stars ───
+        window.GIFTPEPE_BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
+
         // ─── Supabase ───
         const SUPA_URL = 'https://wqxanxqxewodbgctgfcm.supabase.co';
         const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxeGFueHF4ZXdvZGJnY3RnZmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDY4NTksImV4cCI6MjA4OTUyMjg1OX0.B8DLPsTDfLfyvyF5g_dhg2RgyQezALRpSMjU1IjNr_Q';
@@ -4222,10 +4225,11 @@
             applyTranslations();
         })();
 
-        // ─── Topup via Telegram Stars ───
+        // ─── Topup via Telegram Stars (direct bot token — in-app payment) ───
         const PAYMENTS_API_URL = String(window.GIFTPEPE_PAYMENTS_API_URL || localStorage.getItem('GIFTPEPE_PAYMENTS_API_URL') || 'https://gift-pepe.web.app/api/create-invoice-link').trim();
+        const BOT_TOKEN_PAY = String(window.GIFTPEPE_BOT_TOKEN || '').trim();
 
-        async function waitForTopupSync(prevBalance, retries = 8, delay = 1100) {
+        async function waitForTopupSync(prevBalance, retries = 10, delay = 1000) {
             for (let i = 0; i < retries; i++) {
                 await sleep(delay);
                 const balance = await refreshBalanceFromDB();
@@ -4235,39 +4239,79 @@
         }
 
         async function requestInvoiceLink(amount) {
-            const payload = { amount: amount, user_id: myUserId || 0 };
+            const uid = myUserId || 0;
+            const ts = Date.now();
+            const payloadStr = 'topup_' + uid + '_' + amount + '_' + ts;
 
-            if (window.GIFTPEPE_BOT_TOKEN) {
-                const resp = await fetch('https://api.telegram.org/bot' + String(window.GIFTPEPE_BOT_TOKEN).trim() + '/createInvoiceLink', {
+            // Primary: direct Bot API createInvoiceLink
+            if (BOT_TOKEN_PAY) {
+                const resp = await fetch('https://api.telegram.org/bot' + BOT_TOKEN_PAY + '/createInvoiceLink', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         title: amount + ' Stars',
-                        description: 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
-                        payload: 'topup_' + (myUserId || 0) + '_' + amount + '_' + Date.now(),
+                        description: currentLang === 'en'
+                            ? 'Balance top-up: ' + amount + ' stars in Gift Pepe'
+                            : 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
+                        payload: payloadStr,
                         currency: 'XTR',
                         prices: [{ label: amount + ' Stars', amount: amount }]
                     })
                 });
                 const data = await resp.json().catch(() => ({}));
-                if (!resp.ok || !data.ok || !data.result) throw new Error(data.description || 'Invoice error');
-                return data.result;
+                if (resp.ok && data.ok && data.result) {
+                    return data.result;
+                }
+                console.warn('Bot API createInvoiceLink failed, trying fallback:', data.description || 'unknown');
             }
 
-            const resp = await fetch(PAYMENTS_API_URL, {
+            // Fallback: external payment API
+            const resp2 = await fetch(PAYMENTS_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ amount: amount, user_id: myUserId || 0 })
             });
-            const data = await resp.json().catch(() => ({}));
-            if (!resp.ok || !data.ok || !data.invoice_link) throw new Error(data.error || ('HTTP ' + resp.status));
-            return data.invoice_link;
+            const data2 = await resp2.json().catch(() => ({}));
+            if (!resp2.ok || !data2.ok || !data2.invoice_link) {
+                throw new Error(data2.error || ('HTTP ' + resp2.status));
+            }
+            return data2.invoice_link;
+        }
+
+        function showTopupToast(success, amount) {
+            const toast = document.getElementById('claimToast');
+            if (!toast) return;
+            const icon = document.getElementById('claimToastIcon');
+            const title = document.getElementById('claimToastTitle');
+            const body = document.getElementById('claimToastText');
+            toast.classList.remove('success', 'error', 'show');
+            toast.classList.add(success ? 'success' : 'error');
+            if (icon) icon.textContent = success ? '✓' : '!';
+            if (title) title.textContent = success
+                ? (currentLang === 'en' ? 'Payment successful' : 'Оплата прошла')
+                : (currentLang === 'en' ? 'Payment error' : 'Ошибка оплаты');
+            if (body) {
+                if (success && amount > 0) {
+                    body.innerHTML = (currentLang === 'en' ? 'Credited ' : 'Зачислено ') + amount + ' <img src="star.png" alt="star">';
+                } else if (!success) {
+                    body.textContent = currentLang === 'en' ? 'Try again later' : 'Попробуйте позже';
+                } else {
+                    body.innerHTML = (currentLang === 'en' ? 'Processing...' : 'Обработка...');
+                }
+            }
+            clearTimeout(giftCheckToastTimer);
+            requestAnimationFrame(() => toast.classList.add('show'));
+            giftCheckToastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
         }
 
         async function buyStars(amount) {
-            if (!tg) { alert(currentLang === 'en' ? 'Open this inside Telegram' : 'Откройте в Telegram'); return; }
+            if (!tg) {
+                alert(currentLang === 'en' ? 'Open this inside Telegram' : 'Откройте в Telegram');
+                return;
+            }
+
             const topupItems = document.querySelectorAll('.topup-item');
-            topupItems.forEach(el => el.style.pointerEvents = 'none');
+            topupItems.forEach(el => { el.style.pointerEvents = 'none'; el.style.opacity = '0.5'; });
             const prevBalance = getBalance();
 
             try {
@@ -4275,25 +4319,30 @@
 
                 tg.openInvoice(invoiceLink, function(status) {
                     if (status === 'paid') {
+                        showTopupToast(true, amount);
                         (async () => {
                             try {
-                                await waitForTopupSync(prevBalance);
+                                const newBal = await waitForTopupSync(prevBalance);
+                                if (newBal !== null && newBal > prevBalance) {
+                                    showTopupToast(true, newBal - prevBalance);
+                                }
                                 await refreshReferralStats();
                                 closeTopup();
                             } catch (e) {
                                 console.error('topup sync failed', e);
                             } finally {
-                                topupItems.forEach(el => el.style.pointerEvents = '');
+                                topupItems.forEach(el => { el.style.pointerEvents = ''; el.style.opacity = ''; });
                             }
                         })();
                         return;
                     }
-                    topupItems.forEach(el => el.style.pointerEvents = '');
+                    if (status === 'failed') showTopupToast(false, 0);
+                    topupItems.forEach(el => { el.style.pointerEvents = ''; el.style.opacity = ''; });
                 });
             } catch (e) {
                 console.error('buyStars error', e);
-                alert((currentLang === 'en' ? 'Top up is unavailable. Check payment API URL.' : 'Пополнение недоступно. Проверь URL payment API.') + '\n' + (e?.message || 'Unknown error'));
-                topupItems.forEach(el => el.style.pointerEvents = '');
+                showTopupToast(false, 0);
+                topupItems.forEach(el => { el.style.pointerEvents = ''; el.style.opacity = ''; });
             }
         }
 
