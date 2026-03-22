@@ -2999,6 +2999,9 @@
         const CRASH_HOLD_MS = 2800;
         const SPEED = 0.00018;
         const POLL_MS = 2000;
+        const CRASH_ROUND_RETRY_MS = 900;
+        const CRASH_RPC_NAMES = ['get_or_create_active_crash_round_v2', 'get_or_create_active_crash_round'];
+        const ACTIVE_CRASH_STATUSES = ['active', 'waiting', 'started', 'running'];
         // COUNTDOWN_SMOOTH_MS removed to fix double-10 bug
 
         let gameLoop = null, pollLoop = null;
@@ -3068,53 +3071,75 @@
         }
 
         // ─── Find or create round ───
+        async function getRoundFromServerRpc() {
+            let lastError = null;
+            for (const fn of CRASH_RPC_NAMES) {
+                try {
+                    const data = await rpcCall(fn, {});
+                    const obj = normalizeRpcObject(data);
+                    if (obj && obj.id) {
+                        return { round: obj, rpcName: fn, error: null };
+                    }
+                } catch (e) {
+                    lastError = e;
+                    console.error(fn + ' failed', e);
+                }
+            }
+            return { round: null, rpcName: null, error: lastError };
+        }
+
         async function getActiveRound(opts = {}) {
-            if (!sb) return null;
+            if (!sb) {
+                return { round: null, transportError: true, rpcError: new Error('Supabase unavailable') };
+            }
+
             const ensure = opts.ensure !== false;
+            let rpcError = null;
 
             if (ensure) {
-                try {
-                    const data = await rpcCall('get_or_create_active_crash_round_v2', {});
-                    const obj = normalizeRpcObject(data);
-                    if (obj && obj.id) return obj;
-                } catch (e) {
-                    console.error('get_or_create_active_crash_round_v2 failed', e);
+                const rpcRes = await getRoundFromServerRpc();
+                rpcError = rpcRes.error || null;
+                if (rpcRes.round && rpcRes.round.id) {
+                    return { round: rpcRes.round, transportError: false, rpcError: null, source: rpcRes.rpcName || 'rpc' };
                 }
             }
 
-            const { data, error } = await sb.from('crash_rounds')
-                .select('*')
-                .eq('status', 'active')
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-            if (error) {
-                console.error('read active round failed', error);
-                return null;
-            }
-
-            const row = Array.isArray(data) && data.length ? data[0] : null;
-            if (!row) return null;
-
-            // Защита от зависшего "active" раунда в базе: если он уже давно прошёл,
-            // фронт не должен снова показывать его как текущий.
             try {
-                const times = getRoundTimes(row);
-                if (Date.now() > (times.nextAt + CRASH_HOLD_MS + 1500)) {
-                    return null;
-                }
-            } catch (_) {}
+                const { data, error } = await sb.from('crash_rounds')
+                    .select('*')
+                    .in('status', ACTIVE_CRASH_STATUSES)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
 
-            return row;
+                if (error) throw error;
+
+                const row = Array.isArray(data) && data.length ? data[0] : null;
+                if (!row) {
+                    return { round: null, transportError: false, rpcError, source: 'table' };
+                }
+
+                // Защита от зависшего server round: если он уже давно закончился,
+                // фронт не должен снова показывать его как текущий.
+                try {
+                    const times = getRoundTimes(row);
+                    if (Date.now() > (times.nextAt + CRASH_HOLD_MS + 1500)) {
+                        return { round: null, transportError: false, rpcError, source: 'table' };
+                    }
+                } catch (_) {}
+
+                return { round: row, transportError: false, rpcError, source: 'table' };
+            } catch (e) {
+                console.error('read active round failed', e);
+                return { round: null, transportError: true, rpcError: rpcError || e };
+            }
         }
 
         async function crashServerSync() {
             if (!sb || crashStateSyncBusy) return null;
             crashStateSyncBusy = true;
             try {
-                const data = await rpcCall('get_or_create_active_crash_round_v2', {});
-                const obj = normalizeRpcObject(data);
-                return obj && obj.id ? obj : null;
+                const rpcRes = await getRoundFromServerRpc();
+                return rpcRes.round && rpcRes.round.id ? rpcRes.round : null;
             } catch (e) {
                 console.error('crashServerSync failed', e);
                 return null;
@@ -3174,11 +3199,18 @@
                 return;
             }
 
-            const round = await getActiveRound({ ensure: !holdingCurrentRound });
+            const roundState = await getActiveRound({ ensure: !holdingCurrentRound });
+            const round = roundState && roundState.round ? roundState.round : null;
 
             if (!round) {
                 if (holdingCurrentRound) return;
-                showCrashStatus('Не удалось получить общий раунд', true);
+                currentRound = null;
+                hideAll();
+                resetBet();
+                showCrashStatus('Ожидание общего раунда', false);
+                setTimeout(() => {
+                    if (crashActive) syncCrashRound(true).catch(() => {});
+                }, roundState && roundState.transportError ? Math.max(CRASH_ROUND_RETRY_MS, 1200) : CRASH_ROUND_RETRY_MS);
                 return;
             }
 
@@ -3223,7 +3255,7 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_rounds' }, payload => {
                     const row = payload.new || payload.old;
                     if (!row) return;
-                    if (row.status === 'active' || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
+                    if (ACTIVE_CRASH_STATUSES.includes(String(row.status || '').toLowerCase()) || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
                         queueRoundSync(false);
                     }
                     if (row.status === 'finished' || row.status === 'crashed' || payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
