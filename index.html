@@ -3162,8 +3162,8 @@
             const round = await getActiveRound({ ensure: !holdingCurrentRound });
 
             if (!round) {
-                if (holdingCurrentRound) return;
-                showCrashStatus('Не удалось получить общий раунд', true);
+                if (holdingCurrentRound || currentRound) return;
+                showCrashStatus('Загрузка раунда...', false);
                 return;
             }
 
@@ -3253,10 +3253,17 @@
             if (c) c.style.display = 'none';
         }
 
+        function setCrashBetOpenState() {
+            const btn = document.getElementById('crashBetBtn');
+            if (!btn) return;
+            btn.innerHTML = 'Сделать ставку';
+            btn.classList.remove('placed', 'disabled');
+            btn.onclick = function(){ placeBet(); };
+        }
+
         function resetBet() {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
-            const btn = document.getElementById('crashBetBtn');
-            if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
+            setCrashBetOpenState();
             clearCrashPlayers();
             resetGiftDisplay();
         }
@@ -3607,7 +3614,14 @@
         // ═══════════════════════════════════════
         async function initCrash() {
             if (!crashActive) return;
-            hideAll(); resetBet();
+            hideAll();
+            betPlaced = false;
+            currentBet = 0;
+            didCashOut = false;
+            cashoutInit = false;
+            clearCrashPlayers();
+            resetGiftDisplay();
+            showCrashStatus('Загрузка раунда...', false);
 
             if (!sb) {
                 showCrashStatus('Нет подключения к серверу', true);
@@ -3651,6 +3665,10 @@
                     multiEl.classList.remove('crashed');
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
+
+                    if (!betPlaced && !didCashOut) {
+                        setCrashBetOpenState();
+                    }
 
                     const msLeft = Math.max(0, gameStart - now);
                     const sec = Math.max(1, Math.min(Math.ceil(msLeft / 1000), 10));
@@ -3759,7 +3777,12 @@
 
                     currentRound = null;
                     hideAll();
-                    resetBet();
+                    betPlaced = false;
+                    currentBet = 0;
+                    didCashOut = false;
+                    cashoutInit = false;
+                    clearCrashPlayers();
+                    resetGiftDisplay();
                     showCrashStatus('Загрузка раунда...', false);
 
                     setTimeout(async () => {
