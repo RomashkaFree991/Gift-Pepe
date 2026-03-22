@@ -3064,41 +3064,96 @@
 
         /* ═══════════════════════════════════════
            ЕДИНЫЙ ВЫЗОВ crash_sync — ядро v6
+           С автоматическим fallback на старые RPC
            ═══════════════════════════════════════ */
+        let useLegacyRpc = false; // автоматически переключается если crash_sync не найден
+
         async function callCrashSync() {
             if (!sb) return null;
-            try {
-                const t1 = Date.now();
-                const { data, error } = await sb.rpc('crash_sync');
-                const t2 = Date.now();
-                if (error) throw error;
-                const obj = (typeof data === 'string') ? JSON.parse(data) : data;
-                if (!obj) return null;
 
-                // Обновляем offset часов из ответа
-                const serverMs = Number(obj.server_now_ms);
-                if (Number.isFinite(serverMs)) {
-                    srvOff = serverMs - ((t1 + t2) / 2);
+            // ── Путь 1: Новый единый crash_sync ──
+            if (!useLegacyRpc) {
+                try {
+                    const t1 = Date.now();
+                    const { data, error } = await sb.rpc('crash_sync');
+                    const t2 = Date.now();
+
+                    if (error) {
+                        const msg = error.message || error.msg || JSON.stringify(error);
+                        // Если функция не существует — переключаемся на legacy навсегда в этой сессии
+                        if (msg.includes('not found') || msg.includes('does not exist') || msg.includes('404') || msg.includes('could not find') || (error.code === '42883')) {
+                            console.warn('crash_sync not found, switching to legacy RPC');
+                            useLegacyRpc = true;
+                            // Попадаем ниже в legacy путь
+                        } else {
+                            console.error('crash_sync RPC failed:', msg);
+                            return null;
+                        }
+                    } else {
+                        const obj = (typeof data === 'string') ? JSON.parse(data) : data;
+                        if (!obj) return null;
+                        const serverMs = Number(obj.server_now_ms);
+                        if (Number.isFinite(serverMs)) {
+                            srvOff = serverMs - ((t1 + t2) / 2);
+                        }
+                        return { round: obj.round || null, phase: obj.phase || 'finished' };
+                    }
+                } catch (e) {
+                    console.error('crash_sync exception:', e && e.message || e);
+                    return null;
                 }
+            }
 
-                const round = obj.round || null;
-                return { round, phase: obj.phase || 'finished' };
+            // ── Путь 2 (legacy): server_now + get_or_create_active_crash_round_v2 ──
+            try {
+                // Синхронизация часов
+                try {
+                    const t1 = Date.now();
+                    const { data: nowData, error: nowErr } = await sb.rpc('server_now');
+                    const t2 = Date.now();
+                    if (!nowErr && nowData) {
+                        const serverT = new Date(nowData).getTime();
+                        if (Number.isFinite(serverT)) srvOff = serverT - ((t1 + t2) / 2);
+                    }
+                } catch (_) { /* часы не критичны */ }
+
+                // Получаем / создаём раунд
+                const { data, error } = await sb.rpc('get_or_create_active_crash_round_v2', {});
+                if (error) {
+                    console.error('get_or_create_active_crash_round_v2 failed:', error.message || JSON.stringify(error));
+                    // Последний fallback — прямое чтение таблицы
+                    return await readActiveRoundDirect();
+                }
+                const obj = normalizeRpcObject(data);
+                if (obj && obj.id) return { round: obj, phase: 'unknown' };
+
+                // Если RPC вернул пустоту — прямое чтение
+                return await readActiveRoundDirect();
             } catch (e) {
-                console.error('crash_sync RPC failed', e);
-                return null;
+                console.error('legacy RPC chain failed:', e && e.message || e);
+                return await readActiveRoundDirect();
             }
         }
 
-        /* ── Fallback: прямое чтение таблицы ── */
+        /* ── Последний fallback: прямое чтение таблицы (только SELECT) ── */
         async function readActiveRoundDirect() {
             if (!sb) return null;
-            const { data, error } = await sb.from('crash_rounds')
-                .select('*')
-                .eq('status', 'active')
-                .order('created_at', { ascending: false })
-                .limit(1);
-            if (error) { console.error('readActiveRoundDirect failed', error); return null; }
-            return Array.isArray(data) && data.length ? data[0] : null;
+            try {
+                const { data, error } = await sb.from('crash_rounds')
+                    .select('*')
+                    .eq('status', 'active')
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                if (error) {
+                    console.error('readActiveRoundDirect failed:', error.message || JSON.stringify(error));
+                    return null;
+                }
+                const round = Array.isArray(data) && data.length ? data[0] : null;
+                return round ? { round, phase: 'unknown' } : null;
+            } catch (e) {
+                console.error('readActiveRoundDirect exception:', e && e.message || e);
+                return null;
+            }
         }
 
         /* ═══════════════════════════════════════
@@ -3109,17 +3164,10 @@
             syncBusy = true;
 
             try {
-                // 1) Единый RPC — получаем раунд + серверное время + фазу
-                let result = await callCrashSync();
-
-                // Fallback: если RPC не настроен, читаем таблицу напрямую
-                if (!result || !result.round) {
-                    const fbRound = await readActiveRoundDirect();
-                    if (fbRound) result = { round: fbRound, phase: 'unknown' };
-                }
+                const result = await callCrashSync();
 
                 if (!result || !result.round || !result.round.id) {
-                    // Если текущий раунд ещё не завершён — не трогаем
+                    // Если текущий раунд ещё жив — не трогаем UI
                     if (currentRound) {
                         const t = getRoundTimes(currentRound);
                         if (t && srvNow() < t.nextAt) return;
@@ -3130,7 +3178,7 @@
 
                 const incoming = result.round;
 
-                // Если тот же раунд — просто обновляем данные
+                // Тот же раунд — обновляем данные
                 if (currentRound && currentRound.id === incoming.id) {
                     currentRound = incoming;
                     if (!betsSub) subBets(incoming.id);
