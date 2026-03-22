@@ -2412,9 +2412,6 @@
     </nav>
 
     <script>
-        // ─── Bot Token for direct in-app payments via Telegram Stars ───
-        window.GIFTPEPE_BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
-
         // ─── Supabase ───
         const SUPA_URL = 'https://wqxanxqxewodbgctgfcm.supabase.co';
         const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxeGFueHF4ZXdvZGJnY3RnZmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDY4NTksImV4cCI6MjA4OTUyMjg1OX0.B8DLPsTDfLfyvyF5g_dhg2RgyQezALRpSMjU1IjNr_Q';
@@ -2999,9 +2996,6 @@
         const CRASH_HOLD_MS = 2800;
         const SPEED = 0.00018;
         const POLL_MS = 2000;
-        const CRASH_ROUND_RETRY_MS = 900;
-        const CRASH_RPC_NAMES = ['get_or_create_active_crash_round_v2', 'get_or_create_active_crash_round'];
-        const ACTIVE_CRASH_STATUSES = ['active', 'waiting', 'started', 'running'];
         // COUNTDOWN_SMOOTH_MS removed to fix double-10 bug
 
         let gameLoop = null, pollLoop = null;
@@ -3071,75 +3065,41 @@
         }
 
         // ─── Find or create round ───
-        async function getRoundFromServerRpc() {
-            let lastError = null;
-            for (const fn of CRASH_RPC_NAMES) {
-                try {
-                    const data = await rpcCall(fn, {});
-                    const obj = normalizeRpcObject(data);
-                    if (obj && obj.id) {
-                        return { round: obj, rpcName: fn, error: null };
-                    }
-                } catch (e) {
-                    lastError = e;
-                    console.error(fn + ' failed', e);
-                }
-            }
-            return { round: null, rpcName: null, error: lastError };
-        }
-
         async function getActiveRound(opts = {}) {
-            if (!sb) {
-                return { round: null, transportError: true, rpcError: new Error('Supabase unavailable') };
-            }
-
+            if (!sb) return null;
             const ensure = opts.ensure !== false;
-            let rpcError = null;
 
             if (ensure) {
-                const rpcRes = await getRoundFromServerRpc();
-                rpcError = rpcRes.error || null;
-                if (rpcRes.round && rpcRes.round.id) {
-                    return { round: rpcRes.round, transportError: false, rpcError: null, source: rpcRes.rpcName || 'rpc' };
-                }
-            }
-
-            try {
-                const { data, error } = await sb.from('crash_rounds')
-                    .select('*')
-                    .in('status', ACTIVE_CRASH_STATUSES)
-                    .order('created_at', { ascending: false })
-                    .limit(1);
-
-                if (error) throw error;
-
-                const row = Array.isArray(data) && data.length ? data[0] : null;
-                if (!row) {
-                    return { round: null, transportError: false, rpcError, source: 'table' };
-                }
-
-                // Защита от зависшего server round: если он уже давно закончился,
-                // фронт не должен снова показывать его как текущий.
                 try {
-                    const times = getRoundTimes(row);
-                    if (Date.now() > (times.nextAt + CRASH_HOLD_MS + 1500)) {
-                        return { round: null, transportError: false, rpcError, source: 'table' };
-                    }
-                } catch (_) {}
-
-                return { round: row, transportError: false, rpcError, source: 'table' };
-            } catch (e) {
-                console.error('read active round failed', e);
-                return { round: null, transportError: true, rpcError: rpcError || e };
+                    const data = await rpcCall('get_or_create_active_crash_round_v2', {});
+                    const obj = normalizeRpcObject(data);
+                    if (obj && obj.id) return obj;
+                } catch (e) {
+                    console.error('get_or_create_active_crash_round_v2 failed', e);
+                }
             }
+
+            const { data, error } = await sb.from('crash_rounds')
+                .select('*')
+                .eq('status', 'active')
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (error) {
+                console.error('read active round failed', error);
+                return null;
+            }
+
+            return Array.isArray(data) && data.length ? data[0] : null;
         }
 
         async function crashServerSync() {
             if (!sb || crashStateSyncBusy) return null;
             crashStateSyncBusy = true;
             try {
-                const rpcRes = await getRoundFromServerRpc();
-                return rpcRes.round && rpcRes.round.id ? rpcRes.round : null;
+                const data = await rpcCall('get_or_create_active_crash_round_v2', {});
+                const obj = normalizeRpcObject(data);
+                return obj && obj.id ? obj : null;
             } catch (e) {
                 console.error('crashServerSync failed', e);
                 return null;
@@ -3155,7 +3115,6 @@
             const players = document.getElementById('crashPlayers');
             if (players) players.innerHTML = '';
             renderedCrashBetKeys.clear();
-            crashBetsState.clear();
             if (wait) {
                 wait.style.display = '';
                 wait.textContent = text;
@@ -3177,8 +3136,9 @@
             const t = document.getElementById('crashWaitingText');
             if (t) {
                 t.style.display = '';
-                t.textContent = currentRound ? 'Ожидание ставок' : 'Ожидание раунда';
+                t.textContent = 'Ожидание ставок';
             }
+            renderStickyGiftPreview();
         }
 
         function queueRoundSync(forceReloadBets) {
@@ -3199,39 +3159,29 @@
                 return;
             }
 
-            const roundState = await getActiveRound({ ensure: !holdingCurrentRound });
-            const round = roundState && roundState.round ? roundState.round : null;
+            const round = await getActiveRound({ ensure: !holdingCurrentRound });
 
             if (!round) {
                 if (holdingCurrentRound) return;
-                currentRound = null;
-                hideAll();
-                resetBet();
-                showCrashStatus('Ожидание общего раунда', false);
-                setTimeout(() => {
-                    if (crashActive) syncCrashRound(true).catch(() => {});
-                }, roundState && roundState.transportError ? Math.max(CRASH_ROUND_RETRY_MS, 1200) : CRASH_ROUND_RETRY_MS);
+                showCrashStatus('Не удалось получить общий раунд', true);
                 return;
             }
 
-            if (currentRound && String(round.id) !== String(currentRound.id) && holdingCurrentRound) {
+            if (currentRound && round.id !== currentRound.id && holdingCurrentRound) {
                 return;
             }
 
-            const sameRound = !!(currentRound && String(currentRound.id) === String(round.id));
+            const sameRound = !!(currentRound && currentRound.id === round.id);
 
             if (sameRound) {
                 currentRound = round;
-                refreshCrashBetButton();
                 if (!betsSub) subBets(round.id);
                 if (forceReloadBets && crashBetsState.size === 0) {
                     await loadBets(round.id);
                 }
-
-                // Не сбрасываем crashShown/lastCountNum и не перезапускаем loop для того же раунда.
-                // Иначе уже завершившийся раунд повторно проигрывает фазу CRASHED,
-                // из-за чего бесконечно мигают прошлый победитель и статусы ожидания.
                 if (!gameLoop) {
+                    crashShown = false;
+                    lastCountNum = -1;
                     runLoop();
                 }
                 return;
@@ -3240,7 +3190,6 @@
             currentRound = round;
             clearStickyGiftPreview();
             resetBet();
-            refreshCrashBetButton();
             await loadBets(round.id);
             subBets(round.id);
             crashShown = false;
@@ -3255,7 +3204,7 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_rounds' }, payload => {
                     const row = payload.new || payload.old;
                     if (!row) return;
-                    if (ACTIVE_CRASH_STATUSES.includes(String(row.status || '').toLowerCase()) || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
+                    if (row.status === 'active' || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
                         queueRoundSync(false);
                     }
                     if (row.status === 'finished' || row.status === 'crashed' || payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
@@ -3304,66 +3253,12 @@
             if (c) c.style.display = 'none';
         }
 
-        function refreshCrashBetButton() {
-            const btn = document.getElementById('crashBetBtn');
-            if (!btn || crashActionBusy) return;
-
-            if (!currentRound) {
-                btn.innerHTML = 'Ожидание раунда';
-                btn.classList.remove('placed');
-                btn.classList.add('disabled');
-                btn.onclick = null;
-                return;
-            }
-
-            const now = srvNow();
-            const { gameStart, crashAt, nextAt, target } = getRoundTimes(currentRound);
-
-            if (didCashOut) return;
-
-            if (now < gameStart) {
-                if (betPlaced) {
-                    btn.innerHTML = 'Ставка сделана';
-                    btn.classList.add('placed');
-                    btn.classList.remove('disabled');
-                    btn.onclick = null;
-                } else {
-                    btn.innerHTML = 'Сделать ставку';
-                    btn.classList.remove('placed', 'disabled');
-                    btn.onclick = function(){ placeBet(); };
-                }
-                return;
-            }
-
-            if (now < crashAt) {
-                if (!betPlaced) {
-                    btn.innerHTML = 'Сделать ставку';
-                    btn.classList.remove('placed');
-                    btn.classList.add('disabled');
-                    btn.onclick = null;
-                }
-                return;
-            }
-
-            if (now < nextAt) {
-                btn.innerHTML = 'Краш ' + Number(target).toFixed(2) + 'x';
-                btn.classList.remove('placed');
-                btn.classList.add('disabled');
-                btn.onclick = null;
-                return;
-            }
-
-            btn.innerHTML = 'Ожидание раунда';
-            btn.classList.remove('placed');
-            btn.classList.add('disabled');
-            btn.onclick = null;
-        }
-
         function resetBet() {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
+            const btn = document.getElementById('crashBetBtn');
+            if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
             clearCrashPlayers();
             resetGiftDisplay();
-            refreshCrashBetButton();
         }
 
         // ─── Stars ───
@@ -3383,22 +3278,49 @@
         // ─── History UI ───
         function addHist(text, cls) {
             const h = document.getElementById('crashHistory');
-            if (h) h.innerHTML = '';
+            const e = document.createElement('div');
+            e.className = 'crash-history-item ' + cls;
+            e.textContent = text;
+            h.insertBefore(e, h.firstChild);
+            if (h.children.length > 8) h.removeChild(h.lastChild);
         }
 
         function setActiveHist(text) {
-            const h = document.getElementById('crashHistory');
-            if (h) h.innerHTML = '';
+            let a = document.querySelector('.crash-history-item.active');
+            if (!a) {
+                const h = document.getElementById('crashHistory');
+                a = document.createElement('div');
+                a.className = 'crash-history-item active';
+                h.insertBefore(a, h.firstChild);
+            }
+            a.textContent = text;
         }
 
         function rmActiveHist() {
-            const h = document.getElementById('crashHistory');
-            if (h) h.innerHTML = '';
+            const a = document.querySelector('.crash-history-item.active');
+            if (a) a.remove();
         }
 
         async function loadHist() {
-            const h = document.getElementById('crashHistory');
-            if (h) h.innerHTML = '';
+            if (!sb) return;
+            const { data, error } = await sb.from('crash_rounds')
+                .select('target_multiplier')
+                .in('status', ['finished', 'crashed'])
+                .order('created_at', { ascending: false })
+                .limit(8);
+
+            if (error) {
+                console.error('loadHist failed', error);
+                return;
+            }
+
+            document.getElementById('crashHistory').innerHTML = '';
+            if (data && data.length) {
+                data.reverse().forEach(r => {
+                    const text = Number(r.target_multiplier || 1).toFixed(2) + 'x';
+                    addHist(text, 'past');
+                });
+            }
         }
 
         function deriveGiftForAmount(amount) {
@@ -3581,16 +3503,6 @@
             trackMyPotentialGift(0);
         }
 
-        function markAllActiveBetsAsLostSilent() {
-            crashBetsState.forEach((rec, key) => {
-                if (rec.status === 'active') {
-                    rec.status = 'lost';
-                    crashBetsState.set(key, rec);
-                }
-            });
-            trackMyPotentialGift(0);
-        }
-
         function syncLiveBetAmounts(multiplier) {
             crashBetsState.forEach(rec => {
                 const row = document.querySelector('[data-bet-key="' + escapeHtml(rec.key) + '"]');
@@ -3652,9 +3564,6 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_bets', filter: 'round_id=eq.' + rid }, payload => {
                     const b = payload.new || payload.old;
                     if (!b) return;
-                    if (!currentRound || String(b.round_id) !== String(currentRound.id)) return;
-                    const rt = getRoundTimes(currentRound);
-                    if (srvNow() >= rt.crashAt) return;
 
                     const key = crashBetKey(b);
                     if (payload.eventType === 'DELETE') {
@@ -3727,20 +3636,14 @@
             if (gameLoop) clearInterval(gameLoop);
             let rocketOn = false;
 
+            const { gameStart, target, crashAt, nextAt } = getRoundTimes(currentRound);
+
             gameLoop = setInterval(async () => {
                 if (!crashActive) { clearInterval(gameLoop); return; }
-                if (!currentRound) {
-                    hideAll();
-                    refreshCrashBetButton();
-                    return;
-                }
-
-                const { gameStart, target, crashAt, nextAt } = getRoundTimes(currentRound);
                 const now = srvNow();
                 const countEl = document.getElementById('crashCountdown');
                 const multiEl = document.getElementById('crashMultiplier');
                 const rocketEl = document.getElementById('crashRocket');
-                if (!countEl || !multiEl || !rocketEl) return;
 
                 // ── COUNTDOWN ──
                 if (now < gameStart) {
@@ -3762,7 +3665,6 @@
 
                     setActiveHist('Ожидание');
                     crashRunning = false;
-                    refreshCrashBetButton();
                     return;
                 }
 
@@ -3829,8 +3731,8 @@
                             }
                         }
 
-                        markAllActiveBetsAsLostSilent();
-                        clearCrashPlayers();
+                        markAllActiveBetsAsLostLocal();
+                        addHist(Number(target).toFixed(2) + 'x', 'past');
                         betPlaced = false;
                         didCashOut = false;
                         resetGiftDisplay();
@@ -3858,7 +3760,7 @@
                     currentRound = null;
                     hideAll();
                     resetBet();
-                    showCrashStatus('Ожидание раунда', false);
+                    showCrashStatus('Загрузка раунда...', false);
 
                     setTimeout(async () => {
                         if (!crashActive) return;
@@ -4072,8 +3974,42 @@
         }
 
         function renderStickyGiftPreview() {
+            const players = document.getElementById('crashPlayers');
+            const wait = document.getElementById('crashWaitingText');
+            if (!players) return;
+
             removeStickyGiftPreviewRow();
             removeMyWonPreviewRows();
+
+            if (!stickyMyGiftPreview || betPlaced) {
+                if (wait && !players.querySelector('.crash-player-row')) {
+                    wait.style.display = '';
+                    wait.textContent = 'Ожидание ставок';
+                }
+                return;
+            }
+
+            const avatar = myPhoto
+                ? '<img class="cp-avatar" src="' + escapeHtml(myPhoto) + '" alt="">'
+                : '<div class="cp-avatar-placeholder">' + escapeHtml((myName || 'В')[0]) + '</div>';
+
+            const amount = Math.max(0, Math.floor(Number(stickyMyGiftPreview.amount) || 0));
+            const markup = '<div class="crash-player-row me status-won sticky-preview" data-bet-key="sticky-me-gift">' +
+                avatar +
+                '<div class="cp-name"><span class="cp-name-text">Вы</span><span class="cp-original-bet">Подарок</span></div>' +
+                '<span class="cp-amount"><span class="cp-growing-amount">' + amount + '</span> <img src="star.png" alt=""></span>' +
+                '<img class="cp-gift" src="" alt="" style="display:none;">' +
+                '</div>';
+
+            const wrap = document.createElement('div');
+            wrap.innerHTML = markup;
+            const row = wrap.firstChild;
+            players.prepend(row);
+            setPlayerGift(row, amount, 'won');
+
+            if (wait) {
+                wait.style.display = 'none';
+            }
         }
 
         function rememberStickyGiftPreview(item) {
@@ -4269,11 +4205,10 @@
             applyTranslations();
         })();
 
-        // ─── Topup via Telegram Stars (direct bot token — in-app payment) ───
-        const PAYMENTS_API_URL = String(window.GIFTPEPE_PAYMENTS_API_URL || localStorage.getItem('GIFTPEPE_PAYMENTS_API_URL') || 'https://gift-pepe.web.app/api/create-invoice-link').trim();
-        const BOT_TOKEN_PAY = String(window.GIFTPEPE_BOT_TOKEN || '').trim();
+        // ─── Topup via Telegram Stars ───
+        const PAYMENTS_API_URL = window.GIFTPEPE_PAYMENTS_API_URL || 'https://REPLACE-WITH-YOUR-BOT-DOMAIN/api/create-invoice-link';
 
-        async function waitForTopupSync(prevBalance, retries = 10, delay = 1000) {
+        async function waitForTopupSync(prevBalance, retries = 8, delay = 1100) {
             for (let i = 0; i < retries; i++) {
                 await sleep(delay);
                 const balance = await refreshBalanceFromDB();
@@ -4282,111 +4217,44 @@
             return await refreshBalanceFromDB();
         }
 
-        async function requestInvoiceLink(amount) {
-            const uid = myUserId || 0;
-            const ts = Date.now();
-            const payloadStr = 'topup_' + uid + '_' + amount + '_' + ts;
-
-            // Primary: direct Bot API createInvoiceLink
-            if (BOT_TOKEN_PAY) {
-                const resp = await fetch('https://api.telegram.org/bot' + BOT_TOKEN_PAY + '/createInvoiceLink', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: amount + ' Stars',
-                        description: currentLang === 'en'
-                            ? 'Balance top-up: ' + amount + ' stars in Gift Pepe'
-                            : 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
-                        payload: payloadStr,
-                        currency: 'XTR',
-                        prices: [{ label: amount + ' Stars', amount: amount }]
-                    })
-                });
-                const data = await resp.json().catch(() => ({}));
-                if (resp.ok && data.ok && data.result) {
-                    return data.result;
-                }
-                console.warn('Bot API createInvoiceLink failed, trying fallback:', data.description || 'unknown');
-            }
-
-            // Fallback: external payment API
-            const resp2 = await fetch(PAYMENTS_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: amount, user_id: myUserId || 0 })
-            });
-            const data2 = await resp2.json().catch(() => ({}));
-            if (!resp2.ok || !data2.ok || !data2.invoice_link) {
-                throw new Error(data2.error || ('HTTP ' + resp2.status));
-            }
-            return data2.invoice_link;
-        }
-
-        function showTopupToast(success, amount) {
-            const toast = document.getElementById('claimToast');
-            if (!toast) return;
-            const icon = document.getElementById('claimToastIcon');
-            const title = document.getElementById('claimToastTitle');
-            const body = document.getElementById('claimToastText');
-            toast.classList.remove('success', 'error', 'show');
-            toast.classList.add(success ? 'success' : 'error');
-            if (icon) icon.textContent = success ? '✓' : '!';
-            if (title) title.textContent = success
-                ? (currentLang === 'en' ? 'Payment successful' : 'Оплата прошла')
-                : (currentLang === 'en' ? 'Payment error' : 'Ошибка оплаты');
-            if (body) {
-                if (success && amount > 0) {
-                    body.innerHTML = (currentLang === 'en' ? 'Credited ' : 'Зачислено ') + amount + ' <img src="star.png" alt="star">';
-                } else if (!success) {
-                    body.textContent = currentLang === 'en' ? 'Try again later' : 'Попробуйте позже';
-                } else {
-                    body.innerHTML = (currentLang === 'en' ? 'Processing...' : 'Обработка...');
-                }
-            }
-            clearTimeout(giftCheckToastTimer);
-            requestAnimationFrame(() => toast.classList.add('show'));
-            giftCheckToastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
-        }
-
         async function buyStars(amount) {
-            if (!tg) {
-                alert(currentLang === 'en' ? 'Open this inside Telegram' : 'Откройте в Telegram');
-                return;
-            }
-
+            if (!tg) { alert(currentLang === 'en' ? 'Open this inside Telegram' : 'Откройте в Telegram'); return; }
             const topupItems = document.querySelectorAll('.topup-item');
-            topupItems.forEach(el => { el.style.pointerEvents = 'none'; el.style.opacity = '0.5'; });
+            topupItems.forEach(el => el.style.pointerEvents = 'none');
             const prevBalance = getBalance();
 
             try {
-                const invoiceLink = await requestInvoiceLink(amount);
+                const resp = await fetch(PAYMENTS_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount: amount,
+                        user_id: myUserId || 0
+                    })
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.ok || !data.invoice_link) throw new Error(data.error || 'Invoice error');
 
-                tg.openInvoice(invoiceLink, function(status) {
+                tg.openInvoice(data.invoice_link, function(status) {
                     if (status === 'paid') {
-                        showTopupToast(true, amount);
                         (async () => {
                             try {
-                                const newBal = await waitForTopupSync(prevBalance);
-                                if (newBal !== null && newBal > prevBalance) {
-                                    showTopupToast(true, newBal - prevBalance);
-                                }
+                                await waitForTopupSync(prevBalance);
                                 await refreshReferralStats();
                                 closeTopup();
                             } catch (e) {
                                 console.error('topup sync failed', e);
                             } finally {
-                                topupItems.forEach(el => { el.style.pointerEvents = ''; el.style.opacity = ''; });
+                                topupItems.forEach(el => el.style.pointerEvents = '');
                             }
                         })();
                         return;
                     }
-                    if (status === 'failed') showTopupToast(false, 0);
-                    topupItems.forEach(el => { el.style.pointerEvents = ''; el.style.opacity = ''; });
+                    topupItems.forEach(el => el.style.pointerEvents = '');
                 });
             } catch (e) {
                 console.error('buyStars error', e);
-                showTopupToast(false, 0);
-                topupItems.forEach(el => { el.style.pointerEvents = ''; el.style.opacity = ''; });
+                topupItems.forEach(el => el.style.pointerEvents = '');
             }
         }
 
