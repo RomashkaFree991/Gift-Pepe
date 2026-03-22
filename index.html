@@ -3029,6 +3029,16 @@
             const nextAt = (round && round.next_round_at) ? new Date(round.next_round_at).getTime() : (crashAt + PAUSE_MS);
             return { created, target, gameStart, crashMs, crashAt, nextAt };
         }
+        function isRoundExpired(round, now = srvNow()) {
+            if (!round) return true;
+            const t = getRoundTimes(round);
+            return now >= Math.max(t.nextAt, t.crashAt + CRASH_HOLD_MS);
+        }
+        function isBettingWindowOpen(round, now = srvNow()) {
+            if (!round) return false;
+            const t = getRoundTimes(round);
+            return now < t.gameStart;
+        }
         function creatorDelayMs() {
             const seed = Math.abs(Number(myUserId || 0)) || Math.floor(Math.random() * 997);
             return 150 + (seed % 7) * 80;
@@ -3068,12 +3078,13 @@
         async function getActiveRound(opts = {}) {
             if (!sb) return null;
             const ensure = opts.ensure !== false;
+            const now = srvNow();
 
             if (ensure) {
                 try {
                     const data = await rpcCall('get_or_create_active_crash_round_v2', {});
                     const obj = normalizeRpcObject(data);
-                    if (obj && obj.id) return obj;
+                    if (obj && obj.id && !isRoundExpired(obj, now)) return obj;
                 } catch (e) {
                     console.error('get_or_create_active_crash_round_v2 failed', e);
                 }
@@ -3083,14 +3094,16 @@
                 .select('*')
                 .eq('status', 'active')
                 .order('created_at', { ascending: false })
-                .limit(1);
+                .limit(3);
 
             if (error) {
                 console.error('read active round failed', error);
                 return null;
             }
 
-            return Array.isArray(data) && data.length ? data[0] : null;
+            if (!Array.isArray(data) || !data.length) return null;
+            const fresh = data.find(r => !isRoundExpired(r, now));
+            return fresh || null;
         }
 
         async function crashServerSync() {
@@ -3128,7 +3141,7 @@
             }
         }
 
-        function clearCrashPlayers() {
+        function clearCrashPlayers(waitText = 'Ожидание ставок') {
             renderedCrashBetKeys.clear();
             crashBetsState.clear();
             const p = document.getElementById('crashPlayers');
@@ -3136,7 +3149,7 @@
             const t = document.getElementById('crashWaitingText');
             if (t) {
                 t.style.display = '';
-                t.textContent = 'Ожидание ставок';
+                t.textContent = waitText;
             }
             renderStickyGiftPreview();
         }
@@ -3163,7 +3176,19 @@
 
             if (!round) {
                 if (holdingCurrentRound) return;
-                showCrashStatus('Не удалось получить общий раунд', true);
+                currentRound = null;
+                resetBet('Загрузка раунда...');
+                showCrashStatus('Загрузка раунда...', false);
+                return;
+            }
+
+            if (isRoundExpired(round, now)) {
+                currentRound = null;
+                resetBet('Загрузка раунда...');
+                showCrashStatus('Загрузка раунда...', false);
+                setTimeout(() => {
+                    if (crashActive) syncCrashRound(true).catch(() => {});
+                }, 250);
                 return;
             }
 
@@ -3172,12 +3197,16 @@
             }
 
             const sameRound = !!(currentRound && currentRound.id === round.id);
+            const bettingOpen = isBettingWindowOpen(round, now);
 
             if (sameRound) {
                 currentRound = round;
                 if (!betsSub) subBets(round.id);
                 if (forceReloadBets && crashBetsState.size === 0) {
                     await loadBets(round.id);
+                }
+                if (!betPlaced && !didCashOut && bettingOpen) {
+                    setCrashBetOpenState();
                 }
                 if (!gameLoop) {
                     crashShown = false;
@@ -3189,9 +3218,12 @@
 
             currentRound = round;
             clearStickyGiftPreview();
-            resetBet();
+            resetBet(bettingOpen ? 'Ожидание ставок' : 'Ожидание раунда');
             await loadBets(round.id);
             subBets(round.id);
+            if (!betPlaced && !didCashOut && bettingOpen) {
+                setCrashBetOpenState();
+            }
             crashShown = false;
             lastCountNum = -1;
             runLoop();
@@ -3253,29 +3285,16 @@
             if (c) c.style.display = 'none';
         }
 
-        function enableCrashBetButton() {
-            const btn = document.getElementById('crashBetBtn');
-            if (!btn) return;
-            btn.innerHTML = 'Сделать ставку';
-            btn.classList.remove('placed', 'disabled');
-            btn.onclick = function(){ placeBet(); };
-        }
-
-        function resetBet(enableButton = false) {
+        function resetBet(waitText = 'Ожидание раунда') {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
             const btn = document.getElementById('crashBetBtn');
             if (btn) {
-                btn.innerHTML = enableButton ? 'Сделать ставку' : 'Ожидание раунда';
+                btn.innerHTML = 'Ожидание раунда';
+                btn.classList.add('disabled');
                 btn.classList.remove('placed');
-                if (enableButton) {
-                    btn.classList.remove('disabled');
-                    btn.onclick = function(){ placeBet(); };
-                } else {
-                    btn.classList.add('disabled');
-                    btn.onclick = null;
-                }
+                btn.onclick = null;
             }
-            clearCrashPlayers();
+            clearCrashPlayers(waitText);
             resetGiftDisplay();
         }
 
@@ -3670,10 +3689,6 @@
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
 
-                    if (!betPlaced && !didCashOut && !crashActionBusy) {
-                        enableCrashBetButton();
-                    }
-
                     const msLeft = Math.max(0, gameStart - now);
                     const sec = Math.max(1, Math.min(Math.ceil(msLeft / 1000), 10));
 
@@ -3683,6 +3698,15 @@
                         countEl.classList.remove('pop');
                         void countEl.offsetWidth;
                         countEl.classList.add('pop');
+                    }
+
+                    const wait = document.getElementById('crashWaitingText');
+                    if (wait && crashBetsState.size === 0) {
+                        wait.style.display = '';
+                        wait.textContent = 'Ожидание ставок';
+                    }
+                    if (!betPlaced && !didCashOut) {
+                        setCrashBetOpenState();
                     }
 
                     setActiveHist('Ожидание');
@@ -3781,7 +3805,7 @@
 
                     currentRound = null;
                     hideAll();
-                    resetBet();
+                    resetBet('Загрузка раунда...');
                     showCrashStatus('Загрузка раунда...', false);
 
                     setTimeout(async () => {
