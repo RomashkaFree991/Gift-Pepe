@@ -2987,175 +2987,190 @@
             lottie.loadAnimation({ container: document.getElementById('giftsLottie'), renderer: 'svg', loop: true, autoplay: true, path: 'PlushPepe%28blue%29.json' });
         }
 
-        // ═══════════════════════════
         // ═══════════════════════════════════════
-        // CRASH GAME v5 — Shared realtime round via RPC
+        // CRASH GAME v6 — Unified crash_sync RPC
+        // Один RPC-вызов crash_sync() возвращает:
+        //   server_now_ms, phase, round {id, status, target_multiplier, start_at, crash_at, next_round_at}
         // ═══════════════════════════════════════
-        const WAIT_MS = 10000;
-        const PAUSE_MS = 3000;
-        const CRASH_HOLD_MS = 2800;
-        const SPEED = 0.00018;
-        const POLL_MS = 2000;
-        // COUNTDOWN_SMOOTH_MS removed to fix double-10 bug
 
-        let gameLoop = null, pollLoop = null;
+        const WAIT_MS  = 10000;  // обратный отсчёт (мс)
+        const PAUSE_MS = 3000;   // пауза после краша
+        const SPEED    = 0.00018;
+        const SYNC_MS  = 2500;   // интервал переодической синхронизации с сервером
+
+        let gameLoop = null, syncLoop = null;
         let crashActive = false, crashRunning = false;
         let currentRound = null, lastCountNum = -1, crashShown = false;
         let currentBet = 0, betPlaced = false, didCashOut = false, cashoutInit = false;
         let rocketAnim = null, betsSub = null, roundsSub = null;
-        let roundSyncTimer = null;
-        let crashActionBusy = false, crashStateSyncBusy = false;
-        let srvOff = 0; // server - client time offset
+        let crashActionBusy = false, syncBusy = false;
+        let srvOff = 0;
         let renderedCrashBetKeys = new Set();
         let crashBetsState = new Map();
         let topLeaderboardLoading = false;
         let topLeaderboardCache = [];
 
-
+        /* ── Helpers ── */
         function srvNow() { return Date.now() + srvOff; }
-        function mult(ms) { return Math.pow(Math.E, SPEED * ms); }
-        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+        function mult(ms)  { return Math.pow(Math.E, SPEED * ms); }
+        function sleep(ms)  { return new Promise(r => setTimeout(r, ms)); }
+
         function parseDbTime(val) {
-            if (val === null || val === undefined || val === '') return NaN;
+            if (val == null || val === '') return NaN;
             if (val instanceof Date) return val.getTime();
             if (typeof val === 'number') return Number.isFinite(val) ? val : NaN;
-
             let src = String(val).trim();
             let ms = Date.parse(src);
             if (Number.isFinite(ms)) return ms;
-
-            src = src.replace(' ', 'T');
-            src = src.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
-            src = src.replace(/\.(\d{3})\d+(?=(Z|[+-]\d{2}:?\d{2})$)/, '.$1');
-            src = src.replace(/\.(\d{3})\d+$/, '.$1');
-
+            src = src.replace(' ', 'T')
+                     .replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
+                     .replace(/\.(\d{3})\d+(?=(Z|[+-]\d{2}:?\d{2})$)/, '.$1')
+                     .replace(/\.(\d{3})\d+$/, '.$1');
             ms = Date.parse(src);
             if (Number.isFinite(ms)) return ms;
-
             if (/^\d{4}-\d{2}-\d{2}T/.test(src) && !/(Z|[+-]\d{2}:?\d{2})$/.test(src)) {
                 ms = Date.parse(src + 'Z');
                 if (Number.isFinite(ms)) return ms;
             }
-
             return NaN;
         }
-        function roundCreatedMs(round) {
-            const createdMs = parseDbTime(round && round.created_at);
-            return Number.isFinite(createdMs) ? createdMs : Date.now();
-        }
+
         function roundStartMs(round) {
-            const startMs = parseDbTime(round && round.start_at);
-            if (Number.isFinite(startMs)) return startMs;
-            return roundCreatedMs(round) + WAIT_MS;
+            const ms = parseDbTime(round && round.start_at);
+            return Number.isFinite(ms) ? ms : (parseDbTime(round && round.created_at) || Date.now()) + WAIT_MS;
         }
+
         function getRoundTimes(round) {
-            const created = roundCreatedMs(round);
-            const target = Math.max(Number((round && round.target_multiplier) || 1.01), 1.01);
+            if (!round) return null;
+            const target = Math.max(Number(round.target_multiplier || 1.01), 1.01);
             const gameStart = roundStartMs(round);
-            const crashMs = Math.log(target) / SPEED;
-            const parsedCrashAt = parseDbTime(round && round.crash_at);
-            const crashAt = Number.isFinite(parsedCrashAt) ? parsedCrashAt : (gameStart + crashMs);
-            const parsedNextAt = parseDbTime(round && round.next_round_at);
-            const nextAt = Number.isFinite(parsedNextAt) ? parsedNextAt : (crashAt + PAUSE_MS);
-            return { created, target, gameStart, crashMs, crashAt, nextAt };
+            const crashMs   = Math.log(target) / SPEED;
+            const parsedCrash = parseDbTime(round.crash_at);
+            const crashAt   = Number.isFinite(parsedCrash) ? parsedCrash : (gameStart + crashMs);
+            const parsedNext = parseDbTime(round.next_round_at);
+            const nextAt    = Number.isFinite(parsedNext) ? parsedNext : (crashAt + PAUSE_MS);
+            return { target, gameStart, crashMs, crashAt, nextAt };
         }
-        function creatorDelayMs() {
-            const seed = Math.abs(Number(myUserId || 0)) || Math.floor(Math.random() * 997);
-            return 150 + (seed % 7) * 80;
-        }
+
         function escapeHtml(str) {
-            return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+            return String(str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
         }
         function crashBetKey(b) {
             if (!b) return '';
-            if (b.round_id !== undefined && b.round_id !== null && b.user_id !== undefined && b.user_id !== null) {
-                return String(b.round_id) + ':' + String(b.user_id);
-            }
-            if (b.id !== undefined && b.id !== null) return String(b.id);
-            return String((b.round_id || 'round') + ':' + (b.user_id || 'user'));
+            if (b.round_id != null && b.user_id != null) return String(b.round_id) + ':' + String(b.user_id);
+            if (b.id != null) return String(b.id);
+            return String((b.round_id || 'r') + ':' + (b.user_id || 'u'));
         }
 
-        // ─── Sync server clock ───
-        async function syncClock() {
-            if (!sb) return;
+        /* ═══════════════════════════════════════
+           ЕДИНЫЙ ВЫЗОВ crash_sync — ядро v6
+           ═══════════════════════════════════════ */
+        async function callCrashSync() {
+            if (!sb) return null;
             try {
                 const t1 = Date.now();
-                const { data, error } = await sb.rpc('server_now');
+                const { data, error } = await sb.rpc('crash_sync');
                 const t2 = Date.now();
                 if (error) throw error;
-                if (data) {
-                    const serverT = new Date(data).getTime();
-                    srvOff = serverT - ((t1 + t2) / 2);
-                    return;
+                const obj = (typeof data === 'string') ? JSON.parse(data) : data;
+                if (!obj) return null;
+
+                // Обновляем offset часов из ответа
+                const serverMs = Number(obj.server_now_ms);
+                if (Number.isFinite(serverMs)) {
+                    srvOff = serverMs - ((t1 + t2) / 2);
                 }
-            } catch(e) {
-                console.error('server_now failed', e);
+
+                const round = obj.round || null;
+                return { round, phase: obj.phase || 'finished' };
+            } catch (e) {
+                console.error('crash_sync RPC failed', e);
+                return null;
             }
-            srvOff = 0;
         }
 
-        // ─── Find or create round ───
-        async function getActiveRound(opts = {}) {
+        /* ── Fallback: прямое чтение таблицы ── */
+        async function readActiveRoundDirect() {
             if (!sb) return null;
-            const ensure = opts.ensure !== false;
-
-            if (ensure) {
-                try {
-                    const data = await rpcCall('get_or_create_active_crash_round_v2', {});
-                    const obj = normalizeRpcObject(data);
-                    if (obj && obj.id) return obj;
-                } catch (e) {
-                    console.error('get_or_create_active_crash_round_v2 failed', e);
-                }
-            }
-
             const { data, error } = await sb.from('crash_rounds')
                 .select('*')
                 .eq('status', 'active')
                 .order('created_at', { ascending: false })
                 .limit(1);
-
-            if (error) {
-                console.error('read active round failed', error);
-                return null;
-            }
-
+            if (error) { console.error('readActiveRoundDirect failed', error); return null; }
             return Array.isArray(data) && data.length ? data[0] : null;
         }
 
-        async function crashServerSync() {
-            if (!sb || crashStateSyncBusy) return null;
-            crashStateSyncBusy = true;
+        /* ═══════════════════════════════════════
+           SYNC STATE — вызывается при init и периодически
+           ═══════════════════════════════════════ */
+        async function syncState(forceReloadBets) {
+            if (!crashActive || !sb || syncBusy) return;
+            syncBusy = true;
+
             try {
-                const data = await rpcCall('get_or_create_active_crash_round_v2', {});
-                const obj = normalizeRpcObject(data);
-                return obj && obj.id ? obj : null;
-            } catch (e) {
-                console.error('crashServerSync failed', e);
-                return null;
+                // 1) Единый RPC — получаем раунд + серверное время + фазу
+                let result = await callCrashSync();
+
+                // Fallback: если RPC не настроен, читаем таблицу напрямую
+                if (!result || !result.round) {
+                    const fbRound = await readActiveRoundDirect();
+                    if (fbRound) result = { round: fbRound, phase: 'unknown' };
+                }
+
+                if (!result || !result.round || !result.round.id) {
+                    // Если текущий раунд ещё не завершён — не трогаем
+                    if (currentRound) {
+                        const t = getRoundTimes(currentRound);
+                        if (t && srvNow() < t.nextAt) return;
+                    }
+                    showCrashStatus('Не удалось получить раунд', true);
+                    return;
+                }
+
+                const incoming = result.round;
+
+                // Если тот же раунд — просто обновляем данные
+                if (currentRound && currentRound.id === incoming.id) {
+                    currentRound = incoming;
+                    if (!betsSub) subBets(incoming.id);
+                    if (forceReloadBets && crashBetsState.size === 0) await loadBets(incoming.id);
+                    if (!gameLoop) { crashShown = false; lastCountNum = -1; startGameLoop(); }
+                    return;
+                }
+
+                // Если ещё показываем текущий раунд (краш/пауза) — не прыгаем на новый
+                if (currentRound) {
+                    const t = getRoundTimes(currentRound);
+                    if (t && srvNow() < t.nextAt) return;
+                }
+
+                // Новый раунд
+                currentRound = incoming;
+                clearStickyGiftPreview();
+                resetBet();
+                await loadBets(incoming.id);
+                subBets(incoming.id);
+                crashShown = false;
+                lastCountNum = -1;
+                startGameLoop();
             } finally {
-                crashStateSyncBusy = false;
+                syncBusy = false;
             }
         }
 
+        /* ═══════════════════════════════════════
+           UI HELPERS
+           ═══════════════════════════════════════ */
         function showCrashStatus(text, isError) {
             hideAll();
             const wait = document.getElementById('crashWaitingText');
-            const btn = document.getElementById('crashBetBtn');
+            const btn  = document.getElementById('crashBetBtn');
             const players = document.getElementById('crashPlayers');
             if (players) players.innerHTML = '';
             renderedCrashBetKeys.clear();
-            if (wait) {
-                wait.style.display = '';
-                wait.textContent = text;
-                wait.style.opacity = isError ? '1' : '';
-            }
-            if (btn) {
-                btn.innerHTML = isError ? 'Нет соединения' : 'Ожидание раунда';
-                btn.classList.add('disabled');
-                btn.classList.remove('placed');
-                btn.onclick = null;
-            }
+            if (wait) { wait.style.display = ''; wait.textContent = text; wait.style.opacity = isError ? '1' : ''; }
+            if (btn) { btn.innerHTML = isError ? 'Нет соединения' : 'Ожидание раунда'; btn.classList.add('disabled'); btn.classList.remove('placed'); btn.onclick = null; }
         }
 
         function clearCrashPlayers() {
@@ -3164,114 +3179,8 @@
             const p = document.getElementById('crashPlayers');
             if (p) p.innerHTML = '';
             const t = document.getElementById('crashWaitingText');
-            if (t) {
-                t.style.display = '';
-                t.textContent = 'Ожидание ставок';
-            }
+            if (t) { t.style.display = ''; t.textContent = 'Ожидание ставок'; }
             renderStickyGiftPreview();
-        }
-
-        function queueRoundSync(forceReloadBets) {
-            if (roundSyncTimer) clearTimeout(roundSyncTimer);
-            roundSyncTimer = setTimeout(() => {
-                syncCrashRound(!!forceReloadBets).catch(() => {});
-            }, 50);
-        }
-
-        async function syncCrashRound(forceReloadBets) {
-            if (!crashActive || !sb) return;
-
-            const now = srvNow();
-            const currentTimes = currentRound ? getRoundTimes(currentRound) : null;
-            const holdingCurrentRound = !!(currentTimes && now < Math.max(currentTimes.nextAt, currentTimes.crashAt + CRASH_HOLD_MS));
-
-            if (holdingCurrentRound && !forceReloadBets) {
-                return;
-            }
-
-            const round = await getActiveRound({ ensure: !holdingCurrentRound });
-
-            if (!round) {
-                if (holdingCurrentRound) return;
-                showCrashStatus('Не удалось получить общий раунд', true);
-                return;
-            }
-
-            if (currentRound && round.id !== currentRound.id && holdingCurrentRound) {
-                return;
-            }
-
-            const sameRound = !!(currentRound && currentRound.id === round.id);
-
-            if (sameRound) {
-                currentRound = round;
-                if (!betsSub) subBets(round.id);
-                if (forceReloadBets && crashBetsState.size === 0) {
-                    await loadBets(round.id);
-                }
-                if (!gameLoop) {
-                    crashShown = false;
-                    lastCountNum = -1;
-                    runLoop();
-                }
-                return;
-            }
-
-            currentRound = round;
-            clearStickyGiftPreview();
-            resetBet();
-            await loadBets(round.id);
-            subBets(round.id);
-            crashShown = false;
-            lastCountNum = -1;
-            runLoop();
-        }
-
-        function subRounds() {
-            if (roundsSub && sb) { sb.removeChannel(roundsSub); roundsSub = null; }
-            if (!sb) return;
-            roundsSub = sb.channel('liverounds-' + Math.random().toString(36).slice(2))
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_rounds' }, payload => {
-                    const row = payload.new || payload.old;
-                    if (!row) return;
-                    if (row.status === 'active' || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
-                        queueRoundSync(false);
-                    }
-                    if (row.status === 'finished' || row.status === 'crashed' || payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-                        loadHist().catch(() => {});
-                    }
-                })
-                .subscribe();
-        }
-
-        // ─── Open / Close ───
-        function openGame(name) {
-            if (name === 'crash') {
-                stopAll();
-                document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-                document.getElementById('page-crash').classList.add('active');
-                crashActive = true;
-                genStars();
-                initCrash();
-            }
-        }
-
-        function closeCrash() {
-            crashActive = false;
-            clearStickyGiftPreview();
-            stopAll();
-            document.getElementById('page-crash').classList.remove('active');
-            document.getElementById('page-games').classList.add('active');
-        }
-
-        function stopAll() {
-            if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
-            if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
-            if (roundSyncTimer) { clearTimeout(roundSyncTimer); roundSyncTimer = null; }
-            if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
-            if (roundsSub && sb) { sb.removeChannel(roundsSub); roundsSub = null; }
-            crashRunning = false;
-            hideAll();
         }
 
         function hideAll() {
@@ -3297,19 +3206,23 @@
             if (btn) {
                 btn.innerHTML = enableButton ? 'Сделать ставку' : 'Ожидание раунда';
                 btn.classList.remove('placed');
-                if (enableButton) {
-                    btn.classList.remove('disabled');
-                    btn.onclick = function(){ placeBet(); };
-                } else {
-                    btn.classList.add('disabled');
-                    btn.onclick = null;
-                }
+                if (enableButton) { btn.classList.remove('disabled'); btn.onclick = function(){ placeBet(); }; }
+                else { btn.classList.add('disabled'); btn.onclick = null; }
             }
             clearCrashPlayers();
             resetGiftDisplay();
         }
 
-        // ─── Stars ───
+        function setBtnState(html, cls) {
+            const btn = document.getElementById('crashBetBtn');
+            if (!btn) return;
+            btn.innerHTML = html;
+            btn.classList.remove('placed','disabled');
+            if (cls) btn.classList.add(cls);
+            btn.onclick = null;
+        }
+
+        /* ── Stars background ── */
         function genStars() {
             const c = document.getElementById('crashStars');
             if (c.querySelectorAll('.crash-star').length > 0) return;
@@ -3323,7 +3236,7 @@
             }
         }
 
-        // ─── History UI ───
+        /* ── History ── */
         function addHist(text, cls) {
             const h = document.getElementById('crashHistory');
             const e = document.createElement('div');
@@ -3332,22 +3245,12 @@
             h.insertBefore(e, h.firstChild);
             if (h.children.length > 8) h.removeChild(h.lastChild);
         }
-
         function setActiveHist(text) {
             let a = document.querySelector('.crash-history-item.active');
-            if (!a) {
-                const h = document.getElementById('crashHistory');
-                a = document.createElement('div');
-                a.className = 'crash-history-item active';
-                h.insertBefore(a, h.firstChild);
-            }
+            if (!a) { const h = document.getElementById('crashHistory'); a = document.createElement('div'); a.className = 'crash-history-item active'; h.insertBefore(a, h.firstChild); }
             a.textContent = text;
         }
-
-        function rmActiveHist() {
-            const a = document.querySelector('.crash-history-item.active');
-            if (a) a.remove();
-        }
+        function rmActiveHist() { const a = document.querySelector('.crash-history-item.active'); if (a) a.remove(); }
 
         async function loadHist() {
             if (!sb) return;
@@ -3356,73 +3259,38 @@
                 .in('status', ['finished', 'crashed'])
                 .order('created_at', { ascending: false })
                 .limit(8);
-
-            if (error) {
-                console.error('loadHist failed', error);
-                return;
-            }
-
+            if (error) { console.error('loadHist failed', error); return; }
             document.getElementById('crashHistory').innerHTML = '';
-            if (data && data.length) {
-                data.reverse().forEach(r => {
-                    const text = Number(r.target_multiplier || 1).toFixed(2) + 'x';
-                    addHist(text, 'past');
-                });
-            }
+            if (data && data.length) data.reverse().forEach(r => addHist(Number(r.target_multiplier || 1).toFixed(2) + 'x', 'past'));
         }
 
+        /* ── Gift helpers (для player rows) ── */
         function deriveGiftForAmount(amount) {
-            const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
-            for (let i = giftList.length - 1; i >= 0; i--) {
-                if (safeAmount >= giftList[i].price) return giftList[i];
-            }
+            const sa = Math.max(0, Math.floor(Number(amount) || 0));
+            for (let i = giftList.length - 1; i >= 0; i--) { if (sa >= giftList[i].price) return giftList[i]; }
             return null;
         }
-
         function trackMyPotentialGift(amount) {
-            const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
+            const sa = Math.max(0, Math.floor(Number(amount) || 0));
             let idx = -1;
-            for (let i = giftList.length - 1; i >= 0; i--) {
-                if (safeAmount >= giftList[i].price) {
-                    idx = i;
-                    break;
-                }
-            }
+            for (let i = giftList.length - 1; i >= 0; i--) { if (sa >= giftList[i].price) { idx = i; break; } }
             currentGiftIdx = idx;
             wonGift = idx >= 0 ? giftList[idx] : null;
             return wonGift;
         }
-
         function setPlayerGift(row, amount, status) {
             if (!row) return null;
             const giftEl = row.querySelector('.cp-gift');
             if (!giftEl) return null;
-
-            if (status === 'lost') {
-                giftEl.style.display = 'none';
-                giftEl.removeAttribute('src');
-                giftEl.classList.remove('loading');
-                return null;
-            }
-
+            if (status === 'lost') { giftEl.style.display = 'none'; giftEl.removeAttribute('src'); giftEl.classList.remove('loading'); return null; }
             const gift = deriveGiftForAmount(amount);
             if (gift) {
                 const nextSrc = encodeURI(gift.img);
-                if (giftEl.getAttribute('src') !== nextSrc) {
-                    giftEl.classList.add('loading');
-                    giftEl.onload = function() { this.classList.remove('loading'); };
-                    giftEl.onerror = function() { this.classList.add('loading'); };
-                    giftEl.src = nextSrc;
-                }
+                if (giftEl.getAttribute('src') !== nextSrc) { giftEl.classList.add('loading'); giftEl.onload = function(){ this.classList.remove('loading'); }; giftEl.onerror = function(){ this.classList.add('loading'); }; giftEl.src = nextSrc; }
                 giftEl.style.display = 'block';
-            } else {
-                giftEl.style.display = 'none';
-                giftEl.removeAttribute('src');
-                giftEl.classList.remove('loading');
-            }
+            } else { giftEl.style.display = 'none'; giftEl.removeAttribute('src'); giftEl.classList.remove('loading'); }
             return gift;
         }
-
         function setPlayerRowStatus(row, status) {
             if (!row) return;
             row.classList.remove('status-active', 'status-won', 'status-lost');
@@ -3431,13 +3299,11 @@
             else row.classList.add('status-active');
         }
 
+        /* ── Bet rendering ── */
         function normalizeBetRecord(b) {
-            const record = {
-                key: crashBetKey(b),
-                round_id: b.round_id,
-                user_id: b.user_id,
-                user_name: b.user_name || '',
-                user_photo: b.user_photo || '',
+            const rec = {
+                key: crashBetKey(b), round_id: b.round_id, user_id: b.user_id,
+                user_name: b.user_name || '', user_photo: b.user_photo || '',
                 amount: Math.max(0, Math.floor(Number(b.amount) || 0)),
                 status: (b.status || 'active').toLowerCase(),
                 cashout_amount: b.cashout_amount == null ? null : Math.max(0, Math.floor(Number(b.cashout_amount) || 0)),
@@ -3445,8 +3311,8 @@
                 created_at: b.created_at,
                 isMe: Number(b.user_id) === Number(myUserId)
             };
-            if (record.status !== 'won' && record.status !== 'lost') record.status = 'active';
-            return record;
+            if (rec.status !== 'won' && rec.status !== 'lost') rec.status = 'active';
+            return rec;
         }
 
         function upsertCrashPlayerRow({ key, name, photo, amount, currentAmount, isMe, status }) {
@@ -3455,13 +3321,11 @@
             const wait = document.getElementById('crashWaitingText');
             if (!players) return null;
             if (wait) wait.style.display = 'none';
-
             let row = players.querySelector('[data-bet-key="' + safeKey + '"]');
             const displayName = isMe ? 'Вы' : (name || 'Player');
             const avatar = photo
                 ? '<img class="cp-avatar" src="' + escapeHtml(photo) + '" alt="">'
                 : '<div class="cp-avatar-placeholder">' + escapeHtml((displayName || 'P')[0]) + '</div>';
-
             const shownAmount = Math.max(0, Math.floor(Number(currentAmount != null ? currentAmount : amount) || 0));
             const markup = '<div class="crash-player-row' + (isMe ? ' me' : '') + '" data-bet-key="' + safeKey + '">' +
                 avatar +
@@ -3469,17 +3333,10 @@
                 '<span class="cp-amount"><span class="cp-growing-amount">' + shownAmount + '</span> <img src="star.png" alt=""></span>' +
                 '<img class="cp-gift" src="" alt="" style="display:none;">' +
                 '</div>';
-
             if (!row) {
-                const wrap = document.createElement('div');
-                wrap.innerHTML = markup;
-                row = wrap.firstChild;
+                const wrap = document.createElement('div'); wrap.innerHTML = markup; row = wrap.firstChild;
                 if (isMe) players.prepend(row); else players.appendChild(row);
-            } else {
-                row.outerHTML = markup;
-                row = players.querySelector('[data-bet-key="' + safeKey + '"]');
-            }
-
+            } else { row.outerHTML = markup; row = players.querySelector('[data-bet-key="' + safeKey + '"]'); }
             setPlayerRowStatus(row, status || 'active');
             renderedCrashBetKeys.add(String(key));
             return row;
@@ -3488,44 +3345,21 @@
         function syncMyBetStateFromRecord(rec) {
             if (!rec.isMe) return;
             currentBet = rec.amount;
-
-            if (rec.status === 'won') {
-                didCashOut = true;
-                betPlaced = false;
-                cashoutInit = false;
-                setBtnState('Забрали ' + (rec.cashout_amount || rec.amount) + ' <img src="star.png" alt="">', 'placed');
-            } else if (rec.status === 'lost') {
-                betPlaced = false;
-                didCashOut = false;
-                cashoutInit = false;
-            } else {
-                betPlaced = true;
-                didCashOut = false;
-                cashoutInit = false;
-                setBtnState('Ставка сделана', 'placed');
-            }
+            if (rec.status === 'won') { didCashOut = true; betPlaced = false; cashoutInit = false; setBtnState('Забрали ' + (rec.cashout_amount || rec.amount) + ' <img src="star.png" alt="">', 'placed'); }
+            else if (rec.status === 'lost') { betPlaced = false; didCashOut = false; cashoutInit = false; }
+            else { betPlaced = true; didCashOut = false; cashoutInit = false; setBtnState('Ставка сделана', 'placed'); }
         }
 
         function renderBetRecord(rec) {
             const shownAmount = rec.status === 'won' && rec.cashout_amount ? rec.cashout_amount : rec.amount;
             const row = upsertCrashPlayerRow({
-                key: rec.key,
-                name: rec.isMe ? myName : (rec.user_name || 'Player'),
+                key: rec.key, name: rec.isMe ? myName : (rec.user_name || 'Player'),
                 photo: rec.isMe ? myPhoto : (rec.user_photo || ''),
-                amount: rec.amount,
-                currentAmount: shownAmount,
-                isMe: rec.isMe,
-                status: rec.status
+                amount: rec.amount, currentAmount: shownAmount, isMe: rec.isMe, status: rec.status
             });
-
-            if (rec.status === 'won') {
-                setPlayerGift(row, rec.cashout_amount || rec.amount, rec.status);
-            } else if (rec.status === 'active') {
-                setPlayerGift(row, shownAmount, rec.status);
-            } else {
-                setPlayerGift(row, 0, rec.status);
-            }
-
+            if (rec.status === 'won') setPlayerGift(row, rec.cashout_amount || rec.amount, rec.status);
+            else if (rec.status === 'active') setPlayerGift(row, shownAmount, rec.status);
+            else setPlayerGift(row, 0, rec.status);
             if (rec.isMe) {
                 if (rec.status === 'won') trackMyPotentialGift(rec.cashout_amount || rec.amount);
                 else if (rec.status === 'active') trackMyPotentialGift(shownAmount);
@@ -3534,20 +3368,10 @@
             }
         }
 
-        function applyBetPayload(payloadBet) {
-            const rec = normalizeBetRecord(payloadBet);
-            crashBetsState.set(rec.key, rec);
-            renderBetRecord(rec);
-        }
+        function applyBetPayload(payloadBet) { const rec = normalizeBetRecord(payloadBet); crashBetsState.set(rec.key, rec); renderBetRecord(rec); }
 
         function markAllActiveBetsAsLostLocal() {
-            crashBetsState.forEach((rec, key) => {
-                if (rec.status === 'active') {
-                    rec.status = 'lost';
-                    crashBetsState.set(key, rec);
-                    renderBetRecord(rec);
-                }
-            });
+            crashBetsState.forEach((rec, key) => { if (rec.status === 'active') { rec.status = 'lost'; crashBetsState.set(key, rec); renderBetRecord(rec); } });
             trackMyPotentialGift(0);
         }
 
@@ -3555,176 +3379,170 @@
             crashBetsState.forEach(rec => {
                 const row = document.querySelector('[data-bet-key="' + escapeHtml(rec.key) + '"]');
                 if (!row) return;
-
                 if (rec.status === 'active') {
-                    const liveAmount = Math.max(0, Math.floor(rec.amount * multiplier));
-                    const amountEl = row.querySelector('.cp-growing-amount');
-                    if (amountEl) amountEl.textContent = liveAmount;
-                    setPlayerGift(row, liveAmount, rec.status);
-                    if (rec.isMe) trackMyPotentialGift(liveAmount);
+                    const liveAmt = Math.max(0, Math.floor(rec.amount * multiplier));
+                    const el = row.querySelector('.cp-growing-amount'); if (el) el.textContent = liveAmt;
+                    setPlayerGift(row, liveAmt, rec.status);
+                    if (rec.isMe) trackMyPotentialGift(liveAmt);
                 } else if (rec.status === 'won') {
                     const frozen = rec.cashout_amount || rec.amount;
-                    const amountEl = row.querySelector('.cp-growing-amount');
-                    if (amountEl) amountEl.textContent = frozen;
+                    const el = row.querySelector('.cp-growing-amount'); if (el) el.textContent = frozen;
                     setPlayerGift(row, frozen, rec.status);
                     if (rec.isMe) trackMyPotentialGift(frozen);
                 } else {
-                    const amountEl = row.querySelector('.cp-growing-amount');
-                    if (amountEl) amountEl.textContent = rec.amount;
+                    const el = row.querySelector('.cp-growing-amount'); if (el) el.textContent = rec.amount;
                     setPlayerGift(row, 0, rec.status);
                 }
             });
         }
 
+        /* ── Bets loading & realtime ── */
         async function loadBets(rid) {
             if (!sb) return;
             clearCrashPlayers();
-            const { data, error } = await sb.from('crash_bets')
-                .select('*')
-                .eq('round_id', rid)
-                .order('created_at', { ascending: true });
-
-            if (error) {
-                console.error('loadBets failed', error);
-                return;
-            }
-
-            if (!data || !data.length) return;
-            data.forEach(applyBetPayload);
-        }
-
-        function setBtnState(html, cls) {
-            const btn = document.getElementById('crashBetBtn');
-            btn.innerHTML = html;
-            btn.classList.remove('placed','disabled');
-            if (cls) btn.classList.add(cls);
-            btn.onclick = null;
+            const { data, error } = await sb.from('crash_bets').select('*').eq('round_id', rid).order('created_at', { ascending: true });
+            if (error) { console.error('loadBets failed', error); return; }
+            if (data && data.length) data.forEach(applyBetPayload);
         }
 
         function subBets(rid) {
-            if (betsSub && sb) {
-                sb.removeChannel(betsSub);
-                betsSub = null;
-            }
+            if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
             if (!sb) return;
-
             betsSub = sb.channel('livebets-' + rid + '-' + Math.random().toString(36).slice(2))
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_bets', filter: 'round_id=eq.' + rid }, payload => {
-                    const b = payload.new || payload.old;
-                    if (!b) return;
-
+                    const b = payload.new || payload.old; if (!b) return;
                     const key = crashBetKey(b);
                     if (payload.eventType === 'DELETE') {
-                        const row = document.querySelector('[data-bet-key="' + escapeHtml(key) + '"]');
-                        if (row) row.remove();
-                        renderedCrashBetKeys.delete(String(key));
-                        crashBetsState.delete(String(key));
-                        return;
+                        const row = document.querySelector('[data-bet-key="' + escapeHtml(key) + '"]'); if (row) row.remove();
+                        renderedCrashBetKeys.delete(String(key)); crashBetsState.delete(String(key)); return;
                     }
-
                     applyBetPayload(b);
                 })
                 .subscribe();
         }
 
+        /* ── Realtime подписка на crash_rounds ── */
+        function subRounds() {
+            if (roundsSub && sb) { sb.removeChannel(roundsSub); roundsSub = null; }
+            if (!sb) return;
+            roundsSub = sb.channel('liverounds-' + Math.random().toString(36).slice(2))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'crash_rounds' }, payload => {
+                    const row = payload.new || payload.old; if (!row) return;
+                    if (row.status === 'active' || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
+                        syncState(false).catch(() => {});
+                    }
+                    if (row.status === 'finished' || row.status === 'crashed' || payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+                        loadHist().catch(() => {});
+                    }
+                })
+                .subscribe();
+        }
+
         function showMyBet(amt) {
-            const rec = {
-                round_id: currentRound ? currentRound.id : 'round',
-                user_id: myUserId || 'guest',
-                user_name: myName,
-                user_photo: myPhoto,
-                amount: amt,
-                status: 'active'
-            };
-            applyBetPayload(rec);
+            applyBetPayload({ round_id: currentRound ? currentRound.id : 'round', user_id: myUserId || 'guest', user_name: myName, user_photo: myPhoto, amount: amt, status: 'active' });
         }
-
         function showOtherBet(name, photo, amt, key) {
-            applyBetPayload({
-                round_id: currentRound ? currentRound.id : 'round',
-                user_id: key || (name + ':' + photo + ':' + amt),
-                user_name: name,
-                user_photo: photo,
-                amount: amt,
-                status: 'active'
-            });
+            applyBetPayload({ round_id: currentRound ? currentRound.id : 'round', user_id: key || (name+':'+photo+':'+amt), user_name: name, user_photo: photo, amount: amt, status: 'active' });
         }
 
-        // ═══════════════════════════════════════
-        // MAIN INIT + GAME LOOP
-        // ═══════════════════════════════════════
+        /* ═══════════════════════════════════════
+           OPEN / CLOSE / STOP
+           ═══════════════════════════════════════ */
+        function openGame(name) {
+            if (name === 'crash') {
+                stopAll();
+                document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-crash').classList.add('active');
+                crashActive = true;
+                genStars();
+                initCrash();
+            }
+        }
+
+        function closeCrash() {
+            crashActive = false;
+            clearStickyGiftPreview();
+            stopAll();
+            document.getElementById('page-crash').classList.remove('active');
+            document.getElementById('page-games').classList.add('active');
+        }
+
+        function stopAll() {
+            if (gameLoop)  { clearInterval(gameLoop); gameLoop = null; }
+            if (syncLoop)  { clearInterval(syncLoop); syncLoop = null; }
+            if (betsSub && sb)    { sb.removeChannel(betsSub); betsSub = null; }
+            if (roundsSub && sb)  { sb.removeChannel(roundsSub); roundsSub = null; }
+            crashRunning = false;
+            hideAll();
+        }
+
+        /* ═══════════════════════════════════════
+           INIT — точка входа при открытии игры
+           ═══════════════════════════════════════ */
         async function initCrash() {
             if (!crashActive) return;
-            hideAll(); resetBet();
+            hideAll();
+            resetBet();
 
-            if (!sb) {
-                showCrashStatus('Нет подключения к серверу', true);
-                return;
-            }
+            if (!sb) { showCrashStatus('Нет подключения к серверу', true); return; }
 
-            await syncClock();
+            showCrashStatus('Загрузка раунда...', false);
+
+            // Первичная синхронизация — получаем раунд + время сервера одним вызовом
+            await syncState(true);
             await loadHist();
             subRounds();
-            await syncCrashRound(true);
 
-            // Poll for round changes (backup sync)
-            pollLoop = setInterval(async () => {
+            // Периодическая синхронизация (backup)
+            syncLoop = setInterval(() => {
                 if (!crashActive) return;
-                try {
-                    if (!gameLoop && !roundSyncTimer) {
-                        await syncCrashRound(true);
-                    } else {
-                        await syncCrashRound(false);
-                    }
-                } catch(e) {}
-            }, POLL_MS);
+                syncState(!gameLoop).catch(() => {});
+            }, SYNC_MS);
         }
 
-        function runLoop() {
+        /* ═══════════════════════════════════════
+           GAME LOOP — 50ms тик, фазы по таймстемпам
+           ═══════════════════════════════════════ */
+        function startGameLoop() {
             if (gameLoop) clearInterval(gameLoop);
             let rocketOn = false;
+            const times = getRoundTimes(currentRound);
+            if (!times) return;
 
-            const { gameStart, target, crashAt, nextAt } = getRoundTimes(currentRound);
+            const { gameStart, target, crashAt, nextAt } = times;
 
-            gameLoop = setInterval(async () => {
-                if (!crashActive) { clearInterval(gameLoop); return; }
-                const now = srvNow();
-                const countEl = document.getElementById('crashCountdown');
-                const multiEl = document.getElementById('crashMultiplier');
+            gameLoop = setInterval(() => {
+                if (!crashActive) { clearInterval(gameLoop); gameLoop = null; return; }
+
+                const now    = srvNow();
+                const countEl  = document.getElementById('crashCountdown');
+                const multiEl  = document.getElementById('crashMultiplier');
                 const rocketEl = document.getElementById('crashRocket');
 
-                // ── COUNTDOWN ──
+                /* ── COUNTDOWN ── */
                 if (now < gameStart) {
-                    multiEl.style.display = 'none';
-                    multiEl.classList.remove('crashed');
+                    multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
 
-                    if (!betPlaced && !didCashOut && !crashActionBusy) {
-                        enableCrashBetButton();
-                    }
+                    if (!betPlaced && !didCashOut && !crashActionBusy) enableCrashBetButton();
 
                     const msLeft = Math.max(0, gameStart - now);
                     const sec = Math.max(1, Math.min(Math.ceil(msLeft / 1000), 10));
-
                     if (sec !== lastCountNum) {
                         lastCountNum = sec;
                         countEl.textContent = sec;
-                        countEl.classList.remove('pop');
-                        void countEl.offsetWidth;
-                        countEl.classList.add('pop');
+                        countEl.classList.remove('pop'); void countEl.offsetWidth; countEl.classList.add('pop');
                     }
-
                     setActiveHist('Ожидание');
                     crashRunning = false;
                     return;
                 }
 
-                // ── FLYING ──
+                /* ── FLYING ── */
                 if (now >= gameStart && now < crashAt) {
                     countEl.style.display = 'none';
-                    multiEl.style.display = 'none';
-                    multiEl.classList.remove('crashed');
+                    multiEl.style.display = 'none'; multiEl.classList.remove('crashed');
 
                     if (!rocketOn) {
                         rocketOn = true;
@@ -3732,32 +3550,20 @@
                         crashRunning = true;
                         closeBetMenu();
                         rocketEl.style.display = 'block';
-
                         if (!rocketAnim && typeof lottie !== 'undefined') {
                             rocketAnim = lottie.loadAnimation({ container: rocketEl, renderer: 'svg', loop: true, autoplay: true, path: 'rocket.json' });
-                        } else if (rocketAnim) {
-                            rocketAnim.goToAndPlay(0);
-                        }
-
-                        if (!betPlaced && !didCashOut) {
-                            const btn = document.getElementById('crashBetBtn');
-                            btn.innerHTML = 'Сделать ставку';
-                            btn.classList.add('disabled');
-                            btn.onclick = null;
-                        }
+                        } else if (rocketAnim) { rocketAnim.goToAndPlay(0); }
+                        if (!betPlaced && !didCashOut) { const btn = document.getElementById('crashBetBtn'); btn.innerHTML = 'Сделать ставку'; btn.classList.add('disabled'); btn.onclick = null; }
                     }
 
                     const m = mult(now - gameStart);
                     setActiveHist(m.toFixed(2) + 'x');
                     syncLiveBetAmounts(m);
-
-                    if (betPlaced && !didCashOut) {
-                        updateCash(m);
-                    }
+                    if (betPlaced && !didCashOut) updateCash(m);
                     return;
                 }
 
-                // ── CRASHED ──
+                /* ── CRASHED ── */
                 if (now >= crashAt && now < nextAt) {
                     if (!crashShown) {
                         crashShown = true;
@@ -3767,75 +3573,57 @@
                         if (rocketAnim) rocketAnim.stop();
 
                         multiEl.textContent = Number(target).toFixed(2) + 'x';
-                        multiEl.style.display = 'block';
-                        multiEl.classList.add('crashed');
-
+                        multiEl.style.display = 'block'; multiEl.classList.add('crashed');
                         setBtnState('Краш ' + Number(target).toFixed(2) + 'x', 'disabled');
                         rmActiveHist();
 
                         if (betPlaced) {
                             const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
                             const existing = crashBetsState.get(myKey);
-                            if (existing && existing.status === 'active') {
-                                existing.status = 'lost';
-                                crashBetsState.set(myKey, existing);
-                                renderBetRecord(existing);
-                            }
+                            if (existing && existing.status === 'active') { existing.status = 'lost'; crashBetsState.set(myKey, existing); renderBetRecord(existing); }
                         }
-
                         markAllActiveBetsAsLostLocal();
                         addHist(Number(target).toFixed(2) + 'x', 'past');
-                        betPlaced = false;
-                        didCashOut = false;
+                        betPlaced = false; didCashOut = false;
                         resetGiftDisplay();
 
-                        if (sb) {
-                            crashServerSync().then(() => {
-                                if (currentRound) loadBets(currentRound.id).catch(() => {});
-                                loadHist().catch(() => {});
-                            });
+                        // Подтверждаем финиш раунда на сервере (идемпотентно)
+                        if (sb && currentRound) {
+                            rpcCall('crash_finish_round', { p_round_id: currentRound.id }).catch(() => {});
+                            loadBets(currentRound.id).catch(() => {});
+                            loadHist().catch(() => {});
                         }
                     }
                     return;
                 }
 
-                // ── NEXT ROUND ──
+                /* ── NEXT ROUND ── */
                 if (now >= nextAt) {
-                    clearInterval(gameLoop);
-                    gameLoop = null;
-
-                    if (betsSub && sb) {
-                        sb.removeChannel(betsSub);
-                        betsSub = null;
-                    }
-
+                    clearInterval(gameLoop); gameLoop = null;
+                    if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
                     currentRound = null;
-                    hideAll();
-                    resetBet();
+                    hideAll(); resetBet();
                     showCrashStatus('Загрузка раунда...', false);
 
-                    setTimeout(async () => {
+                    // Запрашиваем новый раунд через crash_sync
+                    setTimeout(() => {
                         if (!crashActive) return;
-                        await syncCrashRound(true).catch(() => {});
-                        if (!currentRound && crashActive) {
-                            setTimeout(() => {
-                                if (crashActive) syncCrashRound(true).catch(() => {});
-                            }, 900);
-                        }
+                        syncState(true).catch(() => {
+                            // Ретрай
+                            if (crashActive) setTimeout(() => syncState(true).catch(() => {}), 900);
+                        });
                     }, 120);
                 }
             }, 50);
         }
 
-        // ─── Cashout ───
+        /* ── Cashout ── */
         function updateCash(m) {
             const btn = document.getElementById('crashBetBtn');
             const w = Math.floor(currentBet * m);
             if (!cashoutInit) {
-                btn.innerHTML = 'Забрать <span id="cashAmt">'+w+'</span> <img src="star.png" alt="">';
-                cashoutInit = true;
-                btn.classList.remove('placed','disabled');
-                btn.onclick = function(){ doCash(); };
+                btn.innerHTML = 'Забрать <span id="cashAmt">' + w + '</span> <img src="star.png" alt="">';
+                cashoutInit = true; btn.classList.remove('placed','disabled'); btn.onclick = function(){ doCash(); };
             } else { const e = document.getElementById('cashAmt'); if (e) e.textContent = w; }
         }
 
@@ -3850,104 +3638,64 @@
             setBtnState('Забираем...','disabled');
             try {
                 const payload = normalizeRpcObject(await rpcCall('crash_cashout', {
-                    p_round_id: currentRound.id,
-                    p_telegram_id: myUserId
+                    p_round_id: currentRound.id, p_telegram_id: myUserId
                 }));
-
                 if (!payload.ok) throw new Error(payload.error || 'cashout_failed');
-
                 const m = Number(payload.cashout_multiplier || 1);
                 const w = Math.max(0, parseInt(payload.cashout_amount, 10) || 0);
                 const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
                 const existing = crashBetsState.get(myKey);
-                if (existing) {
-                    existing.status = 'won';
-                    existing.cashout_multiplier = m;
-                    existing.cashout_amount = w;
-                    crashBetsState.set(myKey, existing);
-                    renderBetRecord(existing);
-                }
-                if (typeof payload.balance !== 'undefined') {
-                    setBalance(payload.balance || 0, { persist: false, cache: true });
-                } else {
-                    await refreshBalanceFromDB();
-                }
-                setBtnState('Забрали '+w+' <img src="star.png" alt="">','placed');
-                betPlaced = false;
-                didCashOut = true;
-                cashoutInit = false;
+                if (existing) { existing.status = 'won'; existing.cashout_multiplier = m; existing.cashout_amount = w; crashBetsState.set(myKey, existing); renderBetRecord(existing); }
+                if (typeof payload.balance !== 'undefined') setBalance(payload.balance || 0, { persist: false, cache: true });
+                else await refreshBalanceFromDB();
+                setBtnState('Забрали ' + w + ' <img src="star.png" alt="">','placed');
+                betPlaced = false; didCashOut = true; cashoutInit = false;
                 if (wonGift) showGiftModal(wonGift, w);
             } catch (e) {
                 console.error('crash_cashout failed', e);
-                await crashServerSync();
+                // Ресинк через единый RPC
+                await syncState(true).catch(() => {});
                 if (currentRound) await loadBets(currentRound.id).catch(() => {});
                 await refreshBalanceFromDB();
                 setBtnState('Раунд уже закрыт','disabled');
-            } finally {
-                crashActionBusy = false;
-            }
+            } finally { crashActionBusy = false; }
         }
 
-        // ─── Submit Bet ───
+        /* ── Place Bet ── */
         async function submitBetCrash() {
             const amt = parseInt(document.getElementById('betAmount').value) || 0;
             if (amt <= 0 || amt > getBalance() || !currentRound || !sb || !myUserId) return;
             clearStickyGiftPreview();
-            const now = srvNow();
-            const gs = roundStartMs(currentRound);
-            if (now >= gs) return; // too late
+            if (srvNow() >= roundStartMs(currentRound)) return; // слишком поздно
 
             const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
-
-            currentBet = amt;
-            betPlaced = true;
-            didCashOut = false;
-            cashoutInit = false;
+            currentBet = amt; betPlaced = true; didCashOut = false; cashoutInit = false;
             closeBetMenu();
             setBtnState('Ставка отправляется...','disabled');
             showMyBet(amt);
 
             try {
                 const payload = normalizeRpcObject(await rpcCall('crash_place_bet', {
-                    p_round_id: currentRound.id,
-                    p_telegram_id: myUserId,
-                    p_user_name: myName || '',
-                    p_user_photo: myPhoto || '',
-                    p_amount: amt
+                    p_round_id: currentRound.id, p_telegram_id: myUserId,
+                    p_user_name: myName || '', p_user_photo: myPhoto || '', p_amount: amt
                 }));
-
                 if (!payload.ok) throw new Error(payload.error || 'place_bet_failed');
-
-                if (typeof payload.balance !== 'undefined') {
-                    setBalance(payload.balance || 0, { persist: false, cache: true });
-                } else {
-                    await refreshBalanceFromDB();
-                }
-
+                if (typeof payload.balance !== 'undefined') setBalance(payload.balance || 0, { persist: false, cache: true });
+                else await refreshBalanceFromDB();
                 setBtnState('Ставка сделана','placed');
             } catch (e) {
                 console.error('submitBetCrash failed', e);
-                currentBet = 0;
-                betPlaced = false;
-                didCashOut = false;
-                cashoutInit = false;
-                const row = document.querySelector('[data-bet-key="' + escapeHtml(myKey) + '"]');
-                if (row) row.remove();
+                currentBet = 0; betPlaced = false; didCashOut = false; cashoutInit = false;
+                const row = document.querySelector('[data-bet-key="' + escapeHtml(myKey) + '"]'); if (row) row.remove();
                 await refreshBalanceFromDB();
                 const btn = document.getElementById('crashBetBtn');
-                if (btn) {
-                    btn.innerHTML = 'Сделать ставку';
-                    btn.classList.remove('placed', 'disabled');
-                    btn.onclick = function(){ placeBet(); };
-                }
-                return;
+                if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed', 'disabled'); btn.onclick = function(){ placeBet(); }; }
             }
         }
 
-        // ─── Crash offline state ───
-        function localRound() {
-            showCrashStatus('Локальный режим отключён', true);
-        }
+        /* ── Legacy compat ── */
+        function localRound() { showCrashStatus('Локальный режим отключён', true); }
+        async function crashServerSync() { return syncState(true); }
 
         // ─── Gift System ───
         const giftList = [
