@@ -3093,7 +3093,19 @@
                 return null;
             }
 
-            return Array.isArray(data) && data.length ? data[0] : null;
+            const row = Array.isArray(data) && data.length ? data[0] : null;
+            if (!row) return null;
+
+            // Защита от зависшего "active" раунда в базе: если он уже давно прошёл,
+            // фронт не должен снова показывать его как текущий.
+            try {
+                const times = getRoundTimes(row);
+                if (Date.now() > (times.nextAt + CRASH_HOLD_MS + 1500)) {
+                    return null;
+                }
+            } catch (_) {}
+
+            return row;
         }
 
         async function crashServerSync() {
@@ -3183,13 +3195,13 @@
                 if (forceReloadBets && crashBetsState.size === 0) {
                     await loadBets(round.id);
                 }
-                crashShown = false;
-                lastCountNum = -1;
-                if (gameLoop) {
-                    clearInterval(gameLoop);
-                    gameLoop = null;
+
+                // Не сбрасываем crashShown/lastCountNum и не перезапускаем loop для того же раунда.
+                // Иначе уже завершившийся раунд повторно проигрывает фазу CRASHED,
+                // из-за чего бесконечно мигают прошлый победитель и статусы ожидания.
+                if (!gameLoop) {
+                    runLoop();
                 }
-                runLoop();
                 return;
             }
 
