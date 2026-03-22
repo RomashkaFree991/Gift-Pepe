@@ -3162,8 +3162,8 @@
             const round = await getActiveRound({ ensure: !holdingCurrentRound });
 
             if (!round) {
-                if (holdingCurrentRound || currentRound) return;
-                showCrashStatus('Загрузка раунда...', false);
+                if (holdingCurrentRound) return;
+                showCrashStatus('Не удалось получить общий раунд', true);
                 return;
             }
 
@@ -3253,7 +3253,7 @@
             if (c) c.style.display = 'none';
         }
 
-        function setCrashBetOpenState() {
+        function enableCrashBetButton() {
             const btn = document.getElementById('crashBetBtn');
             if (!btn) return;
             btn.innerHTML = 'Сделать ставку';
@@ -3261,9 +3261,20 @@
             btn.onclick = function(){ placeBet(); };
         }
 
-        function resetBet() {
+        function resetBet(enableButton = false) {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
-            setCrashBetOpenState();
+            const btn = document.getElementById('crashBetBtn');
+            if (btn) {
+                btn.innerHTML = enableButton ? 'Сделать ставку' : 'Ожидание раунда';
+                btn.classList.remove('placed');
+                if (enableButton) {
+                    btn.classList.remove('disabled');
+                    btn.onclick = function(){ placeBet(); };
+                } else {
+                    btn.classList.add('disabled');
+                    btn.onclick = null;
+                }
+            }
             clearCrashPlayers();
             resetGiftDisplay();
         }
@@ -3614,14 +3625,7 @@
         // ═══════════════════════════════════════
         async function initCrash() {
             if (!crashActive) return;
-            hideAll();
-            betPlaced = false;
-            currentBet = 0;
-            didCashOut = false;
-            cashoutInit = false;
-            clearCrashPlayers();
-            resetGiftDisplay();
-            showCrashStatus('Загрузка раунда...', false);
+            hideAll(); resetBet();
 
             if (!sb) {
                 showCrashStatus('Нет подключения к серверу', true);
@@ -3666,8 +3670,8 @@
                     rocketEl.style.display = 'none';
                     countEl.style.display = 'block';
 
-                    if (!betPlaced && !didCashOut) {
-                        setCrashBetOpenState();
+                    if (!betPlaced && !didCashOut && !crashActionBusy) {
+                        enableCrashBetButton();
                     }
 
                     const msLeft = Math.max(0, gameStart - now);
@@ -3777,12 +3781,7 @@
 
                     currentRound = null;
                     hideAll();
-                    betPlaced = false;
-                    currentBet = 0;
-                    didCashOut = false;
-                    cashoutInit = false;
-                    clearCrashPlayers();
-                    resetGiftDisplay();
+                    resetBet();
                     showCrashStatus('Загрузка раунда...', false);
 
                     setTimeout(async () => {
