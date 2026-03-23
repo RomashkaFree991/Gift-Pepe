@@ -2527,7 +2527,7 @@
         const BOT_USERNAME = 'GiftPepeRobot';
         const BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
         // ─── Telegram ID администраторов (могут создавать промокоды) ───
-        const ADMIN_IDS = [/* сюда вставь свой Telegram ID числом, например: 123456789 */];
+        const ADMIN_IDS = [8339935446];
 
         const firebaseApp = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -3734,7 +3734,15 @@
         function switchTab(el) {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
-            crashActive = false; if(typeof stopAll==="function") stopAll();
+            // Только паузим UI-цикл, НЕ убиваем подписки и состояние раунда
+            crashActive = false;
+            if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
+            if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
+            if (roundSyncTimer) { clearTimeout(roundSyncTimer); roundSyncTimer = null; }
+            if (typeof _syncRetryTimer !== 'undefined' && _syncRetryTimer) {
+                clearTimeout(_syncRetryTimer); _syncRetryTimer = null;
+            }
+            crashRunning = false;
             const idx = parseInt(el.dataset.index);
             document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
             document.getElementById(pages[idx]).classList.add('active');
@@ -4089,10 +4097,11 @@
             if (sameRound) {
                 pendingFreshRoundVisual = false;
                 currentRound = round;
-                if (!betsSub) subBets(round.id);
+                // loadBets BEFORE subBets — иначе initial snapshot дублирует ставки
                 if (forceReloadBets && crashBetsState.size === 0) {
                     await loadBets(round.id);
                 }
+                if (!betsSub) subBets(round.id);
                 if (!gameLoop) {
                     crashShown = false;
                     lastCountNum = -1;
@@ -4135,11 +4144,34 @@
         // ─── Open / Close ───
         function openGame(name) {
             if (name === 'crash') {
-                stopAll();
                 document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
                 document.getElementById('page-crash').classList.add('active');
                 crashActive = true;
                 genStars();
+
+                // Если раунд уже загружен и живой — мгновенно возобновляем без сетевых запросов
+                const roundAlive = currentRound && isRoundStillAlive(currentRound, 500);
+                if (roundAlive && (betsSub || roundsSub)) {
+                    // Просто перезапускаем UI-цикл и poll — без syncClock/loadHist/loadBets
+                    if (!gameLoop) {
+                        crashShown = false;
+                        lastCountNum = -1;
+                        runLoop();
+                    }
+                    if (!pollLoop) {
+                        pollLoop = setInterval(async () => {
+                            if (!crashActive) return;
+                            try {
+                                if (!gameLoop && !roundSyncTimer) await syncCrashRound(true);
+                                else await syncCrashRound(false);
+                            } catch(e) {}
+                        }, POLL_MS);
+                    }
+                    return;
+                }
+
+                // Первый вход или раунд устарел — полная инициализация
+                stopAll();
                 initCrash();
             }
         }
@@ -4147,7 +4179,13 @@
         function closeCrash() {
             crashActive = false;
             clearStickyGiftPreview();
-            stopAll();
+            // Только паузим UI-цикл — подписки и currentRound остаются живыми
+            if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
+            if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
+            if (roundSyncTimer) { clearTimeout(roundSyncTimer); roundSyncTimer = null; }
+            if (_syncRetryTimer) { clearTimeout(_syncRetryTimer); _syncRetryTimer = null; }
+            crashRunning = false;
+            hideAll();
             document.getElementById('page-crash').classList.remove('active');
             document.getElementById('page-games').classList.add('active');
         }
@@ -4328,28 +4366,31 @@
             if (!players) return null;
             if (wait) wait.style.display = 'none';
 
-            let row = players.querySelector('[data-bet-key="' + safeKey + '"]');
             const displayName = isMe ? 'Вы' : (name || 'Player');
-            const avatar = photo
-                ? '<img class="cp-avatar" src="' + escapeHtml(photo) + '" alt="">'
-                : '<div class="cp-avatar-placeholder">' + escapeHtml((displayName || 'P')[0]) + '</div>';
-
             const shownAmount = Math.max(0, Math.floor(Number(currentAmount != null ? currentAmount : amount) || 0));
-            const markup = '<div class="crash-player-row' + (isMe ? ' me' : '') + '" data-bet-key="' + safeKey + '">' +
-                avatar +
-                '<div class="cp-name"><span class="cp-name-text">' + escapeHtml(displayName) + '</span><span class="cp-original-bet">' + amount + ' <img src="star.png" alt=""></span></div>' +
-                '<span class="cp-amount"><span class="cp-growing-amount">' + shownAmount + '</span> <img src="star.png" alt=""></span>' +
-                '<img class="cp-gift" src="" alt="" style="display:none;">' +
-                '</div>';
+
+            let row = players.querySelector('[data-bet-key="' + safeKey + '"]');
 
             if (!row) {
+                // Создаём новую строку
+                const avatar = photo
+                    ? '<img class="cp-avatar" src="' + escapeHtml(photo) + '" alt="">'
+                    : '<div class="cp-avatar-placeholder">' + escapeHtml((displayName || 'P')[0]) + '</div>';
+                const markup = '<div class="crash-player-row' + (isMe ? ' me' : '') + '" data-bet-key="' + safeKey + '">' +
+                    avatar +
+                    '<div class="cp-name"><span class="cp-name-text">' + escapeHtml(displayName) + '</span><span class="cp-original-bet">' + amount + ' <img src="star.png" alt=""></span></div>' +
+                    '<span class="cp-amount"><span class="cp-growing-amount">' + shownAmount + '</span> <img src="star.png" alt=""></span>' +
+                    '<img class="cp-gift" src="" alt="" style="display:none;">' +
+                    '</div>';
                 const wrap = document.createElement('div');
                 wrap.innerHTML = markup;
                 row = wrap.firstChild;
                 if (isMe) players.prepend(row); else players.appendChild(row);
             } else {
-                row.outerHTML = markup;
-                row = players.querySelector('[data-bet-key="' + safeKey + '"]');
+                // Обновляем только текст/числа — НЕ заменяем весь элемент,
+                // чтобы не сбросить отображение подарка и не плодить дублей
+                const growEl = row.querySelector('.cp-growing-amount');
+                if (growEl) growEl.textContent = shownAmount;
             }
 
             setPlayerRowStatus(row, status || 'active');
@@ -4494,6 +4535,21 @@
                         return;
                     }
 
+                    // INSERT — пропускаем если ставка уже отрисована локально
+                    // (showMyBet или loadBets уже добавили её)
+                    if (payload.eventType === 'INSERT') {
+                        if (crashBetsState.has(String(key)) || renderedCrashBetKeys.has(String(key))) {
+                            // Всё равно обновляем state с серверными данными (статус мог смениться)
+                            const existing = crashBetsState.get(String(key));
+                            const incoming = normalizeBetRecord(b);
+                            if (existing && incoming.status !== 'active') {
+                                // Статус изменился — перерисовываем
+                                applyBetPayload(b);
+                            }
+                            return;
+                        }
+                    }
+
                     applyBetPayload(b);
                 })
                 .subscribe();
@@ -4552,9 +4608,20 @@
                 return;
             }
 
-            await syncClock();
-            await loadHist();
-            subRounds();
+            // syncClock кешируется — делаем не чаще раза в 5 минут
+            const now5 = Date.now();
+            if (!window._lastClockSync || now5 - window._lastClockSync > 5 * 60 * 1000) {
+                await syncClock();
+                window._lastClockSync = Date.now();
+            }
+
+            // loadHist только если DOM истории пуст
+            const histEl = document.getElementById('crashHistory');
+            if (!histEl || histEl.children.length === 0) {
+                await loadHist();
+            }
+
+            if (!roundsSub) subRounds();
             await syncCrashRound(true);
 
             // Poll для резервной синхронизации
