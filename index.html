@@ -678,12 +678,13 @@
             gap: 7px;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
-            margin-top: 8px;
+            margin-top: 18px;
             margin-bottom: 18px;
             padding: 10px 14px 11px;
             background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.10);
             border-radius: 999px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
         }
 
         .ref-back svg {
@@ -838,14 +839,19 @@
 
         .crash-back {
             position: absolute;
-            top: calc(140px + env(safe-area-inset-top, 0px));
+            top: calc(154px + env(safe-area-inset-top, 0px));
             left: 16px;
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
             z-index: 10;
+            padding: 10px 14px 11px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 999px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
         }
 
         .crash-back svg {
@@ -858,6 +864,7 @@
             font-size: 15px;
             font-weight: 500;
             color: rgba(255, 255, 255, 0.7);
+            transform: translateY(1px);
         }
 
         .crash-top {
@@ -3035,7 +3042,6 @@
         let rocketAnim = null, betsSub = null, roundsSub = null;
         let roundSyncTimer = null;
         let srvOff = 0; // server - client time offset
-        let roundClientAnchors = new Map();
         let renderedCrashBetKeys = new Set();
         let crashBetsState = new Map();
         let topLeaderboardLoading = false;
@@ -3046,30 +3052,42 @@
         function mult(ms) { return Math.pow(Math.E, SPEED * ms); }
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
         function roundCreatedMs(round) { return new Date(round.created_at).getTime(); }
-        function ensureRoundAnchor(round) {
-            if (!round || round.id === undefined || round.id === null) return srvNow();
-            const key = String(round.id);
-            const created = roundCreatedMs(round);
-            const existing = roundClientAnchors.get(key);
-            if (existing !== undefined) return Math.max(created, existing);
-            const anchor = Math.max(created, srvNow());
-            roundClientAnchors.set(key, anchor);
-            if (roundClientAnchors.size > 6) {
-                for (const savedKey of Array.from(roundClientAnchors.keys())) {
-                    if (savedKey !== key) roundClientAnchors.delete(savedKey);
-                }
-            }
-            return anchor;
-        }
         function getRoundTimes(round) {
             const created = roundCreatedMs(round);
-            const visualCreated = ensureRoundAnchor(round);
             const target = Math.max(Number(round.target_multiplier || 1.01), 1.01);
-            const gameStart = visualCreated + WAIT_MS;
+            const gameStart = created + WAIT_MS;
             const crashMs = Math.log(target) / SPEED;
             const crashAt = gameStart + crashMs;
             const nextAt = crashAt + PAUSE_MS;
-            return { created, visualCreated, target, gameStart, crashMs, crashAt, nextAt };
+            return { created, visualCreated: created, target, gameStart, crashMs, crashAt, nextAt };
+        }
+        async function cleanupExtraCrashRounds(rounds, keepId) {
+            if (!sb || !Array.isArray(rounds) || !rounds.length || keepId === undefined || keepId === null) return;
+            const nowIso = new Date(srvNow()).toISOString();
+            const staleIds = [];
+            const extraIds = [];
+            for (const round of rounds) {
+                if (!round || round.id === undefined || round.id === null || round.id === keepId) continue;
+                const times = getRoundTimes(round);
+                if (times.nextAt <= srvNow() - 1200) staleIds.push(round.id);
+                else extraIds.push(round.id);
+            }
+            if (staleIds.length) {
+                sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', staleIds).eq('status', 'active').then(() => {});
+            }
+            if (extraIds.length) {
+                sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', extraIds).eq('status', 'active').then(() => {});
+            }
+        }
+        function pickCurrentCrashRound(rounds, preferredRound) {
+            const items = Array.isArray(rounds) ? rounds.filter(Boolean).slice() : [];
+            if (preferredRound && !items.some(r => String(r.id) === String(preferredRound.id))) items.push(preferredRound);
+            if (!items.length) return null;
+            items.sort((a, b) => roundCreatedMs(a) - roundCreatedMs(b));
+            const now = srvNow();
+            const liveRounds = items.filter(round => getRoundTimes(round).nextAt > now - 350);
+            if (liveRounds.length) return liveRounds[0];
+            return preferredRound || items[items.length - 1] || null;
         }
         function creatorDelayMs() {
             const seed = Math.abs(Number(myUserId || 0)) || Math.floor(Math.random() * 997);
@@ -3110,25 +3128,29 @@
         async function getActiveRound(opts = {}) {
             if (!sb) return null;
             const ensure = opts.ensure !== false;
+            let rpcRound = null;
 
             if (ensure) {
                 const { data, error } = await sb.rpc('get_or_create_active_crash_round');
-                if (!error && data) return Array.isArray(data) ? data[0] : data;
-                if (error) console.error('get_or_create_active_crash_round failed', error);
+                if (!error && data) rpcRound = Array.isArray(data) ? data[0] : data;
+                else if (error) console.error('get_or_create_active_crash_round failed', error);
             }
 
             const { data, error } = await sb.from('crash_rounds')
                 .select('*')
                 .eq('status', 'active')
                 .order('created_at', { ascending: true })
-                .limit(1);
+                .limit(12);
 
             if (error) {
                 console.error('read active round failed', error);
-                return null;
+                return rpcRound;
             }
 
-            return Array.isArray(data) && data.length ? data[0] : null;
+            const rows = Array.isArray(data) ? data : [];
+            const picked = pickCurrentCrashRound(rows, rpcRound);
+            if (picked) cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
+            return picked || rpcRound || null;
         }
 
         function showCrashStatus(text, isError) {
@@ -3211,7 +3233,6 @@
             }
 
             currentRound = round;
-            ensureRoundAnchor(round);
             clearStickyGiftPreview();
             resetBet();
             await loadBets(round.id);
@@ -3772,9 +3793,6 @@
                         betsSub = null;
                     }
 
-                    if (currentRound && currentRound.id !== undefined && currentRound.id !== null) {
-                        roundClientAnchors.delete(String(currentRound.id));
-                    }
                     currentRound = null;
                     hideAll();
                     resetBet();
