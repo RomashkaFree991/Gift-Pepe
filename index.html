@@ -2555,7 +2555,7 @@
                 const cbs = _authCallbacks.splice(0);
                 cbs.forEach(fn => fn(user));
                 // Скрываем загрузчик как только авторизация получена
-                if (typeof hideLoadingScreen === 'function') hideLoadingScreen();
+                if (typeof markLoaderReady === 'function') markLoaderReady();
             }
         });
 
@@ -3173,17 +3173,27 @@
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.addEventListener('dragstart', e => e.preventDefault());
 
-        // ─── Loading Screen — скрываем как только Firebase Auth готов ───
+        // ─── Loading Screen — минимум 3.5 сек, скрываем когда данные загружены ───
+        let _loaderReadyToHide = false;
+        let _loaderTimerDone = false;
         function hideLoadingScreen() {
             const loader = document.getElementById('loadingScreen');
-            if (loader && !loader._hidden) {
+            if (loader && !loader._hidden && _loaderReadyToHide && _loaderTimerDone) {
                 loader._hidden = true;
                 loader.classList.add('hide');
                 setTimeout(() => { try { loader.remove(); } catch(e) {} }, 400);
             }
         }
-        // Запасной таймер — на случай если авторизация медленная
-        setTimeout(hideLoadingScreen, 1800);
+        // Таймер: минимум 3.5 секунды
+        setTimeout(() => {
+            _loaderTimerDone = true;
+            hideLoadingScreen();
+        }, 3500);
+        // Вызывается когда данные готовы
+        function markLoaderReady() {
+            _loaderReadyToHide = true;
+            hideLoadingScreen();
+        }
 
         // ─── Telegram Web App ───
         const tg = window.Telegram?.WebApp;
@@ -3233,7 +3243,7 @@
 
                 // Load from DB
                 initDB(user).finally(async () => {
-                    hideLoadingScreen();
+                    markLoaderReady();
                     await refreshBalanceFromDB(user);
                     // Если TG не дал имя/фото — пробуем из Firestore
                     if ((!myName || myName === 'User') || !myPhoto) {
@@ -4902,7 +4912,7 @@
         }
 
         function doCash() {
-            if (!crashRunning || !currentRound || crashShown) return;
+            if (!crashRunning || !currentRound || crashShown || didCashOut) return;
             const now = srvNow();
             const { gameStart: gs } = getRoundTimes(currentRound);
             const m = mult(now - gs);
@@ -5130,6 +5140,10 @@
         }
 
         function showGiftModal(gift, w) {
+            const m = document.getElementById('giftModal');
+            if (!m) return;
+            // Не перекрываем модал пока предыдущее действие в процессе
+            if (m.dataset.busy === '1') return;
             const img = document.getElementById('giftModalImg');
             img.classList.add('loading');
             img.onload = function() { img.classList.remove('loading'); };
@@ -5137,7 +5151,7 @@
             img.src = encodeURI(gift.img);
             document.getElementById('giftModalName').textContent = gift.name;
             document.getElementById('giftSellAmount').textContent = w;
-            const m = document.getElementById('giftModal'); m.classList.add('show'); m._gift = gift; m._win = w; m.dataset.busy = '0';
+            m.classList.add('show'); m._gift = gift; m._win = w; m.dataset.busy = '0';
         }
         function sellGift() {
             const m = document.getElementById('giftModal');
@@ -5151,26 +5165,38 @@
             m.classList.remove('show');
             setTimeout(() => { m.dataset.busy = '0'; }, 250);
         }
+        let _giftBeingTaken = false;
         async function takeGift() {
             const m = document.getElementById('giftModal');
-            if (!m || !m._gift || m.dataset.busy === '1') return;
+            if (!m || !m._gift || m.dataset.busy === '1' || _giftBeingTaken) return;
             const item = sanitizeInventoryItem({ name: m._gift.name, img: m._gift.img, price: m._win });
             if (!item) return;
+
+            // Блокируем любые повторные вызовы
+            _giftBeingTaken = true;
             m.dataset.busy = '1';
+            m.classList.remove('show'); // закрываем сразу, до async-операций
 
-            const savedItem = await dbSaveInvItem(item);
-            if (!savedItem) {
+            try {
+                const savedItem = await dbSaveInvItem(item);
+                if (savedItem) {
+                    // Проверяем: нет ли уже этого предмета в инвентаре (защита от дублей)
+                    const alreadyExists = inventory.some(inv =>
+                        inv && inv.id && String(inv.id) === String(savedItem.id)
+                    );
+                    if (!alreadyExists) {
+                        inventory.unshift(savedItem);
+                        renderInventory();
+                    }
+                    rememberStickyGiftPreview(savedItem);
+                }
+            } catch (e) {
+                console.error('takeGift error', e);
                 await refreshInventoryFromDB();
+            } finally {
                 m.dataset.busy = '0';
-                return;
+                _giftBeingTaken = false;
             }
-
-            inventory.unshift(savedItem);
-            renderInventory();
-            rememberStickyGiftPreview(savedItem);
-            m.classList.remove('show');
-
-            setTimeout(() => { m.dataset.busy = '0'; }, 250);
         }
 
         function getInventoryCountLabel(n) {
@@ -5197,21 +5223,18 @@
 
         async function sellAllInventory() {
             const itemsToSell = inventory.map(sanitizeInventoryItem).filter(it => it && it.id);
-            if (!itemsToSell.length) {
-                await refreshInventoryFromDB();
-                return;
-            }
+            if (!itemsToSell.length) return;
 
-            let soldTotal = 0;
-            for (const item of itemsToSell) {
-                const removed = await dbRemoveInvItem(item.id);
-                if (removed) soldTotal += item.price;
-            }
+            // Мгновенный UI — всё удаляем локально сразу
+            const total = itemsToSell.reduce((s, it) => s + it.price, 0);
+            setBalance(getBalance() + total, { immediate: true });
+            inventory = [];
+            renderInventory();
 
-            await refreshInventoryFromDB();
-            if (soldTotal > 0) {
-                setBalance(getBalance() + soldTotal, { immediate: true });
-            }
+            // БД — в фоне, параллельно
+            Promise.all(itemsToSell.map(it => dbRemoveInvItem(it.id)))
+                .then(() => refreshInventoryFromDB())
+                .catch(() => refreshInventoryFromDB());
         }
 
         function renderInventory() {
@@ -5268,15 +5291,19 @@
         }
         async function sellInvItem(i) {
             const it = sanitizeInventoryItem(inventory[i]);
-            if (!it || !it.id) {
+            if (!it || !it.id) { refreshInventoryFromDB(); return; }
+
+            // Мгновенный UI
+            setBalance(getBalance() + it.price, { immediate: true });
+            inventory.splice(i, 1);
+            renderInventory();
+
+            // БД в фоне — без refreshInventoryFromDB чтобы не перерисовывать
+            dbRemoveInvItem(it.id).catch(async () => {
+                // Откат при ошибке
+                setBalance(getBalance() - (it.price || 0), { immediate: true });
                 await refreshInventoryFromDB();
-                return;
-            }
-            const removed = await dbRemoveInvItem(it.id);
-            await refreshInventoryFromDB();
-            if (removed) {
-                setBalance(getBalance() + it.price, { immediate: true });
-            }
+            });
         }
 
         // ─── Bet Menu ───
@@ -5399,68 +5426,111 @@
             applyTranslations();
         })();
 
-        // ─── Top-up via Telegram Stars (Bot API invoice) ───
+        // ─── Top-up via Telegram Stars ───
+        let _buyStarsLock = false;
+
+        // Отвечает на pre_checkout_query (обязательно для Stars-платежей)
+        // Поллим getUpdates с timeout=0 каждые 250мс до получения запроса (макс 12 сек)
+        async function answerPreCheckout(chatId) {
+            const deadline = Date.now() + 12000;
+            let offset;
+            while (Date.now() < deadline) {
+                try {
+                    let url = 'https://api.telegram.org/bot' + BOT_TOKEN +
+                        '/getUpdates?timeout=0&allowed_updates=%5B%22pre_checkout_query%22%5D';
+                    if (offset !== undefined) url += '&offset=' + offset;
+                    const r = await fetch(url);
+                    if (!r.ok) break;
+                    const d = await r.json();
+                    if (!d.ok) break; // вероятно webhook конфликт — прекращаем, payment пройдёт через webhook
+                    for (const upd of (d.result || [])) {
+                        offset = upd.update_id + 1;
+                        const pcq = upd.pre_checkout_query;
+                        if (pcq) {
+                            await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/answerPreCheckoutQuery', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ pre_checkout_query_id: pcq.id, ok: true })
+                            });
+                            return true;
+                        }
+                    }
+                } catch (e) { /* сетевая ошибка — продолжаем */ }
+                await new Promise(r => setTimeout(r, 250));
+            }
+            return false;
+        }
+
         async function buyStars(amount) {
             const safeAmount = Math.max(1, parseInt(amount, 10) || 0);
-            if (!safeAmount) return;
+            if (!safeAmount || _buyStarsLock) return;
             closeTopup();
 
-            if (!tg) {
-                alert('Открой приложение через Telegram');
-                return;
+            if (!tg) { alert('Открой приложение через Telegram'); return; }
+            if (!BOT_TOKEN || BOT_TOKEN === 'ВСТАВЬ_ТОКЕН_БОТА_СЮДА') {
+                alert('Бот-токен не настроен'); return;
             }
 
-            if (!BOT_TOKEN || BOT_TOKEN === 'ВСТАВЬ_ТОКЕН_БОТА_СЮДА') {
-                alert('Бот-токен не настроен. Вставь BOT_TOKEN в код.');
-                return;
-            }
+            _buyStarsLock = true;
+
+            // Тост «Создаём счёт...»
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;bottom:130px;left:50%;transform:translateX(-50%);' +
+                'background:rgba(28,28,46,0.96);border:1px solid rgba(255,255,255,0.1);' +
+                'border-radius:14px;padding:11px 20px;color:#fff;font-size:14px;font-weight:600;' +
+                'z-index:9999;backdrop-filter:blur(14px);white-space:nowrap;';
+            toast.textContent = '⏳ Создаём счёт...';
+            document.body.appendChild(toast);
 
             try {
-                // Создаём invoice через Telegram Bot API
                 const res = await fetch(
-                    `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`,
+                    'https://api.telegram.org/bot' + BOT_TOKEN + '/createInvoiceLink',
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            title: 'Пополнение баланса',
-                            description: `${safeAmount} ⭐ для GiftPepe`,
-                            payload: JSON.stringify({
-                                user_id: myUserId,
-                                stars: safeAmount
-                            }),
-                            currency: 'XTR',           // Telegram Stars
-                            prices: [{ label: 'Stars', amount: safeAmount }]
+                            title: 'GiftPepe — Пополнение',
+                            description: 'Пополнение баланса на ' + safeAmount + ' ⭐',
+                            payload: 'topup|' + (myUserId || '0') + '|' + safeAmount,
+                            currency: 'XTR',
+                            prices: [{ label: safeAmount + ' Stars', amount: safeAmount }]
                         })
                     }
                 );
+                toast.remove();
 
+                if (!res.ok) { alert('Ошибка сервера: ' + res.status); return; }
                 const json = await res.json();
                 if (!json.ok || !json.result) {
-                    console.error('createInvoiceLink failed', json);
-                    alert('Не удалось создать инвойс: ' + (json.description || 'unknown error'));
+                    alert('Не удалось создать счёт:\n' + (json.description || 'ошибка'));
                     return;
                 }
 
                 const invoiceUrl = json.result;
 
-                // Открываем инвойс внутри Telegram WebApp
+                // Запускаем поллер pre_checkout ДО открытия инвойса
+                const pollPromise = answerPreCheckout(myUserId);
+
                 tg.openInvoice(invoiceUrl, async (status) => {
+                    _buyStarsLock = false;
                     if (status === 'paid') {
-                        // Зачисляем баланс в Firestore после оплаты
                         await creditBalanceAfterPayment(safeAmount);
-                        showClaimToast(true, safeAmount, t('toast_success'));
+                        showClaimToast(true, safeAmount, '✅ Баланс пополнен');
+                    } else if (status === 'failed') {
+                        showClaimToast(false, 0, 'Платёж не прошёл');
                     }
-                    // 'cancelled' или 'failed' — ничего не делаем
+                    // status === 'cancelled' — молча игнорируем
                 });
 
             } catch (e) {
+                try { toast.remove(); } catch(_) {}
+                _buyStarsLock = false;
                 console.error('buyStars error', e);
-                alert('Ошибка при создании платежа. Проверь токен бота.');
+                alert('Ошибка: ' + (e.message || 'проверьте соединение'));
             }
         }
 
-        // Зачисляет звёзды на баланс и обновляет topup_total в Firestore
+                // Зачисляет звёзды на баланс и обновляет topup_total в Firestore
         async function creditBalanceAfterPayment(stars) {
             if (!myUserId || !stars) return;
             const userRef = tableCollection('users').doc(String(myUserId));
