@@ -1806,6 +1806,99 @@
             margin-top: 4px;
         }
 
+        /* ─── Admin Panel ─── */
+        .admin-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+            z-index: 300; display: flex; align-items: flex-end;
+            opacity: 0; pointer-events: none; transition: opacity 0.25s;
+        }
+        .admin-overlay.show { opacity: 1; pointer-events: auto; }
+        .admin-panel {
+            width: 100%; max-height: 92dvh; overflow-y: auto;
+            background: #1c1c2e;
+            border-radius: 24px 24px 0 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 24px 18px 40px;
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(.32,1,.65,1);
+        }
+        .admin-overlay.show .admin-panel { transform: translateY(0); }
+        .admin-panel-title {
+            font-size: 17px; font-weight: 800; color: #fff;
+            margin-bottom: 20px; display: flex; align-items: center; gap: 8px;
+        }
+        .admin-panel-title span { font-size: 20px; }
+        .admin-close-btn {
+            margin-left: auto; width: 30px; height: 30px; border-radius: 50%;
+            background: rgba(255,255,255,0.1); border: none; color: rgba(255,255,255,0.7);
+            font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .admin-section {
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 18px; padding: 16px; margin-bottom: 14px;
+        }
+        .admin-section-title {
+            font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.45);
+            letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 12px;
+        }
+        .admin-field { margin-bottom: 10px; }
+        .admin-label {
+            font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.5);
+            margin-bottom: 5px; display: block;
+        }
+        .admin-input {
+            width: 100%; height: 44px; background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+            color: #fff; font-size: 14px; font-weight: 600; padding: 0 14px;
+            font-family: inherit; outline: none; -webkit-user-select: text; user-select: text;
+        }
+        .admin-input::placeholder { color: rgba(255,255,255,0.3); }
+        .admin-input:focus { border-color: rgba(100,170,255,0.5); }
+        .admin-row { display: flex; gap: 8px; }
+        .admin-row .admin-field { flex: 1; }
+        .admin-btn {
+            width: 100%; height: 48px; border: none; border-radius: 14px;
+            font-size: 14px; font-weight: 700; font-family: inherit;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .admin-btn:active { transform: scale(0.98); }
+        .admin-btn-primary { background: #0a84ff; color: #fff; }
+        .admin-btn-danger  { background: rgba(255,59,48,0.18); color: #ff6b6b;
+                             border: 1px solid rgba(255,59,48,0.25); margin-top: 6px; }
+        .admin-btn:disabled { opacity: 0.45; cursor: default; }
+        .admin-promo-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+        .admin-promo-item {
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 12px; padding: 10px 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .admin-promo-item .apc { flex: 1; min-width: 0; }
+        .admin-promo-item .apc-code {
+            font-size: 13px; font-weight: 700; color: #fff;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .admin-promo-item .apc-meta {
+            font-size: 11px; color: rgba(255,255,255,0.42); margin-top: 2px;
+        }
+        .admin-promo-del {
+            width: 28px; height: 28px; border-radius: 8px;
+            background: rgba(255,59,48,0.15); border: none;
+            color: #ff6b6b; font-size: 14px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .admin-promo-item.exhausted .apc-code { color: rgba(255,255,255,0.35); }
+        .admin-promo-empty {
+            font-size: 13px; color: rgba(255,255,255,0.3);
+            text-align: center; padding: 12px 0;
+        }
+        .admin-msg {
+            font-size: 12px; font-weight: 600; margin-top: 8px;
+            min-height: 18px; border-radius: 8px; padding: 4px 8px;
+            text-align: center; transition: opacity 0.3s;
+        }
+        .admin-msg.ok  { color: #4ade80; background: rgba(74,222,128,0.08); }
+        .admin-msg.err { color: #f87171; background: rgba(248,113,113,0.08); }
+
         /* ─ Gifts card ─ */
         .gifts-card {
             width: 100%;
@@ -2432,6 +2525,9 @@
             measurementId: "G-MQX51FKG66"
         };
         const BOT_USERNAME = 'GiftPepeRobot';
+        const BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
+        // ─── Telegram ID администраторов (могут создавать промокоды) ───
+        const ADMIN_IDS = [8339935446];
 
         const firebaseApp = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -2473,6 +2569,7 @@
             if (table === 'crash_bets') return 'crash_bets';
             if (table === 'giftChecks') return 'giftChecks';
             if (table === 'clockSync') return 'clockSync';
+            if (table === 'promoCodes') return 'promoCodes';
             return table;
         }
 
@@ -4943,7 +5040,84 @@
         function toggleLang() { document.getElementById('langOptions').classList.toggle('show'); document.getElementById('langRow').classList.toggle('open'); }
         function selectLang(lang, el) { currentLang = I18N[lang] ? lang : 'ru'; localStorage.setItem(LANG_STORAGE_KEY, currentLang); document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); if (el) el.classList.add('active'); applyTranslations(); }
         function openSupport() { closeSettings(); if (tg && tg.openTelegramLink) tg.openTelegramLink('https://t.me/GiftPepeSupport'); else window.open('https://t.me/GiftPepeSupport','_blank'); }
-        function applyPromoCode() { const input = document.getElementById('promoInput'); const code = (input?.value || '').trim(); if (!code) { alert(t('promo_enter')); return; } alert(t('promo_unavailable')); }
+        // ─── Promo Code (Firestore) ───
+        async function applyPromoCode() {
+            const input = document.getElementById('promoInput');
+            const code  = (input?.value || '').trim();
+            if (!code) { alert(t('promo_enter')); return; }
+            if (!myUserId) { alert('Авторизуйся через Telegram'); return; }
+
+            const applyBtn = document.getElementById('promoApplyBtn');
+            if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = '...'; }
+
+            try {
+                await ensureFirebaseAuth();
+
+                const promoRef  = tableCollection('promoCodes').doc(code);
+                const userRef   = tableCollection('users').doc(String(myUserId));
+
+                let result = null;
+
+                await db.runTransaction(async tx => {
+                    const promoSnap = await tx.get(promoRef);
+
+                    if (!promoSnap.exists) {
+                        result = 'not_found';
+                        return;
+                    }
+
+                    const pd = promoSnap.data() || {};
+                    const activationsLeft = parseInt(pd.activations_left, 10);
+                    const stars           = parseInt(pd.stars, 10) || 0;
+
+                    if (isNaN(activationsLeft) || activationsLeft <= 0) {
+                        result = 'used_up';
+                        return;
+                    }
+
+                    // Проверяем, не применял ли этот пользователь уже этот промокод
+                    const usedBy = Array.isArray(pd.used_by) ? pd.used_by : [];
+                    if (usedBy.includes(Number(myUserId)) || usedBy.includes(String(myUserId))) {
+                        result = 'already_used';
+                        return;
+                    }
+
+                    const userSnap = await tx.get(userRef);
+                    const ud = userSnap.exists ? (userSnap.data() || {}) : {};
+                    const newBalance = Math.max(0, parseInt(ud.balance, 10) || 0) + stars;
+
+                    tx.set(promoRef, {
+                        activations_left: activationsLeft - 1,
+                        used_by: firebase.firestore.FieldValue.arrayUnion(Number(myUserId))
+                    }, { merge: true });
+
+                    tx.set(userRef, {
+                        balance: newBalance,
+                        updated_at: FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                    result = { ok: true, stars, newBalance };
+                });
+
+                if (result === 'not_found') {
+                    alert('Промокод не найден');
+                } else if (result === 'used_up') {
+                    alert('Промокод уже израсходован');
+                } else if (result === 'already_used') {
+                    alert('Вы уже применяли этот промокод');
+                } else if (result && result.ok) {
+                    setBalance(result.newBalance, { immediate: true });
+                    if (input) input.value = '';
+                    showClaimToast(true, result.stars, t('toast_received'));
+                    alert('✅ Промокод активирован! +' + result.stars + ' ⭐');
+                }
+            } catch (e) {
+                console.error('applyPromoCode error', e);
+                alert('Ошибка при применении промокода');
+            } finally {
+                if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = t('apply'); }
+            }
+        }
 
         (function initLanguage() {
             if (!I18N[currentLang]) currentLang = 'ru';
@@ -4951,18 +5125,357 @@
             applyTranslations();
         })();
 
-        // ─── Topup placeholder (без bot token на клиенте) ───
+        // ─── Top-up via Telegram Stars (Bot API invoice) ───
         async function buyStars(amount) {
-            const safeAmount = Math.max(0, parseInt(amount, 10) || 0);
+            const safeAmount = Math.max(1, parseInt(amount, 10) || 0);
             if (!safeAmount) return;
             closeTopup();
-            alert(currentLang === 'en'
-                ? 'Client-only Firebase version does not create Telegram invoices from the browser. Add balance through support/admin or via gift checks.'
-                : 'В client-only версии на Firebase создание Telegram invoice из браузера отключено. Пополняй через поддержку/админку или через gift checks.');
+
+            if (!tg) {
+                alert('Открой приложение через Telegram');
+                return;
+            }
+
+            if (!BOT_TOKEN || BOT_TOKEN === 'ВСТАВЬ_ТОКЕН_БОТА_СЮДА') {
+                alert('Бот-токен не настроен. Вставь BOT_TOKEN в код.');
+                return;
+            }
+
+            try {
+                // Создаём invoice через Telegram Bot API
+                const res = await fetch(
+                    `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: 'Пополнение баланса',
+                            description: `${safeAmount} ⭐ для GiftPepe`,
+                            payload: JSON.stringify({
+                                user_id: myUserId,
+                                stars: safeAmount
+                            }),
+                            currency: 'XTR',           // Telegram Stars
+                            prices: [{ label: 'Stars', amount: safeAmount }]
+                        })
+                    }
+                );
+
+                const json = await res.json();
+                if (!json.ok || !json.result) {
+                    console.error('createInvoiceLink failed', json);
+                    alert('Не удалось создать инвойс: ' + (json.description || 'unknown error'));
+                    return;
+                }
+
+                const invoiceUrl = json.result;
+
+                // Открываем инвойс внутри Telegram WebApp
+                tg.openInvoice(invoiceUrl, async (status) => {
+                    if (status === 'paid') {
+                        // Зачисляем баланс в Firestore после оплаты
+                        await creditBalanceAfterPayment(safeAmount);
+                        showClaimToast(true, safeAmount, t('toast_success'));
+                    }
+                    // 'cancelled' или 'failed' — ничего не делаем
+                });
+
+            } catch (e) {
+                console.error('buyStars error', e);
+                alert('Ошибка при создании платежа. Проверь токен бота.');
+            }
+        }
+
+        // Зачисляет звёзды на баланс и обновляет topup_total в Firestore
+        async function creditBalanceAfterPayment(stars) {
+            if (!myUserId || !stars) return;
+            const userRef = tableCollection('users').doc(String(myUserId));
+            await db.runTransaction(async tx => {
+                const snap = await tx.get(userRef);
+                const data = snap.exists ? (snap.data() || {}) : {};
+                const newBalance   = Math.max(0, parseInt(data.balance, 10)    || 0) + stars;
+                const newTopupTotal = Math.max(0, parseInt(data.topup_total, 10) || 0) + stars;
+
+                // Реферальное вознаграждение (10%) для пригласившего
+                const referrerId = data.referrer_telegram_id ? String(data.referrer_telegram_id) : null;
+                const bonus = Math.floor(stars * 0.10);
+
+                tx.set(userRef, {
+                    balance: newBalance,
+                    topup_total: newTopupTotal,
+                    updated_at: FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                if (referrerId && bonus > 0) {
+                    const refRef = tableCollection('users').doc(referrerId);
+                    const refSnap = await tx.get(refRef);
+                    if (refSnap.exists) {
+                        const rd = refSnap.data() || {};
+                        tx.set(refRef, {
+                            balance:      Math.max(0, parseInt(rd.balance, 10)      || 0) + bonus,
+                            earned_total: Math.max(0, parseInt(rd.earned_total, 10) || 0) + bonus,
+                            updated_at:   FieldValue.serverTimestamp()
+                        }, { merge: true });
+                    }
+                }
+            });
+            // Обновляем отображение
+            const snap2 = await userRef.get();
+            if (snap2.exists) {
+                const d = snap2.data() || {};
+                setBalance(Math.max(0, parseInt(d.balance, 10) || 0), { immediate: true });
+            }
         }
 
         function openTopup() { document.getElementById('topupMenu').classList.add('show'); document.getElementById('topupOverlay').classList.add('show'); }
         function closeTopup() { document.getElementById('topupMenu').classList.remove('show'); document.getElementById('topupOverlay').classList.remove('show'); }
+
+        // ═══════════════════════════════════════════════════
+        // ─── ADMIN PANEL ────────────────────────────────────
+        // ═══════════════════════════════════════════════════
+
+        function isAdmin() {
+            return Array.isArray(ADMIN_IDS) && ADMIN_IDS.length > 0
+                && myUserId && ADMIN_IDS.map(Number).includes(Number(myUserId));
+        }
+
+        function openAdmin() {
+            if (!isAdmin()) {
+                alert('⛔ Доступ запрещён');
+                return;
+            }
+            document.getElementById('adminOverlay').classList.add('show');
+            adminLoadPromos();
+        }
+
+        function closeAdmin() {
+            document.getElementById('adminOverlay').classList.remove('show');
+        }
+
+        function adminOverlayClick(e) {
+            if (e.target === document.getElementById('adminOverlay')) closeAdmin();
+        }
+
+        function adminMsg(elId, text, ok) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'admin-msg ' + (ok ? 'ok' : 'err');
+            clearTimeout(el._t);
+            el._t = setTimeout(() => { el.textContent = ''; el.className = 'admin-msg'; }, 4000);
+        }
+
+        // ── Создать промокод ──
+        async function adminCreatePromo() {
+            const code  = (document.getElementById('ap-code')?.value || '').trim();
+            const stars = parseInt(document.getElementById('ap-stars')?.value) || 0;
+            const acts  = Math.max(1, parseInt(document.getElementById('ap-acts')?.value) || 1);
+
+            if (!code)  { adminMsg('ap-msg', 'Введите код', false); return; }
+            if (stars < 1) { adminMsg('ap-msg', 'Введите количество звёзд', false); return; }
+
+            const btn = document.getElementById('ap-create-btn');
+            btn.disabled = true; btn.textContent = 'Сохраняем...';
+
+            try {
+                await ensureFirebaseAuth();
+                const ref = db.collection('promoCodes').doc(code);
+                const snap = await ref.get();
+                if (snap.exists) {
+                    adminMsg('ap-msg', 'Промокод с таким кодом уже существует!', false);
+                    return;
+                }
+                await ref.set({
+                    code,
+                    stars,
+                    activations_left: acts,
+                    used_by: [],
+                    created_at: FieldValue.serverTimestamp(),
+                    updated_at: FieldValue.serverTimestamp(),
+                    created_by: Number(myUserId) || 0
+                });
+                adminMsg('ap-msg', `✅ Промокод «${code}» создан (+${stars.toLocaleString()} ⭐, ${acts} акт.)`, true);
+                document.getElementById('ap-code').value = '';
+                document.getElementById('ap-stars').value = '';
+                document.getElementById('ap-acts').value = '1';
+                adminLoadPromos();
+            } catch (e) {
+                console.error('adminCreatePromo', e);
+                adminMsg('ap-msg', 'Ошибка: ' + (e.message || 'неизвестная'), false);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Создать промокод';
+            }
+        }
+
+        // ── Загрузить список промокодов ──
+        async function adminLoadPromos() {
+            const listEl = document.getElementById('ap-list');
+            if (!listEl) return;
+            listEl.innerHTML = '<div class="admin-promo-empty">Загрузка...</div>';
+            try {
+                await ensureFirebaseAuth();
+                const snap = await db.collection('promoCodes').orderBy('created_at', 'desc').limit(50).get();
+                if (snap.empty) {
+                    listEl.innerHTML = '<div class="admin-promo-empty">Промокодов нет</div>';
+                    return;
+                }
+                listEl.innerHTML = '';
+                snap.forEach(doc => {
+                    const d = doc.data() || {};
+                    const left = parseInt(d.activations_left, 10) || 0;
+                    const total = (Array.isArray(d.used_by) ? d.used_by.length : 0) + left;
+                    const item = document.createElement('div');
+                    item.className = 'admin-promo-item' + (left <= 0 ? ' exhausted' : '');
+                    item.innerHTML =
+                        `<div class="apc">
+                            <div class="apc-code">${escapeHtml(doc.id)}</div>
+                            <div class="apc-meta">${(d.stars || 0).toLocaleString()} ⭐ &nbsp;·&nbsp; осталось: ${left} / ${total}</div>
+                        </div>
+                        <button class="admin-promo-del" title="Удалить" onclick="adminDeletePromo('${escapeHtml(doc.id)}')">🗑</button>`;
+                    listEl.appendChild(item);
+                });
+            } catch (e) {
+                listEl.innerHTML = '<div class="admin-promo-empty">Ошибка загрузки</div>';
+                console.error('adminLoadPromos', e);
+            }
+        }
+
+        // ── Удалить промокод ──
+        async function adminDeletePromo(code) {
+            if (!confirm(`Удалить промокод «${code}»?`)) return;
+            try {
+                await ensureFirebaseAuth();
+                await db.collection('promoCodes').doc(code).delete();
+                adminLoadPromos();
+            } catch (e) {
+                alert('Ошибка удаления: ' + e.message);
+            }
+        }
+
+        // ── Начислить звёзды вручную ──
+        async function adminGiveStars() {
+            const uid   = (document.getElementById('ap-uid')?.value || '').trim();
+            const stars = parseInt(document.getElementById('ap-give-stars')?.value) || 0;
+            if (!uid)  { adminMsg('ap-give-msg', 'Введите Telegram ID', false); return; }
+            if (stars < 1) { adminMsg('ap-give-msg', 'Введите количество звёзд', false); return; }
+
+            const btn = document.getElementById('ap-give-btn');
+            btn.disabled = true; btn.textContent = 'Начисляем...';
+
+            try {
+                await ensureFirebaseAuth();
+                const userRef = db.collection('users').doc(String(uid));
+                await db.runTransaction(async tx => {
+                    const snap = await tx.get(userRef);
+                    const d = snap.exists ? (snap.data() || {}) : {};
+                    const newBal = Math.max(0, parseInt(d.balance, 10) || 0) + stars;
+                    tx.set(userRef, {
+                        telegram_id: parseInt(uid, 10) || 0,
+                        balance: newBal,
+                        topup_total: Math.max(0, parseInt(d.topup_total, 10) || 0),
+                        referrals_count: Math.max(0, parseInt(d.referrals_count, 10) || 0),
+                        earned_total: Math.max(0, parseInt(d.earned_total, 10) || 0),
+                        updated_at: FieldValue.serverTimestamp()
+                    }, { merge: true });
+                });
+                adminMsg('ap-give-msg', `✅ Начислено ${stars.toLocaleString()} ⭐ пользователю ${uid}`, true);
+                document.getElementById('ap-uid').value = '';
+                document.getElementById('ap-give-stars').value = '';
+                // Если начисляем себе — обновляем отображение
+                if (String(uid) === String(myUserId)) {
+                    const s = await userRef.get();
+                    if (s.exists) setBalance(Math.max(0, parseInt(s.data().balance, 10) || 0), { immediate: true });
+                }
+            } catch (e) {
+                console.error('adminGiveStars', e);
+                adminMsg('ap-give-msg', 'Ошибка: ' + (e.message || 'неизвестная'), false);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Начислить';
+            }
+        }
+
+        // ── Показывать кнопку "Админ" в настройках, если isAdmin() ──
+        (function injectAdminBtn() {
+            // Вставляется после инициализации myUserId через Telegram
+            // Поэтому слушаем момент, когда myUserId уже известен
+            const _orig_switchTab = window.switchTab;
+            const _tryInject = () => {
+                if (!isAdmin()) return;
+                const modal = document.getElementById('settingsModal');
+                if (!modal || modal.querySelector('#adminSettingsRow')) return;
+                const row = document.createElement('div');
+                row.id = 'adminSettingsRow';
+                row.className = 'modal-row';
+                row.style.cssText = 'border-top: 1px solid rgba(255,255,255,0.06); margin-top: 4px;';
+                row.innerHTML = '<span style="color:#f5a623;">⚙️ Админ-панель</span><span class="row-arrow">›</span>';
+                row.onclick = () => { closeSettings(); openAdmin(); };
+                const saveBtn = document.getElementById('settingsSaveBtn');
+                if (saveBtn) modal.querySelector('.modal-box').insertBefore(row, saveBtn);
+            };
+            // Проверяем несколько раз, пока Telegram не отдаст userId
+            let _tries = 0;
+            const _int = setInterval(() => {
+                _tries++;
+                if (isAdmin() || _tries > 30) { clearInterval(_int); _tryInject(); }
+            }, 300);
+        })();
     </script>
+    <!-- ═══ ADMIN PANEL ═══ -->
+    <div class="admin-overlay" id="adminOverlay" onclick="adminOverlayClick(event)">
+        <div class="admin-panel" id="adminPanel">
+            <div class="admin-panel-title">
+                <span>⚙️</span> Админ-панель
+                <button class="admin-close-btn" onclick="closeAdmin()">✕</button>
+            </div>
+
+            <!-- Создание промокода -->
+            <div class="admin-section">
+                <div class="admin-section-title">Создать промокод</div>
+                <div class="admin-field">
+                    <label class="admin-label">Код промокода</label>
+                    <input class="admin-input" id="ap-code" placeholder="напр. SUMMER2025" autocapitalize="none" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="admin-row">
+                    <div class="admin-field">
+                        <label class="admin-label">Звёзд ⭐</label>
+                        <input class="admin-input" id="ap-stars" type="number" placeholder="1000" inputmode="numeric">
+                    </div>
+                    <div class="admin-field">
+                        <label class="admin-label">Активаций</label>
+                        <input class="admin-input" id="ap-acts" type="number" placeholder="1" inputmode="numeric" value="1">
+                    </div>
+                </div>
+                <button class="admin-btn admin-btn-primary" id="ap-create-btn" onclick="adminCreatePromo()">Создать промокод</button>
+                <div class="admin-msg" id="ap-msg"></div>
+            </div>
+
+            <!-- Список промокодов -->
+            <div class="admin-section">
+                <div class="admin-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span>Все промокоды</span>
+                    <span style="font-size:11px;color:rgba(255,255,255,0.3);cursor:pointer;letter-spacing:0;" onclick="adminLoadPromos()">↺ обновить</span>
+                </div>
+                <div class="admin-promo-list" id="ap-list">
+                    <div class="admin-promo-empty">Загрузка...</div>
+                </div>
+            </div>
+
+            <!-- Начислить баланс вручную -->
+            <div class="admin-section">
+                <div class="admin-section-title">Начислить звёзды пользователю</div>
+                <div class="admin-field">
+                    <label class="admin-label">Telegram ID</label>
+                    <input class="admin-input" id="ap-uid" placeholder="123456789" inputmode="numeric">
+                </div>
+                <div class="admin-field">
+                    <label class="admin-label">Звёзд ⭐</label>
+                    <input class="admin-input" id="ap-give-stars" type="number" placeholder="500" inputmode="numeric">
+                </div>
+                <button class="admin-btn admin-btn-primary" id="ap-give-btn" onclick="adminGiveStars()">Начислить</button>
+                <div class="admin-msg" id="ap-give-msg"></div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
