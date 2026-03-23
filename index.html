@@ -3198,12 +3198,18 @@
             const user = tg.initDataUnsafe?.user;
             if (user) {
                 myUserId = user.id;
-                myName = user.first_name || 'User';
+                // Надёжный фолбэк: имя → first_name → username → 'User'
+                const rawFirst = String(user.first_name || '').trim();
+                const rawLast  = String(user.last_name  || '').trim();
+                const rawUser  = String(user.username   || '').trim();
+                myName = rawFirst
+                    ? (rawLast ? rawFirst + ' ' + rawLast : rawFirst)
+                    : (rawUser || 'User');
                 myPhoto = user.photo_url || '';
 
                 document.getElementById('userName').textContent = myName;
                 document.getElementById('profileName').textContent = myName;
-                document.getElementById('profileUsername').textContent = user.username ? ('@' + user.username) : '';
+                document.getElementById('profileUsername').textContent = rawUser ? ('@' + rawUser) : '';
 
                 const avatarEl = document.getElementById('userAvatar');
                 if (myPhoto) {
@@ -3227,8 +3233,29 @@
 
                 // Load from DB
                 initDB(user).finally(async () => {
-                    hideLoadingScreen(); // скрываем как только данные загружены
+                    hideLoadingScreen();
                     await refreshBalanceFromDB(user);
+                    // Если TG не дал имя/фото — пробуем из Firestore
+                    if ((!myName || myName === 'User') || !myPhoto) {
+                        try {
+                            const snap = await db.collection('users').doc(String(user.id)).get();
+                            if (snap.exists) {
+                                const d = snap.data() || {};
+                                if ((!myName || myName === 'User') && d.first_name) {
+                                    myName = d.first_name;
+                                    document.getElementById('userName').textContent = myName;
+                                    document.getElementById('profileName').textContent = myName;
+                                }
+                                if (!myPhoto && d.photo_url) {
+                                    myPhoto = d.photo_url;
+                                    const avatarEl = document.getElementById('userAvatar');
+                                    if (avatarEl) avatarEl.src = myPhoto;
+                                    const pa = document.getElementById('profileAvatar');
+                                    if (pa) { pa.src = myPhoto; pa.style.display = 'block'; }
+                                }
+                            }
+                        } catch(e) {}
+                    }
                     refreshTopLeaderboard(false);
                     handleLaunchPayload();
                 });
@@ -3311,10 +3338,14 @@
         }
 
         function getDisplayUserName(user) {
-            const first = String(user?.first_name || '').trim();
-            const username = String(user?.username || '').trim();
-            if (first) return first;
+            const first    = String(user?.first_name || '').trim();
+            const last     = String(user?.last_name  || '').trim();
+            const username = String(user?.username   || '').trim();
+            if (first) return last ? first + ' ' + last : first;
             if (username) return username.startsWith('@') ? username : '@' + username;
+            // Последний фолбэк: показываем сокращённый ID вместо «Игрок»
+            const tid = user?.telegram_id || user?.id;
+            if (tid) return 'User#' + String(tid).slice(-4);
             return currentLang === 'en' ? 'Player' : 'Игрок';
         }
 
@@ -4022,17 +4053,17 @@
             renderedCrashBetKeys.clear();
             if (wait) {
                 wait.style.display = '';
-                wait.textContent = text;
-                wait.style.opacity = isError ? '1' : '0.6';
+                // При загрузке — показываем «Ожидание ставок», не «Загрузка раунда»
+                wait.textContent = isError ? text : 'Ожидание ставок';
+                wait.style.opacity = isError ? '1' : '0.7';
             }
             if (btn) {
-                // Не показываем "Нет соединения" при первой загрузке (isError=false)
                 if (isError) {
                     btn.innerHTML = '🔄 Повторить';
                     btn.classList.remove('placed', 'disabled');
                     btn.onclick = async () => { btn.classList.add('disabled'); await syncCrashRound(true).catch(()=>{}); };
                 } else {
-                    btn.innerHTML = 'Ожидание раунда';
+                    btn.innerHTML = 'Сделать ставку';
                     btn.classList.add('disabled');
                     btn.classList.remove('placed');
                     btn.onclick = null;
@@ -4120,7 +4151,6 @@
             if (sameRound) {
                 pendingFreshRoundVisual = false;
                 currentRound = round;
-                // loadBets BEFORE subBets — иначе initial snapshot дублирует ставки
                 if (forceReloadBets && crashBetsState.size === 0) {
                     await loadBets(round.id);
                 }
@@ -4128,6 +4158,11 @@
                 if (!gameLoop) {
                     crashShown = false;
                     lastCountNum = -1;
+                    // Если возвращаемся после паузы — восстанавливаем активную пилюлю
+                    const times2 = getRoundTimes(round);
+                    const n2 = srvNow();
+                    if (n2 < times2.gameStart) setActiveHist('Ожидание');
+                    else if (n2 < times2.crashAt) setActiveHist(mult(n2 - times2.gameStart).toFixed(2) + 'x');
                     runLoop();
                 }
                 return;
@@ -4140,6 +4175,9 @@
             currentRound = round;
             clearStickyGiftPreview();
             resetBet();
+            // Сразу ставим активную пилюлю «Ожидание» в историю —
+            // даже если COUNTDOWN уже прошёл, пилюля будет хотя бы на миг
+            setActiveHist('Ожидание');
             await loadBets(round.id);
             subBets(round.id);
             crashShown = false;
@@ -4906,7 +4944,14 @@
             showMyBet(amt);
 
             const { error } = await sb.from('crash_bets').upsert(
-                { round_id: currentRound.id, user_id: myUserId, user_name: myName, user_photo: myPhoto, amount: amt, status: 'active' },
+                {
+                    round_id: currentRound.id,
+                    user_id: myUserId,
+                    user_name: myName && myName !== 'User' ? myName : (myName || ''),
+                    user_photo: myPhoto || '',
+                    amount: amt,
+                    status: 'active'
+                },
                 { onConflict: 'round_id,user_id' }
             );
 
