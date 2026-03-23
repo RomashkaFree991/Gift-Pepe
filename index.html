@@ -6,7 +6,9 @@
     <title>Mini App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -2419,11 +2421,596 @@
     </nav>
 
     <script>
-        // ─── Supabase ───
-        const SUPA_URL = 'https://wqxanxqxewodbgctgfcm.supabase.co';
-        const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxeGFueHF4ZXdvZGJnY3RnZmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDY4NTksImV4cCI6MjA4OTUyMjg1OX0.B8DLPsTDfLfyvyF5g_dhg2RgyQezALRpSMjU1IjNr_Q';
+        // ─── Firebase / Firestore ───
+        const firebaseConfig = {
+            apiKey: "AIzaSyCALikA--ESSu8J_5eGuFubAUNE_1kaCTU",
+            authDomain: "gift-pepe-sp.firebaseapp.com",
+            projectId: "gift-pepe-sp",
+            storageBucket: "gift-pepe-sp.firebasestorage.app",
+            messagingSenderId: "875707369770",
+            appId: "1:875707369770:web:44f66bc45dbd4f26d4b653",
+            measurementId: "G-MQX51FKG66"
+        };
         const BOT_USERNAME = 'GiftPepeRobot';
-        const sb = window.supabase ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+
+        const firebaseApp = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const FieldValue = firebase.firestore.FieldValue;
+        const FieldPath = firebase.firestore.FieldPath;
+        db.settings({ ignoreUndefinedProperties: true });
+
+        const authReadyPromise = (async () => {
+            if (auth.currentUser) return auth.currentUser;
+            try {
+                await auth.signInAnonymously();
+            } catch (e) {
+                console.error('Anonymous auth failed. Enable Anonymous Auth in Firebase Console.', e);
+            }
+            if (auth.currentUser) return auth.currentUser;
+            return await new Promise(resolve => {
+                const off = auth.onAuthStateChanged(user => {
+                    if (user) {
+                        try { off(); } catch (e) {}
+                        resolve(user);
+                    }
+                });
+                setTimeout(() => {
+                    try { off(); } catch (e) {}
+                    resolve(auth.currentUser || null);
+                }, 4000);
+            });
+        })();
+
+        async function ensureFirebaseAuth() {
+            return await authReadyPromise;
+        }
+
+        function tableCollectionName(table) {
+            if (table === 'users') return 'users';
+            if (table === 'inventory') return 'inventory';
+            if (table === 'crash_rounds') return 'crash_rounds';
+            if (table === 'crash_bets') return 'crash_bets';
+            if (table === 'giftChecks') return 'giftChecks';
+            if (table === 'clockSync') return 'clockSync';
+            return table;
+        }
+
+        function tableCollection(table) {
+            return db.collection(tableCollectionName(table));
+        }
+
+        function tsToIso(v) {
+            if (!v) return null;
+            if (typeof v === 'string') return v;
+            if (typeof v.toDate === 'function') {
+                try { return v.toDate().toISOString(); } catch (e) {}
+            }
+            if (v instanceof Date) {
+                try { return v.toISOString(); } catch (e) {}
+            }
+            return v;
+        }
+
+        function normalizeDocData(data) {
+            const out = {};
+            Object.keys(data || {}).forEach(key => {
+                const value = data[key];
+                if (value && typeof value.toDate === 'function') out[key] = tsToIso(value);
+                else out[key] = value;
+            });
+            return out;
+        }
+
+        function docToRow(doc) {
+            return { id: doc.id, ...normalizeDocData(doc.data() || {}) };
+        }
+
+        function pickSelectedFields(row, fields) {
+            if (!fields || fields === '*') return row;
+            const names = String(fields).split(',').map(s => s.trim()).filter(Boolean);
+            if (!names.length) return row;
+            const out = {};
+            names.forEach(name => {
+                if (name === 'id') out.id = row.id;
+                else out[name] = row[name];
+            });
+            return out;
+        }
+
+        function buildQuery(table, filters = [], orderCfg = null, limitN = null) {
+            let ref = tableCollection(table);
+            for (const filter of filters) {
+                if (filter.type === 'eq') {
+                    if (filter.field === 'id') ref = ref.where(FieldPath.documentId(), '==', String(filter.value));
+                    else ref = ref.where(filter.field, '==', filter.value);
+                } else if (filter.type === 'in') {
+                    const values = Array.isArray(filter.values) ? filter.values : [];
+                    if (!values.length) continue;
+                    if (filter.field === 'id') ref = ref.where(FieldPath.documentId(), 'in', values.map(v => String(v)));
+                    else ref = ref.where(filter.field, 'in', values);
+                }
+            }
+            if (orderCfg && orderCfg.field) {
+                ref = ref.orderBy(orderCfg.field === 'id' ? FieldPath.documentId() : orderCfg.field, orderCfg.ascending === false ? 'desc' : 'asc');
+            }
+            if (limitN) ref = ref.limit(limitN);
+            return ref;
+        }
+
+        async function readRows(table, filters = [], orderCfg = null, limitN = null, fields = '*') {
+            const snap = await buildQuery(table, filters, orderCfg, limitN).get();
+            return snap.docs.map(doc => pickSelectedFields(docToRow(doc), fields));
+        }
+
+        async function writeClockSync() {
+            const user = await ensureFirebaseAuth();
+            if (!user) return null;
+            const ref = tableCollection('clockSync').doc(String(user.uid));
+            await ref.set({
+                client_ts: Date.now(),
+                server_ts: FieldValue.serverTimestamp(),
+                updated_at: FieldValue.serverTimestamp()
+            }, { merge: true });
+            const snap = await ref.get({ source: 'server' }).catch(() => ref.get());
+            return snap.exists ? docToRow(snap) : null;
+        }
+
+        function randomTargetMultiplier() {
+            const r = Math.random();
+            let min = 1.05, max = 2.20;
+            if (r >= 0.50 && r < 0.80) { min = 2.21; max = 5.50; }
+            else if (r >= 0.80 && r < 0.94) { min = 5.51; max = 14.50; }
+            else if (r >= 0.94 && r < 0.99) { min = 14.51; max = 40.00; }
+            else if (r >= 0.99) { min = 40.01; max = 85.00; }
+            return Number((Math.random() * (max - min) + min).toFixed(2));
+        }
+
+        async function createCrashRound() {
+            const user = await ensureFirebaseAuth();
+            if (!user) throw new Error('auth required');
+            const ref = tableCollection('crash_rounds').doc();
+            await ref.set({
+                status: 'active',
+                target_multiplier: randomTargetMultiplier(),
+                created_at: FieldValue.serverTimestamp(),
+                crash_time: null,
+                created_by_auth_uid: user.uid,
+                created_by_telegram_id: myUserId || 0
+            });
+            await new Promise(resolve => setTimeout(resolve, 160));
+            const snap = await ref.get({ source: 'server' }).catch(() => ref.get());
+            return snap.exists ? docToRow(snap) : null;
+        }
+
+        async function getLiveCrashRows() {
+            const rows = await readRows('crash_rounds', [{ type: 'eq', field: 'status', value: 'active' }], { field: 'created_at', ascending: true }, 12, '*');
+            return Array.isArray(rows) ? rows : [];
+        }
+
+        async function getOrCreateActiveCrashRoundRpc() {
+            let rows = await getLiveCrashRows();
+            let picked = typeof pickCurrentCrashRound === 'function' ? pickCurrentCrashRound(rows, null, { requireFreshCountdown: false }) : (rows[rows.length - 1] || null);
+            if (picked) return picked;
+
+            await new Promise(resolve => setTimeout(resolve, typeof creatorDelayMs === 'function' ? creatorDelayMs() : 220));
+
+            rows = await getLiveCrashRows();
+            picked = typeof pickCurrentCrashRound === 'function' ? pickCurrentCrashRound(rows, null, { requireFreshCountdown: false }) : (rows[rows.length - 1] || null);
+            if (picked) return picked;
+
+            const created = await createCrashRound();
+            if (!created) return null;
+
+            rows = await getLiveCrashRows();
+            picked = typeof pickCurrentCrashRound === 'function' ? pickCurrentCrashRound(rows, created, { requireFreshCountdown: false }) : created;
+            return picked || created;
+        }
+
+        async function rpcInitUserProfile(args = {}) {
+            const userId = String(args.p_telegram_id || '');
+            if (!userId) throw new Error('telegram id required');
+            const userRef = tableCollection('users').doc(userId);
+            const referrerId = args.p_referrer_telegram_id ? String(args.p_referrer_telegram_id) : '';
+            let result = null;
+
+            await db.runTransaction(async tx => {
+                const userSnap = await tx.get(userRef);
+                const nowTs = FieldValue.serverTimestamp();
+                let base = {
+                    telegram_id: parseInt(args.p_telegram_id, 10) || 0,
+                    first_name: args.p_first_name || '',
+                    username: args.p_username || '',
+                    photo_url: args.p_photo_url || '',
+                    balance: 0,
+                    topup_total: 0,
+                    referrals_count: 0,
+                    earned_total: 0,
+                    referrer_telegram_id: null,
+                    created_at: nowTs,
+                    updated_at: nowTs
+                };
+
+                if (!userSnap.exists) {
+                    if (referrerId && referrerId !== userId) {
+                        const refRef = tableCollection('users').doc(referrerId);
+                        const refSnap = await tx.get(refRef);
+                        if (refSnap.exists) {
+                            base.referrer_telegram_id = parseInt(referrerId, 10) || null;
+                            const refData = refSnap.data() || {};
+                            tx.set(refRef, {
+                                referrals_count: Math.max(0, parseInt(refData.referrals_count, 10) || 0) + 1,
+                                updated_at: nowTs
+                            }, { merge: true });
+                        }
+                    }
+                    tx.set(userRef, base, { merge: true });
+                } else {
+                    const prev = userSnap.data() || {};
+                    base = {
+                        ...prev,
+                        telegram_id: parseInt(args.p_telegram_id, 10) || 0,
+                        first_name: args.p_first_name || '',
+                        username: args.p_username || '',
+                        photo_url: args.p_photo_url || '',
+                        updated_at: nowTs
+                    };
+                    tx.set(userRef, base, { merge: true });
+                }
+            });
+
+            const finalSnap = await userRef.get();
+            if (finalSnap.exists) result = normalizeDocData(finalSnap.data());
+            return result;
+        }
+
+        async function rpcGetReferralStats(args = {}) {
+            const userId = String(args.p_telegram_id || '');
+            if (!userId) return { referrals_count: 0, earned_total: 0 };
+            const snap = await tableCollection('users').doc(userId).get();
+            const data = snap.exists ? (snap.data() || {}) : {};
+            return {
+                referrals_count: Math.max(0, parseInt(data.referrals_count, 10) || 0),
+                earned_total: Math.max(0, parseInt(data.earned_total, 10) || 0)
+            };
+        }
+
+        async function rpcGetTopToppers(args = {}) {
+            const limitN = Math.max(1, Math.min(parseInt(args.p_limit, 10) || 10, 50));
+            const rows = await readRows('users', [], { field: 'topup_total', ascending: false }, limitN, '*');
+            return (rows || []).map(row => ({
+                telegram_id: row.telegram_id || 0,
+                first_name: row.first_name || '',
+                username: row.username || '',
+                photo_url: row.photo_url || '',
+                total_topup: Math.max(0, parseInt(row.topup_total, 10) || 0)
+            }));
+        }
+
+        async function rpcGetGiftCheckPublic(args = {}) {
+            const code = String(args.p_code || '').trim();
+            const uid = parseInt(args.p_telegram_id, 10) || 0;
+            if (!code) return { ok: false, error: 'not_found', amount: 0, status: 'missing' };
+            const snap = await tableCollection('giftChecks').doc(code).get();
+            if (!snap.exists) return { ok: false, error: 'not_found', amount: 0, status: 'missing' };
+            const data = snap.data() || {};
+            const amount = Math.max(0, parseInt(data.amount, 10) || 0);
+            const claimedBy = parseInt(data.claimed_by_telegram_id, 10) || 0;
+            return {
+                ok: true,
+                amount,
+                status: data.status || 'active',
+                claimed_by_current_user: !!uid && claimedBy === uid
+            };
+        }
+
+        async function rpcClaimGiftCheck(args = {}) {
+            const code = String(args.p_code || '').trim();
+            const uid = parseInt(args.p_telegram_id, 10) || 0;
+            if (!code || !uid) return { ok: false, error: 'invalid_request' };
+
+            const checkRef = tableCollection('giftChecks').doc(code);
+            const userRef = tableCollection('users').doc(String(uid));
+            let payload = { ok: false, error: 'unknown' };
+
+            await db.runTransaction(async tx => {
+                const checkSnap = await tx.get(checkRef);
+                if (!checkSnap.exists) {
+                    payload = { ok: false, error: 'not_found' };
+                    return;
+                }
+
+                const checkData = checkSnap.data() || {};
+                const amount = Math.max(0, parseInt(checkData.amount, 10) || 0);
+                const status = String(checkData.status || 'active');
+                const claimedBy = parseInt(checkData.claimed_by_telegram_id, 10) || 0;
+
+                if (status !== 'active') {
+                    payload = { ok: false, error: 'already_claimed', amount };
+                    return;
+                }
+                if (claimedBy && claimedBy !== uid) {
+                    payload = { ok: false, error: 'already_claimed', amount };
+                    return;
+                }
+
+                const userSnap = await tx.get(userRef);
+                const userData = userSnap.exists ? (userSnap.data() || {}) : {};
+                const nextBalance = Math.max(0, parseInt(userData.balance, 10) || 0) + amount;
+
+                tx.set(userRef, {
+                    telegram_id: uid,
+                    first_name: args.p_name || userData.first_name || '',
+                    username: args.p_username || userData.username || '',
+                    photo_url: args.p_photo || userData.photo_url || '',
+                    balance: nextBalance,
+                    topup_total: Math.max(0, parseInt(userData.topup_total, 10) || 0),
+                    referrals_count: Math.max(0, parseInt(userData.referrals_count, 10) || 0),
+                    earned_total: Math.max(0, parseInt(userData.earned_total, 10) || 0),
+                    updated_at: FieldValue.serverTimestamp(),
+                    created_at: userData.created_at || FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                tx.set(checkRef, {
+                    status: 'claimed',
+                    claimed_by_telegram_id: uid,
+                    claimed_by_name: args.p_name || '',
+                    claimed_by_username: args.p_username || '',
+                    claimed_by_photo: args.p_photo || '',
+                    claimed_at: FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                payload = { ok: true, amount, balance: nextBalance };
+            });
+
+            return payload;
+        }
+
+        class FirestoreBuilder {
+            constructor(table) {
+                this.table = table;
+                this.action = 'select';
+                this.filters = [];
+                this.orderCfg = null;
+                this.limitN = null;
+                this.fields = '*';
+                this.payload = null;
+                this.options = {};
+                this.expect = null;
+                this._promise = null;
+            }
+
+            select(fields) { this.fields = fields || '*'; return this; }
+            eq(field, value) { this.filters.push({ type: 'eq', field, value }); return this; }
+            in(field, values) { this.filters.push({ type: 'in', field, values }); return this; }
+            order(field, options = {}) { this.orderCfg = { field, ascending: options.ascending !== false }; return this; }
+            limit(n) { this.limitN = n; return this; }
+            insert(payload) { this.action = 'insert'; this.payload = payload; return this; }
+            update(payload) { this.action = 'update'; this.payload = payload; return this; }
+            delete() { this.action = 'delete'; this.payload = null; return this; }
+            upsert(payload, options = {}) { this.action = 'upsert'; this.payload = payload; this.options = options || {}; return this; }
+            single() { this.expect = 'single'; return this._exec(); }
+            maybeSingle() { this.expect = 'maybeSingle'; return this._exec(); }
+            then(resolve, reject) { return this._exec().then(resolve, reject); }
+            catch(reject) { return this._exec().catch(reject); }
+
+            async _resolveQueryDocs() {
+                const rows = await readRows(this.table, this.filters, this.orderCfg, this.limitN, '*');
+                return rows;
+            }
+
+            async _insertRow() {
+                const payload = { ...(this.payload || {}) };
+                const nowPatch = { updated_at: FieldValue.serverTimestamp() };
+
+                if (this.table === 'users') {
+                    const docId = String(payload.telegram_id || '');
+                    if (!docId) throw new Error('telegram_id required');
+                    await tableCollection('users').doc(docId).set({
+                        ...payload,
+                        created_at: payload.created_at || FieldValue.serverTimestamp(),
+                        ...nowPatch
+                    });
+                    const snap = await tableCollection('users').doc(docId).get();
+                    return snap.exists ? pickSelectedFields(docToRow(snap), this.fields) : null;
+                }
+
+                if (this.table === 'crash_bets') {
+                    const docId = String(payload.round_id) + '_' + String(payload.user_id);
+                    const ref = tableCollection('crash_bets').doc(docId);
+                    await ref.set({
+                        ...payload,
+                        created_at: FieldValue.serverTimestamp(),
+                        ...nowPatch
+                    });
+                    const snap = await ref.get();
+                    return snap.exists ? pickSelectedFields(docToRow(snap), this.fields) : null;
+                }
+
+                const ref = tableCollection(this.table).doc();
+                await ref.set({
+                    ...payload,
+                    created_at: FieldValue.serverTimestamp(),
+                    ...nowPatch
+                });
+                const snap = await ref.get();
+                return snap.exists ? pickSelectedFields(docToRow(snap), this.fields) : null;
+            }
+
+            async _updateRows() {
+                const rows = await this._resolveQueryDocs();
+                if (!rows.length) return null;
+                const batch = db.batch();
+                rows.forEach(row => {
+                    const ref = tableCollection(this.table).doc(String(row.id));
+                    batch.set(ref, { ...(this.payload || {}), updated_at: FieldValue.serverTimestamp() }, { merge: true });
+                });
+                await batch.commit();
+                return null;
+            }
+
+            async _deleteRows() {
+                const rows = await this._resolveQueryDocs();
+                if (!rows.length) return this.expect === 'single' || this.expect === 'maybeSingle' ? null : [];
+                const batch = db.batch();
+                rows.forEach(row => batch.delete(tableCollection(this.table).doc(String(row.id))));
+                await batch.commit();
+                if (this.expect === 'single' || this.expect === 'maybeSingle') return rows[0];
+                return rows;
+            }
+
+            async _upsertRow() {
+                const payload = { ...(this.payload || {}) };
+                if (this.table === 'users') {
+                    const docId = String(payload.telegram_id || '');
+                    if (!docId) throw new Error('telegram_id required');
+                    const ref = tableCollection('users').doc(docId);
+                    const prev = await ref.get();
+                    await ref.set({
+                        ...payload,
+                        created_at: prev.exists ? (prev.data() || {}).created_at || FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+                        updated_at: FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    const snap = await ref.get();
+                    return snap.exists ? pickSelectedFields(docToRow(snap), this.fields) : null;
+                }
+
+                if (this.table === 'crash_bets') {
+                    const docId = String(payload.round_id) + '_' + String(payload.user_id);
+                    const ref = tableCollection('crash_bets').doc(docId);
+                    const prev = await ref.get();
+                    await ref.set({
+                        ...payload,
+                        created_at: prev.exists ? (prev.data() || {}).created_at || FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+                        updated_at: FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    const snap = await ref.get();
+                    return snap.exists ? pickSelectedFields(docToRow(snap), this.fields) : null;
+                }
+
+                return await this._insertRow();
+            }
+
+            async _exec() {
+                if (this._promise) return this._promise;
+                this._promise = (async () => {
+                    await ensureFirebaseAuth();
+
+                    try {
+                        if (this.action === 'select') {
+                            const rows = await readRows(this.table, this.filters, this.orderCfg, this.limitN, this.fields);
+                            if (this.expect === 'single') return { data: rows[0] || null, error: rows[0] ? null : new Error('No rows') };
+                            if (this.expect === 'maybeSingle') return { data: rows[0] || null, error: null };
+                            return { data: rows, error: null };
+                        }
+
+                        if (this.action === 'insert') {
+                            const data = await this._insertRow();
+                            if (this.expect === 'single' || this.expect === 'maybeSingle') return { data, error: null };
+                            return { data: data ? [data] : [], error: null };
+                        }
+
+                        if (this.action === 'update') {
+                            await this._updateRows();
+                            return { data: null, error: null };
+                        }
+
+                        if (this.action === 'delete') {
+                            const data = await this._deleteRows();
+                            if (this.expect === 'single' || this.expect === 'maybeSingle') return { data, error: null };
+                            return { data, error: null };
+                        }
+
+                        if (this.action === 'upsert') {
+                            const data = await this._upsertRow();
+                            if (this.expect === 'single' || this.expect === 'maybeSingle') return { data, error: null };
+                            return { data: data ? [data] : [], error: null };
+                        }
+
+                        return { data: null, error: null };
+                    } catch (error) {
+                        console.error('FirestoreBuilder error', this.table, this.action, error);
+                        return { data: null, error };
+                    }
+                })();
+                return this._promise;
+            }
+        }
+
+        class FirestoreRealtimeChannel {
+            constructor(name) {
+                this.name = name;
+                this.handlers = [];
+                this.unsubs = [];
+            }
+
+            on(_eventName, spec, callback) {
+                this.handlers.push({ spec, callback });
+                return this;
+            }
+
+            subscribe() {
+                this.unsubs = this.handlers.map(({ spec, callback }) => {
+                    let ref = tableCollection(spec.table);
+                    const filterRaw = String(spec.filter || '').trim();
+                    if (filterRaw) {
+                        const match = filterRaw.match(/^([^=]+)=eq\.(.+)$/);
+                        if (match) {
+                            const field = match[1];
+                            const rawVal = match[2];
+                            const val = /^\d+$/.test(rawVal) ? parseInt(rawVal, 10) : rawVal;
+                            ref = ref.where(field, '==', val);
+                        }
+                    }
+
+                    return ref.onSnapshot(snapshot => {
+                        snapshot.docChanges().forEach(change => {
+                            const row = docToRow(change.doc);
+                            callback({
+                                eventType: change.type === 'added' ? 'INSERT' : change.type === 'modified' ? 'UPDATE' : 'DELETE',
+                                new: change.type === 'removed' ? null : row,
+                                old: row
+                            });
+                        });
+                    }, error => {
+                        console.error('Realtime channel error', this.name, spec.table, error);
+                    });
+                });
+                return this;
+            }
+        }
+
+        const sb = {
+            from(table) {
+                return new FirestoreBuilder(table);
+            },
+            async rpc(name, args = {}) {
+                await ensureFirebaseAuth();
+                try {
+                    if (name === 'server_now') return { data: (await writeClockSync())?.server_ts || new Date().toISOString(), error: null };
+                    if (name === 'get_or_create_active_crash_round') return { data: await getOrCreateActiveCrashRoundRpc(), error: null };
+                    if (name === 'init_user_profile') return { data: await rpcInitUserProfile(args), error: null };
+                    if (name === 'get_referral_stats') return { data: await rpcGetReferralStats(args), error: null };
+                    if (name === 'get_top_toppers') return { data: await rpcGetTopToppers(args), error: null };
+                    if (name === 'get_gift_check_public') return { data: await rpcGetGiftCheckPublic(args), error: null };
+                    if (name === 'claim_gift_check') return { data: await rpcClaimGiftCheck(args), error: null };
+                    if (name === 'apply_topup_and_referral') return { data: { ok: false, error: 'disabled' }, error: null };
+                    throw new Error('Unknown rpc: ' + name);
+                } catch (error) {
+                    console.error('rpc failed', name, error);
+                    return { data: null, error };
+                }
+            },
+            channel(name) {
+                return new FirestoreRealtimeChannel(name);
+            },
+            removeChannel(channel) {
+                try {
+                    (channel?.unsubs || []).forEach(fn => { try { fn(); } catch (e) {} });
+                    channel.unsubs = [];
+                } catch (e) {}
+            }
+        };
 
         let myUserId = null;
         let myName = 'User';
@@ -4364,64 +4951,14 @@
             applyTranslations();
         })();
 
-        // ─── Topup via Telegram Stars ───
-        const BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
-
+        // ─── Topup placeholder (без bot token на клиенте) ───
         async function buyStars(amount) {
-            if (!tg) { alert(currentLang === 'en' ? 'Open this inside Telegram' : 'Откройте в Telegram'); return; }
-            const topupItems = document.querySelectorAll('.topup-item');
-            topupItems.forEach(el => el.style.pointerEvents = 'none');
-
-            const invoicePayload = 'topup_' + (myUserId || 0) + '_' + amount + '_' + Date.now();
-
-            try {
-                const resp = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/createInvoiceLink', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: amount + ' Stars',
-                        description: 'Пополнение баланса на ' + amount + ' звёзд в Gift Pepe',
-                        payload: invoicePayload,
-                        currency: 'XTR',
-                        prices: [{ label: amount + ' Stars', amount: amount }]
-                    })
-                });
-                const data = await resp.json();
-                if (!data.ok) throw new Error(data.description || 'Invoice error');
-
-                tg.openInvoice(data.result, function(status) {
-                    if (status === 'paid') {
-                        (async () => {
-                            try {
-                                if (!sb || !myUserId) throw new Error('Topup sync unavailable');
-                                const { data: rpcData, error: rpcError } = await sb.rpc('apply_topup_and_referral', {
-                                    p_telegram_id: myUserId,
-                                    p_amount: amount,
-                                    p_payload: invoicePayload,
-                                    p_source: 'telegram_xtr'
-                                });
-                                if (rpcError) throw rpcError;
-                                if (!rpcData || !rpcData.ok) throw new Error('Topup was not confirmed');
-
-                                setBalance(rpcData.balance || 0, { persist: false, cache: true });
-                                await refreshReferralStats();
-                                closeTopup();
-                            } catch (e) {
-                                console.error('apply_topup_and_referral failed', e);
-                                await refreshBalanceFromDB();
-                                alert(currentLang === 'en' ? 'Payment received, but stars were not credited. Contact support.' : 'Платёж прошёл, но звёзды не были зачислены. Напишите в поддержку.');
-                            } finally {
-                                topupItems.forEach(el => el.style.pointerEvents = '');
-                            }
-                        })();
-                        return;
-                    }
-                    topupItems.forEach(el => el.style.pointerEvents = '');
-                });
-            } catch (e) {
-                console.error('buyStars error', e);
-                topupItems.forEach(el => el.style.pointerEvents = '');
-            }
+            const safeAmount = Math.max(0, parseInt(amount, 10) || 0);
+            if (!safeAmount) return;
+            closeTopup();
+            alert(currentLang === 'en'
+                ? 'Client-only Firebase version does not create Telegram invoices from the browser. Add balance through support/admin or via gift checks.'
+                : 'В client-only версии на Firebase создание Telegram invoice из браузера отключено. Пополняй через поддержку/админку или через gift checks.');
         }
 
         function openTopup() { document.getElementById('topupMenu').classList.add('show'); document.getElementById('topupOverlay').classList.add('show'); }
