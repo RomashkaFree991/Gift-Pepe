@@ -3100,6 +3100,16 @@
             const nextAt = crashAt + PAUSE_MS;
             return { ...actual, visualCreated, gameStart, crashAt, nextAt };
         }
+        function isRoundStillAlive(round, graceMs = 250) {
+            return !!round && getActualRoundTimes(round).nextAt > srvNow() - graceMs;
+        }
+        function isFreshCountdownRound(round) {
+            if (!round) return false;
+            const now = srvNow();
+            const times = getActualRoundTimes(round);
+            const msUntilStart = times.gameStart - now;
+            return msUntilStart > Math.max(1500, WAIT_MS - 1800);
+        }
         async function cleanupExtraCrashRounds(rounds, keepId) {
             if (!sb || !Array.isArray(rounds) || !rounds.length || keepId === undefined || keepId === null) return;
             const now = srvNow();
@@ -3119,15 +3129,19 @@
                 sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', extraIds).eq('status', 'active').then(() => {});
             }
         }
-        function pickCurrentCrashRound(rounds, preferredRound) {
+        function pickCurrentCrashRound(rounds, preferredRound, opts = {}) {
             const items = Array.isArray(rounds) ? rounds.filter(Boolean).slice() : [];
             if (preferredRound && !items.some(r => String(r.id) === String(preferredRound.id))) items.push(preferredRound);
             if (!items.length) return null;
             items.sort((a, b) => roundCreatedMs(a) - roundCreatedMs(b));
-            const now = srvNow();
-            const liveRounds = items.filter(round => getActualRoundTimes(round).nextAt > now - 250);
-            if (liveRounds.length) return liveRounds[liveRounds.length - 1];
-            return null;
+            const liveRounds = items.filter(round => isRoundStillAlive(round, 250));
+            if (!liveRounds.length) return null;
+            if (opts.requireFreshCountdown) {
+                const freshRounds = liveRounds.filter(isFreshCountdownRound);
+                if (freshRounds.length) return freshRounds[freshRounds.length - 1];
+                return null;
+            }
+            return liveRounds[liveRounds.length - 1];
         }
         function creatorDelayMs() {
             const seed = Math.abs(Number(myUserId || 0)) || Math.floor(Math.random() * 997);
@@ -3168,6 +3182,7 @@
         async function getActiveRound(opts = {}) {
             if (!sb) return null;
             const ensure = opts.ensure !== false;
+            const requireFreshCountdown = !!opts.requireFreshCountdown;
 
             async function readActiveRows() {
                 const { data, error } = await sb.from('crash_rounds')
@@ -3182,43 +3197,73 @@
                 return Array.isArray(data) ? data : [];
             }
 
+            async function crashRows(rowsToCrash) {
+                const ids = (Array.isArray(rowsToCrash) ? rowsToCrash : []).map(r => r && r.id).filter(id => id !== undefined && id !== null);
+                if (!ids.length) return;
+                await sb.from('crash_rounds')
+                    .update({ status: 'crashed', crash_time: new Date(srvNow()).toISOString() })
+                    .in('id', ids)
+                    .eq('status', 'active');
+            }
+
             let rows = await readActiveRows();
             if (rows === null) return null;
 
-            let picked = pickCurrentCrashRound(rows, null);
+            let picked = pickCurrentCrashRound(rows, null, { requireFreshCountdown });
             if (picked) {
                 cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
                 return picked;
             }
 
-            if (rows.length) {
-                const staleIds = rows.map(r => r && r.id).filter(id => id !== undefined && id !== null);
-                if (staleIds.length) {
-                    await sb.from('crash_rounds')
-                        .update({ status: 'crashed', crash_time: new Date(srvNow()).toISOString() })
-                        .in('id', staleIds)
-                        .eq('status', 'active');
+            if (rows.length && requireFreshCountdown) {
+                const blockingRows = rows.filter(row => isRoundStillAlive(row, 250));
+                if (blockingRows.length) {
+                    await crashRows(blockingRows);
+                    rows = await readActiveRows();
+                    if (rows === null) return null;
                 }
+                picked = pickCurrentCrashRound(rows, null, { requireFreshCountdown });
+                if (picked) {
+                    cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
+                    return picked;
+                }
+            }
+
+            if (rows.length) {
+                await crashRows(rows);
             }
 
             if (!ensure) return null;
 
             let rpcRound = null;
-            const { data: rpcData, error: rpcError } = await sb.rpc('get_or_create_active_crash_round');
-            if (!rpcError && rpcData) rpcRound = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-            else if (rpcError) console.error('get_or_create_active_crash_round failed', rpcError);
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const { data: rpcData, error: rpcError } = await sb.rpc('get_or_create_active_crash_round');
+                if (!rpcError && rpcData) rpcRound = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+                else if (rpcError) console.error('get_or_create_active_crash_round failed', rpcError);
 
-            rows = await readActiveRows();
-            if (rows === null) return rpcRound;
+                rows = await readActiveRows();
+                if (rows === null) return rpcRound;
 
-            const preferred = rpcRound && getActualRoundTimes(rpcRound).nextAt > srvNow() - 250 ? rpcRound : null;
-            picked = pickCurrentCrashRound(rows, preferred);
-            if (picked) {
-                cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
-                return picked;
+                const preferred = rpcRound && isRoundStillAlive(rpcRound, 250) ? rpcRound : null;
+                picked = pickCurrentCrashRound(rows, preferred, { requireFreshCountdown });
+                if (picked) {
+                    cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
+                    return picked;
+                }
+
+                if (!requireFreshCountdown && preferred) {
+                    cleanupExtraCrashRounds(rows, preferred.id).catch(() => {});
+                    return preferred;
+                }
+
+                if (attempt < 2) {
+                    const activeRows = rows.filter(row => isRoundStillAlive(row, 250));
+                    if (activeRows.length) await crashRows(activeRows);
+                    await new Promise(resolve => setTimeout(resolve, 180));
+                }
             }
 
-            return preferred || null;
+            return null;
         }
 
         function showCrashStatus(text, isError) {
@@ -3272,7 +3317,7 @@
                 return;
             }
 
-            const round = await getActiveRound({ ensure: !holdingCurrentRound });
+            const round = await getActiveRound({ ensure: !holdingCurrentRound, requireFreshCountdown: pendingFreshRoundVisual && !holdingCurrentRound });
 
             if (!round) {
                 if (holdingCurrentRound) return;
