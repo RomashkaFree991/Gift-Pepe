@@ -3046,20 +3046,52 @@
         let crashBetsState = new Map();
         let topLeaderboardLoading = false;
         let topLeaderboardCache = [];
+        let roundClientAnchors = new Map();
+        let pendingFreshRoundVisual = false;
 
 
         function srvNow() { return Date.now() + srvOff; }
         function mult(ms) { return Math.pow(Math.E, SPEED * ms); }
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
         function roundCreatedMs(round) { return new Date(round.created_at).getTime(); }
+        function trimRoundAnchors(keepKey) {
+            if (roundClientAnchors.size <= 8) return;
+            for (const savedKey of Array.from(roundClientAnchors.keys())) {
+                if (savedKey !== keepKey) roundClientAnchors.delete(savedKey);
+            }
+        }
+        function setRoundAnchor(round, anchor) {
+            if (!round || round.id == null || !Number.isFinite(Number(anchor))) return;
+            const key = String(round.id);
+            const created = roundCreatedMs(round);
+            roundClientAnchors.set(key, Math.max(created, Math.floor(Number(anchor))));
+            trimRoundAnchors(key);
+        }
+        function startRoundCountdownFromNow(round) {
+            if (!round || round.id == null) return;
+            const created = roundCreatedMs(round);
+            const now = srvNow();
+            if (now >= created + WAIT_MS) return;
+            setRoundAnchor(round, now);
+        }
+        function ensureRoundAnchor(round) {
+            if (!round || round.id == null) return srvNow();
+            const key = String(round.id);
+            const created = roundCreatedMs(round);
+            const existing = roundClientAnchors.get(key);
+            if (existing !== undefined) return Math.max(created, existing);
+            setRoundAnchor(round, created);
+            return created;
+        }
         function getRoundTimes(round) {
             const created = roundCreatedMs(round);
+            const visualCreated = ensureRoundAnchor(round);
             const target = Math.max(Number(round.target_multiplier || 1.01), 1.01);
-            const gameStart = created + WAIT_MS;
+            const gameStart = visualCreated + WAIT_MS;
             const crashMs = Math.log(target) / SPEED;
             const crashAt = gameStart + crashMs;
             const nextAt = crashAt + PAUSE_MS;
-            return { created, visualCreated: created, target, gameStart, crashMs, crashAt, nextAt };
+            return { created, visualCreated, target, gameStart, crashMs, crashAt, nextAt };
         }
         async function cleanupExtraCrashRounds(rounds, keepId) {
             if (!sb || !Array.isArray(rounds) || !rounds.length || keepId === undefined || keepId === null) return;
@@ -3086,7 +3118,7 @@
             items.sort((a, b) => roundCreatedMs(a) - roundCreatedMs(b));
             const now = srvNow();
             const liveRounds = items.filter(round => getRoundTimes(round).nextAt > now - 350);
-            if (liveRounds.length) return liveRounds[0];
+            if (liveRounds.length) return liveRounds[liveRounds.length - 1];
             return preferredRound || items[items.length - 1] || null;
         }
         function creatorDelayMs() {
@@ -3219,6 +3251,7 @@
             const sameRound = !!(currentRound && currentRound.id === round.id);
 
             if (sameRound) {
+                pendingFreshRoundVisual = false;
                 currentRound = round;
                 if (!betsSub) subBets(round.id);
                 if (forceReloadBets && crashBetsState.size === 0) {
@@ -3232,6 +3265,10 @@
                 return;
             }
 
+            if (pendingFreshRoundVisual) {
+                startRoundCountdownFromNow(round);
+            }
+            pendingFreshRoundVisual = false;
             currentRound = round;
             clearStickyGiftPreview();
             resetBet();
@@ -3793,6 +3830,10 @@
                         betsSub = null;
                     }
 
+                    if (currentRound && currentRound.id !== undefined && currentRound.id !== null) {
+                        roundClientAnchors.delete(String(currentRound.id));
+                    }
+                    pendingFreshRoundVisual = true;
                     currentRound = null;
                     hideAll();
                     resetBet();
