@@ -2527,7 +2527,7 @@
         const BOT_USERNAME = 'GiftPepeRobot';
         const BOT_TOKEN = '7948801307:AAEVkGlfE4kd0dmgifPZPdQb4FK3vvXrdUc';
         // ─── Telegram ID администраторов (могут создавать промокоды) ───
-        const ADMIN_IDS = [8339935446];
+        const ADMIN_IDS = [/* сюда вставь свой Telegram ID числом, например: 123456789 */];
 
         const firebaseApp = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -2536,30 +2536,56 @@
         const FieldPath = firebase.firestore.FieldPath;
         db.settings({ ignoreUndefinedProperties: true });
 
-        const authReadyPromise = (async () => {
-            if (auth.currentUser) return auth.currentUser;
-            try {
-                await auth.signInAnonymously();
-            } catch (e) {
-                console.error('Anonymous auth failed. Enable Anonymous Auth in Firebase Console.', e);
+        // ─── Firebase Auth (с ретраем) ───
+        let _authUser = null;
+        let _authInProgress = false;
+        let _authCallbacks = [];
+
+        // Слушаем изменения авторизации постоянно
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                _authUser = user;
+                const cbs = _authCallbacks.splice(0);
+                cbs.forEach(fn => fn(user));
             }
-            if (auth.currentUser) return auth.currentUser;
-            return await new Promise(resolve => {
-                const off = auth.onAuthStateChanged(user => {
-                    if (user) {
-                        try { off(); } catch (e) {}
-                        resolve(user);
-                    }
-                });
-                setTimeout(() => {
-                    try { off(); } catch (e) {}
-                    resolve(auth.currentUser || null);
-                }, 4000);
-            });
-        })();
+        });
 
         async function ensureFirebaseAuth() {
-            return await authReadyPromise;
+            if (_authUser) return _authUser;
+            if (auth.currentUser) { _authUser = auth.currentUser; return _authUser; }
+
+            // Если уже идёт попытка — ждём её результата
+            if (_authInProgress) {
+                return new Promise(resolve => {
+                    _authCallbacks.push(resolve);
+                    setTimeout(() => resolve(_authUser || null), 6000);
+                });
+            }
+
+            _authInProgress = true;
+            for (let attempt = 0; attempt < 5; attempt++) {
+                try {
+                    await auth.signInAnonymously();
+                    if (auth.currentUser) {
+                        _authUser = auth.currentUser;
+                        _authInProgress = false;
+                        const cbs = _authCallbacks.splice(0);
+                        cbs.forEach(fn => fn(_authUser));
+                        return _authUser;
+                    }
+                } catch (e) {
+                    // auth/operation-not-allowed → нужно включить Anonymous Auth в Firebase Console
+                    if (e.code === 'auth/operation-not-allowed') {
+                        console.error('⛔ Включи Anonymous Authentication в Firebase Console → Authentication → Sign-in method');
+                        _authInProgress = false;
+                        return null;
+                    }
+                    console.warn('signInAnonymously attempt', attempt + 1, 'failed:', e.code || e.message);
+                }
+                await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+            }
+            _authInProgress = false;
+            return null;
         }
 
         function tableCollectionName(table) {
@@ -2615,7 +2641,9 @@
             return out;
         }
 
-        function buildQuery(table, filters = [], orderCfg = null, limitN = null) {
+        function buildQuery(table, filters = []) {
+            // orderBy removed: Firestore requires composite indexes for filter+orderBy.
+            // Sorting is done client-side in readRows instead.
             let ref = tableCollection(table);
             for (const filter of filters) {
                 if (filter.type === 'eq') {
@@ -2628,16 +2656,28 @@
                     else ref = ref.where(filter.field, 'in', values);
                 }
             }
-            if (orderCfg && orderCfg.field) {
-                ref = ref.orderBy(orderCfg.field === 'id' ? FieldPath.documentId() : orderCfg.field, orderCfg.ascending === false ? 'desc' : 'asc');
-            }
-            if (limitN) ref = ref.limit(limitN);
             return ref;
         }
 
+        function clientSort(rows, orderCfg) {
+            if (!orderCfg || !orderCfg.field) return rows;
+            const field = orderCfg.field;
+            const asc = orderCfg.ascending !== false;
+            return rows.slice().sort((a, b) => {
+                const av = a[field] ?? '';
+                const bv = b[field] ?? '';
+                if (av < bv) return asc ? -1 : 1;
+                if (av > bv) return asc ? 1 : -1;
+                return 0;
+            });
+        }
+
         async function readRows(table, filters = [], orderCfg = null, limitN = null, fields = '*') {
-            const snap = await buildQuery(table, filters, orderCfg, limitN).get();
-            return snap.docs.map(doc => pickSelectedFields(docToRow(doc), fields));
+            const snap = await buildQuery(table, filters).get();
+            let rows = snap.docs.map(doc => pickSelectedFields(docToRow(doc), fields));
+            if (orderCfg && orderCfg.field) rows = clientSort(rows, orderCfg);
+            if (limitN) rows = rows.slice(0, limitN);
+            return rows;
         }
 
         async function writeClockSync() {
@@ -3807,10 +3847,10 @@
                 else extraIds.push(round.id);
             }
             if (staleIds.length) {
-                sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', staleIds).eq('status', 'active').then(() => {});
+                sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', staleIds).then(() => {});
             }
             if (extraIds.length) {
-                sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', extraIds).eq('status', 'active').then(() => {});
+                sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', extraIds).then(() => {});
             }
         }
         function pickCurrentCrashRound(rounds, preferredRound, opts = {}) {
@@ -3886,8 +3926,7 @@
                 if (!ids.length) return;
                 await sb.from('crash_rounds')
                     .update({ status: 'crashed', crash_time: new Date(srvNow()).toISOString() })
-                    .in('id', ids)
-                    .eq('status', 'active');
+                    .in('id', ids);
             }
 
             let rows = await readActiveRows();
@@ -3990,6 +4029,9 @@
             }, 50);
         }
 
+        let _syncRetryTimer = null;
+        let _syncFailCount = 0;
+
         async function syncCrashRound(forceReloadBets) {
             if (!crashActive || !sb) return;
 
@@ -4005,9 +4047,38 @@
 
             if (!round) {
                 if (holdingCurrentRound) return;
-                showCrashStatus('Не удалось получить общий раунд', true);
+
+                _syncFailCount++;
+                // Первые 3 попытки — тихо ретраимся, потом показываем кнопку
+                if (_syncFailCount <= 3) {
+                    clearTimeout(_syncRetryTimer);
+                    _syncRetryTimer = setTimeout(async () => {
+                        if (!crashActive) return;
+                        await syncCrashRound(true).catch(() => {});
+                    }, 1200 * _syncFailCount);
+                    const waitEl = document.getElementById('crashWaitingText');
+                    if (waitEl) { waitEl.style.display = ''; waitEl.textContent = 'Загрузка раунда...'; }
+                } else {
+                    _syncFailCount = 0;
+                    const btn = document.getElementById('crashBetBtn');
+                    const waitEl = document.getElementById('crashWaitingText');
+                    if (waitEl) { waitEl.style.display = ''; waitEl.textContent = 'Нет соединения с сервером'; }
+                    if (btn) {
+                        btn.innerHTML = '🔄 Повторить';
+                        btn.classList.remove('placed', 'disabled');
+                        btn.onclick = async () => {
+                            btn.classList.add('disabled');
+                            btn.onclick = null;
+                            btn.innerHTML = 'Загрузка...';
+                            if (waitEl) waitEl.textContent = 'Загрузка раунда...';
+                            await syncCrashRound(true).catch(() => {});
+                        };
+                    }
+                }
                 return;
             }
+
+            _syncFailCount = 0;
 
             if (currentRound && round.id !== currentRound.id && holdingCurrentRound) {
                 return;
@@ -4085,8 +4156,10 @@
             if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
             if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
             if (roundSyncTimer) { clearTimeout(roundSyncTimer); roundSyncTimer = null; }
+            if (_syncRetryTimer) { clearTimeout(_syncRetryTimer); _syncRetryTimer = null; }
             if (betsSub && sb) { sb.removeChannel(betsSub); betsSub = null; }
             if (roundsSub && sb) { sb.removeChannel(roundsSub); roundsSub = null; }
+            _syncFailCount = 0;
             crashRunning = false;
             hideAll();
         }
@@ -4456,8 +4529,26 @@
             if (!crashActive) return;
             hideAll(); resetBet();
 
-            if (!sb) {
-                showCrashStatus('Нет подключения к серверу', true);
+            // Ждём Firebase Auth — без него нельзя создавать раунды
+            const btn = document.getElementById('crashBetBtn');
+            if (btn) { btn.innerHTML = 'Подключение...'; btn.classList.add('disabled'); btn.onclick = null; }
+
+            const user = await ensureFirebaseAuth();
+            if (!crashActive) return; // пользователь закрыл экран пока ждали
+
+            if (!user) {
+                const errBox = document.getElementById('crashWaitingText');
+                if (errBox) errBox.style.display = '';
+                if (btn) {
+                    btn.innerHTML = '🔄 Повторить';
+                    btn.classList.remove('placed');
+                    btn.classList.add('disabled');
+                    btn.onclick = () => { btn.classList.add('disabled'); btn.onclick = null; initCrash(); };
+                    btn.classList.remove('disabled');
+                }
+                const waitEl = document.getElementById('crashWaitingText');
+                if (waitEl) waitEl.textContent = '⛔ Включи Anonymous Auth в Firebase Console';
+                console.error('Firebase Anonymous Auth не работает. Открой Firebase Console → Authentication → Sign-in method → Anonymous → Enable');
                 return;
             }
 
@@ -4466,7 +4557,7 @@
             subRounds();
             await syncCrashRound(true);
 
-            // Poll for round changes (backup sync)
+            // Poll для резервной синхронизации
             pollLoop = setInterval(async () => {
                 if (!crashActive) return;
                 try {
