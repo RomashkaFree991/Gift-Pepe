@@ -905,10 +905,10 @@
         }
 
         @keyframes countPop {
-            0% { opacity: 0; transform: translateY(-50%) scale(0.5); filter: blur(0px); }
-            15% { opacity: 1; transform: translateY(-50%) scale(1.05); filter: blur(0px); }
-            50% { opacity: 1; transform: translateY(-50%) scale(1); filter: blur(0px); }
-            100% { opacity: 0; transform: translateY(-50%) scale(1.8); filter: blur(10px); }
+            0%   { opacity: 0; transform: translateY(-50%) scale(0.72); }
+            18%  { opacity: 1; transform: translateY(-50%) scale(1.06); }
+            55%  { opacity: 1; transform: translateY(-50%) scale(1.0); }
+            100% { opacity: 0; transform: translateY(-50%) scale(1.5); }
         }
 
         .crash-multiplier {
@@ -1190,6 +1190,10 @@
             z-index: 5;
         }
 
+        @keyframes histSlideIn {
+            from { opacity: 0; transform: scale(0.7) translateY(-4px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
         .crash-history-item {
             padding: 4px 10px;
             border-radius: 8px;
@@ -1199,6 +1203,9 @@
             color: #fff;
             flex-shrink: 0;
             white-space: nowrap;
+        }
+        .crash-history-item.new-entry {
+            animation: histSlideIn 0.28s cubic-bezier(.34,1.56,.64,1) forwards;
         }
 
         .crash-history-item.active {
@@ -2547,6 +2554,8 @@
                 _authUser = user;
                 const cbs = _authCallbacks.splice(0);
                 cbs.forEach(fn => fn(user));
+                // Скрываем загрузчик как только авторизация получена
+                if (typeof hideLoadingScreen === 'function') hideLoadingScreen();
             }
         });
 
@@ -3164,11 +3173,17 @@
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.addEventListener('dragstart', e => e.preventDefault());
 
-        // ─── Loading Screen ───
-        setTimeout(() => {
+        // ─── Loading Screen — скрываем как только Firebase Auth готов ───
+        function hideLoadingScreen() {
             const loader = document.getElementById('loadingScreen');
-            if (loader) { loader.classList.add('hide'); setTimeout(() => loader.remove(), 400); }
-        }, 3500);
+            if (loader && !loader._hidden) {
+                loader._hidden = true;
+                loader.classList.add('hide');
+                setTimeout(() => { try { loader.remove(); } catch(e) {} }, 400);
+            }
+        }
+        // Запасной таймер — на случай если авторизация медленная
+        setTimeout(hideLoadingScreen, 1800);
 
         // ─── Telegram Web App ───
         const tg = window.Telegram?.WebApp;
@@ -3212,6 +3227,7 @@
 
                 // Load from DB
                 initDB(user).finally(async () => {
+                    hideLoadingScreen(); // скрываем как только данные загружены
                     await refreshBalanceFromDB(user);
                     refreshTopLeaderboard(false);
                     handleLaunchPayload();
@@ -4007,13 +4023,20 @@
             if (wait) {
                 wait.style.display = '';
                 wait.textContent = text;
-                wait.style.opacity = isError ? '1' : '';
+                wait.style.opacity = isError ? '1' : '0.6';
             }
             if (btn) {
-                btn.innerHTML = isError ? 'Нет соединения' : 'Ожидание раунда';
-                btn.classList.add('disabled');
-                btn.classList.remove('placed');
-                btn.onclick = null;
+                // Не показываем "Нет соединения" при первой загрузке (isError=false)
+                if (isError) {
+                    btn.innerHTML = '🔄 Повторить';
+                    btn.classList.remove('placed', 'disabled');
+                    btn.onclick = async () => { btn.classList.add('disabled'); await syncCrashRound(true).catch(()=>{}); };
+                } else {
+                    btn.innerHTML = 'Ожидание раунда';
+                    btn.classList.add('disabled');
+                    btn.classList.remove('placed');
+                    btn.onclick = null;
+                }
             }
         }
 
@@ -4025,7 +4048,7 @@
             const t = document.getElementById('crashWaitingText');
             if (t) {
                 t.style.display = '';
-                t.textContent = 'Ожидание ставок';
+                t.textContent = typeof t === 'function' ? t('waiting_bets') : 'Ожидание ставок';
             }
             renderStickyGiftPreview();
         }
@@ -4134,8 +4157,11 @@
                     if (row.status === 'active' || (currentRound && row.id === currentRound.id) || payload.eventType === 'INSERT') {
                         queueRoundSync(false);
                     }
-                    if (row.status === 'crashed' || payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-                        loadHist().catch(() => {});
+                    // loadHist только когда другой клиент завершил раунд (не мы сами)
+                    // Мы сами добавляем в историю через addHist() в runLoop
+                    if (payload.eventType === 'UPDATE' && row.status === 'crashed') {
+                        const isMine = currentRound && String(row.id) === String(currentRound.id);
+                        if (!isMine) loadHist().catch(() => {});
                     }
                 })
                 .subscribe();
@@ -4236,11 +4262,16 @@
         // ─── History UI ───
         function addHist(text, cls) {
             const h = document.getElementById('crashHistory');
+            // Не добавляем дубль если первый элемент уже такой же
+            const first = h.querySelector('.crash-history-item.past');
+            if (first && first.textContent === text) return;
             const e = document.createElement('div');
-            e.className = 'crash-history-item ' + cls;
+            e.className = 'crash-history-item ' + cls + ' new-entry';
             e.textContent = text;
+            // Убираем new-entry после анимации
+            e.addEventListener('animationend', () => e.classList.remove('new-entry'), { once: true });
             h.insertBefore(e, h.firstChild);
-            if (h.children.length > 8) h.removeChild(h.lastChild);
+            while (h.children.length > 8) h.removeChild(h.lastChild);
         }
 
         function setActiveHist(text) {
@@ -4267,16 +4298,47 @@
                 .order('created_at', { ascending: false })
                 .limit(8);
 
-            if (error) {
-                console.error('loadHist failed', error);
-                return;
+            if (error) { console.error('loadHist failed', error); return; }
+            if (!data || !data.length) return;
+
+            const h = document.getElementById('crashHistory');
+            // Строим новый список текстов (новейшие сначала)
+            const newTexts = data.map(r => Number(r.target_multiplier || 1).toFixed(2) + 'x');
+
+            // Текущие элементы (только past, без active)
+            const existing = Array.from(h.querySelectorAll('.crash-history-item.past'))
+                                  .map(el => el.textContent);
+
+            // Если новые данные те же — ничего не делаем (нет дёргания)
+            if (JSON.stringify(newTexts) === JSON.stringify(existing)) return;
+
+            // Иначе — плавно перерисовываем только diff: добавляем новые элементы в начало
+            // вместо сброса innerHTML
+            const toAdd = [];
+            for (const text of newTexts) {
+                if (!existing.includes(text)) toAdd.push(text);
+                else break; // дошли до совпадающего — дальше всё то же
             }
 
-            document.getElementById('crashHistory').innerHTML = '';
-            if (data && data.length) {
-                data.reverse().forEach(r => {
-                    const text = Number(r.target_multiplier || 1).toFixed(2) + 'x';
-                    addHist(text, 'past');
+            if (toAdd.length > 0 && existing.length > 0) {
+                // Добавляем только новые (от старого к новому)
+                toAdd.reverse().forEach(text => addHist(text, 'past'));
+                // Обрезаем лишние с конца
+                while (h.querySelectorAll('.crash-history-item.past').length > 8) {
+                    const items = h.querySelectorAll('.crash-history-item.past');
+                    items[items.length - 1].remove();
+                }
+            } else {
+                // Полная перерисовка (начало сессии или большое расхождение)
+                // Сохраняем active-элемент
+                const activeEl = h.querySelector('.crash-history-item.active');
+                h.innerHTML = '';
+                if (activeEl) h.appendChild(activeEl);
+                newTexts.slice().reverse().forEach(text => {
+                    const e = document.createElement('div');
+                    e.className = 'crash-history-item past';
+                    e.textContent = text;
+                    h.insertBefore(e, h.firstChild);
                 });
             }
         }
@@ -4585,9 +4647,10 @@
             if (!crashActive) return;
             hideAll(); resetBet();
 
-            // Ждём Firebase Auth — без него нельзя создавать раунды
             const btn = document.getElementById('crashBetBtn');
-            if (btn) { btn.innerHTML = 'Подключение...'; btn.classList.add('disabled'); btn.onclick = null; }
+            // Показываем "Подключение..." только если авторизации ещё нет
+            const alreadyAuthed = !!_authUser;
+            if (!alreadyAuthed && btn) { btn.innerHTML = 'Подключение...'; btn.classList.add('disabled'); btn.onclick = null; }
 
             const user = await ensureFirebaseAuth();
             if (!crashActive) return; // пользователь закрыл экран пока ждали
@@ -4661,11 +4724,19 @@
                     const sec = Math.max(1, Math.min(Math.ceil(msLeft / 1000), 10));
 
                     if (sec !== lastCountNum) {
+                        const firstShow = lastCountNum < 0;
                         lastCountNum = sec;
                         countEl.textContent = sec;
-                        countEl.classList.remove('pop');
-                        void countEl.offsetWidth;
-                        countEl.classList.add('pop');
+                        if (firstShow) {
+                            // Первый показ после входа/возврата — без анимации, сразу видно
+                            countEl.classList.remove('pop');
+                            countEl.style.cssText = 'display:block;opacity:1;transform:translateY(-50%) scale(1);';
+                        } else {
+                            countEl.style.cssText = '';
+                            countEl.classList.remove('pop');
+                            void countEl.offsetWidth;
+                            countEl.classList.add('pop');
+                        }
                     }
 
                     setActiveHist('Ожидание');
