@@ -3083,25 +3083,33 @@
             setRoundAnchor(round, created);
             return created;
         }
-        function getRoundTimes(round) {
+        function getActualRoundTimes(round) {
             const created = roundCreatedMs(round);
-            const visualCreated = ensureRoundAnchor(round);
             const target = Math.max(Number(round.target_multiplier || 1.01), 1.01);
-            const gameStart = visualCreated + WAIT_MS;
+            const gameStart = created + WAIT_MS;
             const crashMs = Math.log(target) / SPEED;
             const crashAt = gameStart + crashMs;
             const nextAt = crashAt + PAUSE_MS;
-            return { created, visualCreated, target, gameStart, crashMs, crashAt, nextAt };
+            return { created, visualCreated: created, target, gameStart, crashMs, crashAt, nextAt };
+        }
+        function getRoundTimes(round) {
+            const actual = getActualRoundTimes(round);
+            const visualCreated = ensureRoundAnchor(round);
+            const gameStart = visualCreated + WAIT_MS;
+            const crashAt = gameStart + actual.crashMs;
+            const nextAt = crashAt + PAUSE_MS;
+            return { ...actual, visualCreated, gameStart, crashAt, nextAt };
         }
         async function cleanupExtraCrashRounds(rounds, keepId) {
             if (!sb || !Array.isArray(rounds) || !rounds.length || keepId === undefined || keepId === null) return;
-            const nowIso = new Date(srvNow()).toISOString();
+            const now = srvNow();
+            const nowIso = new Date(now).toISOString();
             const staleIds = [];
             const extraIds = [];
             for (const round of rounds) {
                 if (!round || round.id === undefined || round.id === null || round.id === keepId) continue;
-                const times = getRoundTimes(round);
-                if (times.nextAt <= srvNow() - 1200) staleIds.push(round.id);
+                const times = getActualRoundTimes(round);
+                if (times.nextAt <= now - 250) staleIds.push(round.id);
                 else extraIds.push(round.id);
             }
             if (staleIds.length) {
@@ -3117,9 +3125,9 @@
             if (!items.length) return null;
             items.sort((a, b) => roundCreatedMs(a) - roundCreatedMs(b));
             const now = srvNow();
-            const liveRounds = items.filter(round => getRoundTimes(round).nextAt > now - 350);
+            const liveRounds = items.filter(round => getActualRoundTimes(round).nextAt > now - 250);
             if (liveRounds.length) return liveRounds[liveRounds.length - 1];
-            return preferredRound || items[items.length - 1] || null;
+            return null;
         }
         function creatorDelayMs() {
             const seed = Math.abs(Number(myUserId || 0)) || Math.floor(Math.random() * 997);
@@ -3160,29 +3168,57 @@
         async function getActiveRound(opts = {}) {
             if (!sb) return null;
             const ensure = opts.ensure !== false;
+
+            async function readActiveRows() {
+                const { data, error } = await sb.from('crash_rounds')
+                    .select('*')
+                    .eq('status', 'active')
+                    .order('created_at', { ascending: true })
+                    .limit(12);
+                if (error) {
+                    console.error('read active round failed', error);
+                    return null;
+                }
+                return Array.isArray(data) ? data : [];
+            }
+
+            let rows = await readActiveRows();
+            if (rows === null) return null;
+
+            let picked = pickCurrentCrashRound(rows, null);
+            if (picked) {
+                cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
+                return picked;
+            }
+
+            if (rows.length) {
+                const staleIds = rows.map(r => r && r.id).filter(id => id !== undefined && id !== null);
+                if (staleIds.length) {
+                    await sb.from('crash_rounds')
+                        .update({ status: 'crashed', crash_time: new Date(srvNow()).toISOString() })
+                        .in('id', staleIds)
+                        .eq('status', 'active');
+                }
+            }
+
+            if (!ensure) return null;
+
             let rpcRound = null;
+            const { data: rpcData, error: rpcError } = await sb.rpc('get_or_create_active_crash_round');
+            if (!rpcError && rpcData) rpcRound = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+            else if (rpcError) console.error('get_or_create_active_crash_round failed', rpcError);
 
-            if (ensure) {
-                const { data, error } = await sb.rpc('get_or_create_active_crash_round');
-                if (!error && data) rpcRound = Array.isArray(data) ? data[0] : data;
-                else if (error) console.error('get_or_create_active_crash_round failed', error);
+            rows = await readActiveRows();
+            if (rows === null) return rpcRound;
+
+            const preferred = rpcRound && getActualRoundTimes(rpcRound).nextAt > srvNow() - 250 ? rpcRound : null;
+            picked = pickCurrentCrashRound(rows, preferred);
+            if (picked) {
+                cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
+                return picked;
             }
 
-            const { data, error } = await sb.from('crash_rounds')
-                .select('*')
-                .eq('status', 'active')
-                .order('created_at', { ascending: true })
-                .limit(12);
-
-            if (error) {
-                console.error('read active round failed', error);
-                return rpcRound;
-            }
-
-            const rows = Array.isArray(data) ? data : [];
-            const picked = pickCurrentCrashRound(rows, rpcRound);
-            if (picked) cleanupExtraCrashRounds(rows, picked.id).catch(() => {});
-            return picked || rpcRound || null;
+            return preferred || null;
         }
 
         function showCrashStatus(text, isError) {
@@ -3265,7 +3301,7 @@
                 return;
             }
 
-            if (pendingFreshRoundVisual) {
+            if (pendingFreshRoundVisual && getActualRoundTimes(round).gameStart > srvNow() - 250) {
                 startRoundCountdownFromNow(round);
             }
             pendingFreshRoundVisual = false;
