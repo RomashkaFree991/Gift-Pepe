@@ -3813,7 +3813,7 @@
         function doCash() {
             if (!crashRunning || !currentRound || crashShown) return;
             const now = srvNow();
-            const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
+            const { gameStart: gs } = getRoundTimes(currentRound);
             const m = mult(now - gs);
             const w = Math.floor(currentBet * m);
             const myKey = crashBetKey({ round_id: currentRound.id, user_id: myUserId });
@@ -3837,7 +3837,7 @@
             if (amt <= 0 || amt > getBalance() || !currentRound || !sb) return;
             clearStickyGiftPreview();
             const now = srvNow();
-            const gs = new Date(currentRound.created_at).getTime() + WAIT_MS;
+            const { gameStart: gs } = getRoundTimes(currentRound);
             if (now >= gs) return; // too late
 
             const prevBalance = getBalance();
