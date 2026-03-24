@@ -7,7 +7,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script>
-        window.BACKEND_URL = "https://server-gift-pepe-1.onrender.com";
+        window.BACKEND_URL = "https://gift-pepe-server.loca.lt";
     </script>
     <style>
         * {
@@ -2525,7 +2525,7 @@
         // ─── Node.js API ───
         const BOT_USERNAME = 'GiftPepeRobot';
         const ADMIN_IDS = [8339935446];
-        const API_BASE = window.BACKEND_URL || '';
+        const API_BASE = String(window.BACKEND_URL || '').replace(/\/+$/, '');
 
         let _authUser = null;
         let _authInProgress = false;
@@ -4050,6 +4050,8 @@
                 status: (b.status || 'active').toLowerCase(),
                 cashout_amount: b.cashout_amount == null ? null : Math.max(0, Math.floor(Number(b.cashout_amount) || 0)),
                 cashout_multiplier: b.cashout_multiplier == null ? null : Number(b.cashout_multiplier),
+                reward_claimed: !!b.reward_claimed,
+                reward_type: b.reward_type || null,
                 created_at: b.created_at,
                 isMe: Number(b.user_id) === Number(myUserId)
             };
@@ -4119,6 +4121,23 @@
 
         function renderBetRecord(rec) {
             const shownAmount = rec.status === 'won' && rec.cashout_amount ? rec.cashout_amount : rec.amount;
+            const shouldShowStickyGiftOnly = !!(
+                rec &&
+                rec.isMe &&
+                rec.status === 'won' &&
+                stickyMyGiftPreview &&
+                (rec.reward_claimed || rec.reward_type === 'gift' || rec.reward_type === 'gift_pending')
+            );
+
+            if (shouldShowStickyGiftOnly) {
+                const existingRow = document.querySelector('[data-bet-key="' + escapeHtml(rec.key) + '"]');
+                if (existingRow) existingRow.remove();
+                renderStickyGiftPreview();
+                trackMyPotentialGift(rec.cashout_amount || rec.amount);
+                syncMyBetStateFromRecord(rec);
+                return;
+            }
+
             const row = upsertCrashPlayerRow({
                 key: rec.key,
                 name: rec.isMe ? myName : (rec.user_name || 'Player'),
@@ -4775,6 +4794,17 @@
             try {
                 const result = await apiRequest('/api/crash/reward/take', { body: { round_id: m._roundId } });
                 const savedItem = sanitizeInventoryItem(result?.item);
+                const myKey = crashBetKey({ round_id: m._roundId, user_id: myUserId });
+                const existingBet = crashBetsState.get(myKey);
+                if (existingBet) {
+                    existingBet.status = 'won';
+                    existingBet.reward_claimed = true;
+                    existingBet.reward_type = 'gift';
+                    existingBet.cashout_amount = existingBet.cashout_amount || Math.max(0, parseInt(m._win, 10) || 0);
+                    crashBetsState.set(myKey, existingBet);
+                }
+                const existingRow = document.querySelector('[data-bet-key="' + escapeHtml(myKey) + '"]');
+                if (existingRow) existingRow.remove();
                 if (savedItem) {
                     const alreadyExists = inventory.some(inv => inv && inv.id && String(inv.id) === String(savedItem.id));
                     if (!alreadyExists) {
