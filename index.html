@@ -3303,7 +3303,6 @@
             try {
                 const { data, error } = await sb.from('inventory')
                     .insert({ user_id: myUserId, gift_name: safeItem.name, gift_img: safeItem.img, gift_price: safeItem.price })
-                    .select('id, gift_name, gift_img, gift_price')
                     .single();
                 if (error) throw error;
                 if (!data) return null;
@@ -3320,8 +3319,6 @@
                 const { data, error } = await sb.from('inventory')
                     .delete()
                     .eq('id', id)
-                    .eq('user_id', myUserId)
-                    .select('id')
                     .maybeSingle();
                 if (error) throw error;
                 return !!(data && data.id);
@@ -4636,58 +4633,106 @@
         // ─── Gift System ───
         const giftList = [
             {name:'Amber Adder',img:'Gifts/Amber Adder.png',price:475},
+            {name:'Citrone',img:'Gifts/Citrone.png',price:519},
             {name:'Amethyst',img:'Gifts/Amethyst.png',price:525},
             {name:'Anniversary',img:'Gifts/Anniversary.png',price:545},
             {name:'Albino',img:'Gifts/Albino.png',price:550},
+            {name:'Chuckle Crown',img:'Gifts/Chuckle Crown.png',price:559},
             {name:'Absinthe',img:'Gifts/Absinthe.png',price:575},
             {name:'Azurite',img:'Gifts/Azurite.png',price:575},
             {name:'Be Awesome!',img:'Gifts/Be Awesome!.png',price:575},
             {name:'Baked Logo',img:'Gifts/Baked Logo.png',price:578},
             {name:'Backyard',img:'Gifts/Backyard.png',price:579},
+            {name:'Bronze Age',img:'Gifts/Bronze Age.png',price:583},
+            {name:'Carrot Cake',img:'Gifts/Carrot Cake.png',price:583},
+            {name:'Cheesecake',img:'Gifts/Cheesecake.png',price:583},
+            {name:'Choco Chips',img:'Gifts/Choco Chips.png',price:583},
+            {name:'Citrus',img:'Gifts/Citrus.png',price:583},
+            {name:'Citrus Fresh',img:'Gifts/Citrus Fresh.png',price:584},
+            {name:'Court Jester',img:'Gifts/Court Jester.png',price:584},
+            {name:'Dark Cherry',img:'Gifts/Dark Cherry.png',price:584},
+            {name:'Bronze',img:'Gifts/Bronze.png',price:585},
+            {name:'Cyber Ruby',img:'Gifts/Cyber Ruby.png',price:585},
+            {name:'Black Ink',img:'Gifts/Black Ink.png',price:599},
+            {name:'Canceled',img:'Gifts/Canceled.png',price:647},
             {name:'Adam',img:'Gifts/Adam.png',price:650},
             {name:'Blue Beam',img:'Gifts/Blue Beam.png',price:650},
+            {name:'Candyman',img:'Gifts/Candyman.png',price:667},
             {name:'Apple Fresh',img:'Gifts/Apple Fresh.png',price:684},
             {name:'Alpine Fern',img:'Gifts/Alpine Fern.png',price:707},
+            {name:'Cycloppy',img:'Gifts/Cycloppy.png',price:713},
             {name:'Angry Ghost',img:'Gifts/Angry Ghost.png',price:743},
             {name:'Chamomile',img:'Gifts/Chamomile.png',price:784},
             {name:'Affection',img:'Gifts/Affection.png',price:814},
             {name:'Arlequin',img:'Gifts/Arlequin.png',price:821},
             {name:'Anno Domini',img:'Gifts/Anno Domini.png',price:825},
             {name:'Blue Steel',img:'Gifts/Blue Steel.png',price:825},
+            {name:'April Fools',img:'Gifts/April Fools.png',price:833},
+            {name:'Dark Secret',img:'Gifts/Dark Secret.png',price:833},
+            {name:'Berry Button',img:'Gifts/Berry Button.png',price:835},
             {name:'8 Ball',img:'Gifts/8 Ball.png',price:867},
+            {name:'Brand New',img:'Gifts/Brand New.png',price:875},
+            {name:'Berryllium',img:'Gifts/Berryllium.png',price:949},
             {name:'Antique',img:'Gifts/Antique.png',price:978},
             {name:'Barbie',img:'Gifts/Barbie.png',price:987},
             {name:'Carambola',img:'Gifts/Carambola.png',price:1030},
-            {name:'Amphibian',img:'Gifts/Amphibian.png',price:1069},
+            {name:'Cone of Cold',img:'Gifts/Cone of Cold.png',price:1054},
             {name:'Azalea',img:'Gifts/Azalea.png',price:1066},
+            {name:'Amphibian',img:'Gifts/Amphibian.png',price:1069},
             {name:'Alpha',img:'Gifts/Alpha.png',price:1147},
             {name:'Anatomy',img:'Gifts/Anatomy.png',price:1173},
+            {name:'Bronze',img:'Gifts/Bronze.png',price:1200},
+            {name:'Butterfly Tie',img:'Gifts/Butterfly Tie.png',price:1248},
+            {name:'Balloon Face',img:'Gifts/Balloon Face.png',price:1250},
             {name:'Berry Blaster',img:'Gifts/Berry Blaster.png',price:1400},
             {name:'Amanita',img:'Gifts/Amanita.png',price:1403},
+            {name:'Butterflight',img:'Gifts/Butterflight.png',price:1416},
             {name:'Acid Trip',img:'Gifts/Acid Trip.png',price:1441},
+            {name:'Crash Test',img:'Gifts/Crash Test.png',price:1498},
+            {name:'Gouda Wax',img:'Gifts/Gouda Wax.png',price:1579},
             {name:'Bee Movie',img:'Gifts/Bee Movie.png',price:1632},
+            {name:'Astro Bot',img:'Gifts/Astro Bot.png',price:1667},
             {name:'Billiard',img:'Gifts/Billiard.png',price:1755},
             {name:'Afterglow',img:'Gifts/Afterglow.png',price:1807},
             {name:'Alien Script',img:'Gifts/Alien Script.png',price:1888},
             {name:'Alchemy',img:'Gifts/Alchemy.png',price:2040},
+            {name:'Bubble Bath',img:'Gifts/Bubble Bath.png',price:2333},
             {name:'Amortentia',img:'Gifts/Amortentia.png',price:2452},
             {name:'Abyss Heart',img:'Gifts/Abyss Heart.png',price:2454},
+            {name:'Black Hole',img:'Gifts/Black Hole.png',price:2779},
             {name:'Airy Souffle',img:'Gifts/Airy Souffle.png',price:3186},
             {name:'Aqua Gem',img:'Gifts/Aqua Gem.png',price:3244},
             {name:'Aquaviolet',img:'Gifts/Aquaviolet.png',price:3285},
+            {name:'Disco',img:'Gifts/Disco.png',price:3329},
+            {name:'Candy Cane',img:'Gifts/Candy Cane.png',price:3334},
             {name:'3D Glow',img:'Gifts/3D Glow.png',price:3715},
             {name:'Creepy Po',img:'Gifts/Creepy Po.png',price:4273},
             {name:'Banana Pox',img:'Gifts/Banana Pox.png',price:5255},
+            {name:'Cruella',img:'Gifts/Cruella.png',price:5567},
+            {name:'Blue Neon',img:'Gifts/Blue Neon.png',price:5582},
+            {name:'Cheshire Cat',img:'Gifts/Cheshire Cat.png',price:6264},
             {name:'Baller',img:'Gifts/Baller.png',price:6273},
+            {name:'Frogtart',img:'Gifts/Frogtart.png',price:7097},
+            {name:'Cartoon Sky',img:'Gifts/Cartoon Sky.png',price:9277},
+            {name:'Cartoon',img:'Gifts/Cartoon.png',price:10016},
+            {name:'Mad Magenta',img:'Gifts/Mad Magenta.png',price:10024},
             {name:'Amazon',img:'Gifts/Amazon.png',price:10265},
             {name:'Adult Tasks',img:'Gifts/Adult Tasks.png',price:10731},
             {name:'Aurora Joy',img:'Gifts/Aurora Joy.png',price:11419},
             {name:'Angry Amethyst',img:'Gifts/Angry Amethyst.png',price:11498},
+            {name:'Brainiac',img:'Gifts/Brainiac.png',price:12531},
             {name:'Agent Orange',img:'Gifts/Agent Orange.png',price:16343},
             {name:'Boingo',img:'Gifts/Boingo.png',price:18089},
+            {name:'Creeper',img:'Gifts/Creeper.png',price:18806},
+            {name:'Bogartite',img:'Gifts/Bogartite.png',price:24445},
             {name:'Academic',img:'Gifts/Academic.png',price:24666},
+            {name:'Barbed',img:'Gifts/Barbed.png',price:27471},
+            {name:'Cozy Warmth',img:'Gifts/Cozy Warmth.png',price:39284},
+            {name:'Brewtoad',img:'Gifts/Brewtoad.png',price:41735},
             {name:'Ardente',img:'Gifts/Ardente.png',price:48395},
-            {name:'Action Film',img:'Gifts/Action Film.png',price:145452}
+            {name:'Liberty',img:'Gifts/Liberty.png',price:50111},
+            {name:'Bluebird',img:'Gifts/Bluebird.png',price:92573},
+            {name:'Action Film',img:'Gifts/Action Film.png',price:145452},
         ];
         const giftCatalogMap = new Map(giftList.map(g => [String(g.name) + '||' + String(g.img), true]));
         let currentGiftIdx = -1, wonGift = null, inventory = [];
@@ -4807,6 +4852,7 @@
                 if (result?.ok) {
                     setBalance(result.balance || 0, { persist: false, cache: true });
                     m.classList.remove('show');
+                    m._gift = null; m._win = 0; m._roundId = null;
                 } else {
                     alert('Не удалось продать награду');
                 }
@@ -4840,6 +4886,7 @@
                 }
                 const existingRow = document.querySelector('[data-bet-key="' + escapeHtml(myKey) + '"]');
                 if (existingRow) existingRow.remove();
+                m._gift = null; m._win = 0; m._roundId = null;
                 if (savedItem) {
                     const alreadyExists = inventory.some(inv => inv && inv.id && String(inv.id) === String(savedItem.id));
                     if (!alreadyExists) {
@@ -4886,16 +4933,27 @@
             const itemsToSell = inventory.map(sanitizeInventoryItem).filter(it => it && it.id);
             if (!itemsToSell.length) return;
 
-            // Мгновенный UI — всё удаляем локально сразу
+            const prevBalance = getBalance();
+            const prevInventory = inventory.slice();
             const total = itemsToSell.reduce((s, it) => s + it.price, 0);
-            setBalance(getBalance() + total, { immediate: true });
+
+            setBalance(prevBalance + total, { immediate: true });
             inventory = [];
             renderInventory();
 
-            // БД — в фоне, параллельно
-            Promise.all(itemsToSell.map(it => dbRemoveInvItem(it.id)))
-                .then(() => refreshInventoryFromDB())
-                .catch(() => refreshInventoryFromDB());
+            try {
+                const results = await Promise.all(itemsToSell.map(it => dbRemoveInvItem(it.id)));
+                if (results.some(ok => !ok)) throw new Error('SELL_ALL_FAILED');
+                await refreshBalanceFromDB();
+            } catch (e) {
+                console.error('sellAllInventory failed', e);
+                inventory = prevInventory;
+                setBalance(prevBalance, { immediate: true });
+                renderInventory();
+                await refreshInventoryFromDB();
+                await refreshBalanceFromDB();
+                alert('Не удалось продать часть подарков');
+            }
         }
 
         function renderInventory() {
@@ -4952,19 +5010,28 @@
         }
         async function sellInvItem(i) {
             const it = sanitizeInventoryItem(inventory[i]);
-            if (!it || !it.id) { refreshInventoryFromDB(); return; }
+            if (!it || !it.id) { await refreshInventoryFromDB(); return; }
 
-            // Мгновенный UI
-            setBalance(getBalance() + it.price, { immediate: true });
+            const prevBalance = getBalance();
+            const prevInventory = inventory.slice();
+
+            setBalance(prevBalance + it.price, { immediate: true });
             inventory.splice(i, 1);
             renderInventory();
 
-            // БД в фоне — без refreshInventoryFromDB чтобы не перерисовывать
-            dbRemoveInvItem(it.id).catch(async () => {
-                // Откат при ошибке
-                setBalance(getBalance() - (it.price || 0), { immediate: true });
+            try {
+                const ok = await dbRemoveInvItem(it.id);
+                if (!ok) throw new Error('SELL_ITEM_FAILED');
+                await refreshBalanceFromDB();
+            } catch (e) {
+                console.error('sellInvItem failed', e);
+                inventory = prevInventory;
+                setBalance(prevBalance, { immediate: true });
+                renderInventory();
                 await refreshInventoryFromDB();
-            });
+                await refreshBalanceFromDB();
+                alert('Не удалось продать подарок');
+            }
         }
 
         // ─── Bet Menu ───
