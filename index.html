@@ -7,7 +7,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script>
-        window.BACKEND_URL = "";
+        window.BACKEND_URL = "https://server-gift--cizzrustex.replit.app";
     </script>
     <style>
         * {
@@ -5023,13 +5023,7 @@
 
             _buyStarsLock = true;
 
-            const toast = document.createElement('div');
-            toast.style.cssText = 'position:fixed;bottom:130px;left:50%;transform:translateX(-50%);' +
-                'background:rgba(28,28,46,0.96);border:1px solid rgba(255,255,255,0.1);' +
-                'border-radius:14px;padding:11px 20px;color:#fff;font-size:14px;font-weight:600;' +
-                'z-index:9999;backdrop-filter:blur(14px);white-space:nowrap;';
-            toast.textContent = '⏳ Создаём счёт...';
-            document.body.appendChild(toast);
+            const toast = null;
 
             try {
                 const created = await apiRequest('/api/payments/create-invoice', { body: { amount: safeAmount } });
