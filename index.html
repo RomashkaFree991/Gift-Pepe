@@ -3408,6 +3408,7 @@
         const WAIT_MS = 10000;
         const PAUSE_MS = 3000;
         const CRASH_HOLD_MS = 2800;
+        const CRASH_HIST_CACHE_KEY = 'giftpepe_crash_history_v2';
         const SPEED = 0.00018;
         const POLL_MS = 2000;
         // COUNTDOWN_SMOOTH_MS removed to fix double-10 bug
@@ -3750,7 +3751,7 @@
                 pendingFreshRoundVisual = false;
                 currentRound = round;
                 if (forceReloadBets && crashBetsState.size === 0) {
-                    await loadBets(round.id);
+                    loadBets(round.id).catch(() => {});
                 }
                 if (!betsSub) subBets(round.id);
                 if (!gameLoop) {
@@ -3776,11 +3777,11 @@
             // Сразу ставим активную пилюлю «Ожидание» в историю —
             // даже если COUNTDOWN уже прошёл, пилюля будет хотя бы на миг
             setActiveHist('Ожидание');
-            await loadBets(round.id);
             subBets(round.id);
             crashShown = false;
             lastCountNum = -1;
             runLoop();
+            loadBets(round.id).catch(() => {});
         }
 
         function subRounds() {
@@ -3896,29 +3897,95 @@
         }
 
         // ─── History UI ───
-        function addHist(text, cls) {
+        function getCrashHistoryTextsFromDom() {
             const h = document.getElementById('crashHistory');
-            // Не добавляем дубль если первый элемент уже такой же
-            const first = h.querySelector('.crash-history-item.past');
-            if (first && first.textContent === text) return;
-            const e = document.createElement('div');
-            e.className = 'crash-history-item ' + cls + ' new-entry';
-            e.textContent = text;
-            // Убираем new-entry после анимации
-            e.addEventListener('animationend', () => e.classList.remove('new-entry'), { once: true });
-            h.insertBefore(e, h.firstChild);
-            while (h.children.length > 8) h.removeChild(h.lastChild);
+            if (!h) return [];
+            return Array.from(h.querySelectorAll('.crash-history-item.past'))
+                .map(el => String(el.textContent || '').trim())
+                .filter(Boolean)
+                .slice(0, 8);
+        }
+
+        function saveCrashHistoryCache(texts) {
+            try {
+                const safe = (Array.isArray(texts) ? texts : [])
+                    .map(v => String(v || '').trim())
+                    .filter(Boolean)
+                    .slice(0, 8);
+                localStorage.setItem(CRASH_HIST_CACHE_KEY, JSON.stringify(safe));
+            } catch (e) {}
+        }
+
+        function getCrashHistoryCache() {
+            try {
+                const raw = localStorage.getItem(CRASH_HIST_CACHE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed)
+                    ? parsed.map(v => String(v || '').trim()).filter(Boolean).slice(0, 8)
+                    : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function renderCrashHistoryPast(texts) {
+            const h = document.getElementById('crashHistory');
+            if (!h) return;
+
+            const safeTexts = (Array.isArray(texts) ? texts : [])
+                .map(v => String(v || '').trim())
+                .filter(Boolean)
+                .slice(0, 8);
+
+            const existing = getCrashHistoryTextsFromDom();
+            let active = h.querySelector('.crash-history-item.active');
+
+            if (JSON.stringify(existing) === JSON.stringify(safeTexts)) {
+                if (active && h.firstChild !== active) h.insertBefore(active, h.firstChild);
+                return;
+            }
+
+            Array.from(h.querySelectorAll('.crash-history-item.past')).forEach(el => el.remove());
+
+            if (active && h.firstChild !== active) h.insertBefore(active, h.firstChild);
+
+            const anchor = active ? active.nextSibling : null;
+            safeTexts.forEach(text => {
+                const e = document.createElement('div');
+                e.className = 'crash-history-item past';
+                e.textContent = text;
+                h.insertBefore(e, anchor);
+            });
+
+            saveCrashHistoryCache(safeTexts);
+        }
+
+        function addHist(text, cls) {
+            if (cls !== 'past') return;
+            const safeText = String(text || '').trim();
+            if (!safeText) return;
+
+            const next = [safeText, ...getCrashHistoryTextsFromDom().filter(item => item !== safeText)].slice(0, 8);
+            renderCrashHistoryPast(next);
+
+            const h = document.getElementById('crashHistory');
+            const firstPast = h ? h.querySelector('.crash-history-item.past') : null;
+            if (firstPast) {
+                firstPast.classList.add('new-entry');
+                firstPast.addEventListener('animationend', () => firstPast.classList.remove('new-entry'), { once: true });
+            }
         }
 
         function setActiveHist(text) {
-            let a = document.querySelector('.crash-history-item.active');
+            const h = document.getElementById('crashHistory');
+            if (!h) return;
+            let a = h.querySelector('.crash-history-item.active');
             if (!a) {
-                const h = document.getElementById('crashHistory');
                 a = document.createElement('div');
                 a.className = 'crash-history-item active';
-                h.insertBefore(a, h.firstChild);
             }
             a.textContent = text;
+            if (h.firstChild !== a) h.insertBefore(a, h.firstChild);
         }
 
         function rmActiveHist() {
@@ -3934,49 +4001,16 @@
                 .order('created_at', { ascending: false })
                 .limit(8);
 
-            if (error) { console.error('loadHist failed', error); return; }
-            if (!data || !data.length) return;
-
-            const h = document.getElementById('crashHistory');
-            // Строим новый список текстов (новейшие сначала)
-            const newTexts = data.map(r => Number(r.target_multiplier || 1).toFixed(2) + 'x');
-
-            // Текущие элементы (только past, без active)
-            const existing = Array.from(h.querySelectorAll('.crash-history-item.past'))
-                                  .map(el => el.textContent);
-
-            // Если новые данные те же — ничего не делаем (нет дёргания)
-            if (JSON.stringify(newTexts) === JSON.stringify(existing)) return;
-
-            // Иначе — плавно перерисовываем только diff: добавляем новые элементы в начало
-            // вместо сброса innerHTML
-            const toAdd = [];
-            for (const text of newTexts) {
-                if (!existing.includes(text)) toAdd.push(text);
-                else break; // дошли до совпадающего — дальше всё то же
+            if (error) {
+                console.error('loadHist failed', error);
+                return;
             }
 
-            if (toAdd.length > 0 && existing.length > 0) {
-                // Добавляем только новые (от старого к новому)
-                toAdd.reverse().forEach(text => addHist(text, 'past'));
-                // Обрезаем лишние с конца
-                while (h.querySelectorAll('.crash-history-item.past').length > 8) {
-                    const items = h.querySelectorAll('.crash-history-item.past');
-                    items[items.length - 1].remove();
-                }
-            } else {
-                // Полная перерисовка (начало сессии или большое расхождение)
-                // Сохраняем active-элемент
-                const activeEl = h.querySelector('.crash-history-item.active');
-                h.innerHTML = '';
-                if (activeEl) h.appendChild(activeEl);
-                newTexts.slice().reverse().forEach(text => {
-                    const e = document.createElement('div');
-                    e.className = 'crash-history-item past';
-                    e.textContent = text;
-                    h.insertBefore(e, h.firstChild);
-                });
-            }
+            const texts = Array.isArray(data)
+                ? data.map(r => Number(r.target_multiplier || 1).toFixed(2) + 'x')
+                : [];
+
+            renderCrashHistoryPast(texts);
         }
 
         function deriveGiftForAmount(amount) {
@@ -4300,7 +4334,12 @@
         // ═══════════════════════════════════════
         async function initCrash() {
             if (!crashActive) return;
-            hideAll(); resetBet();
+            hideAll();
+            resetBet();
+
+            const cachedHist = getCrashHistoryCache();
+            if (cachedHist.length) renderCrashHistoryPast(cachedHist);
+            if (!currentRound) setActiveHist('Ожидание');
 
             const btn = document.getElementById('crashBetBtn');
             // Показываем "Подключение..." только если авторизации ещё нет
@@ -4326,20 +4365,16 @@
                 return;
             }
 
-            // syncClock кешируется — делаем не чаще раза в 5 минут
+            // Не тормозим вход в игру ожиданием истории/часов — догружаем это в фоне.
             const now5 = Date.now();
             if (!window._lastClockSync || now5 - window._lastClockSync > 5 * 60 * 1000) {
-                await syncClock();
-                window._lastClockSync = Date.now();
-            }
-
-            // loadHist только если DOM истории пуст
-            const histEl = document.getElementById('crashHistory');
-            if (!histEl || histEl.children.length === 0) {
-                await loadHist();
+                syncClock()
+                    .then(() => { window._lastClockSync = Date.now(); })
+                    .catch(() => {});
             }
 
             if (!roundsSub) subRounds();
+            loadHist().catch(() => {});
             await syncCrashRound(true);
 
             // Poll для резервной синхронизации
