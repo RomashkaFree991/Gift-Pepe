@@ -2157,6 +2157,8 @@
         }
 
         .topup-box {
+            position: relative;
+            overflow: hidden;
             background-color: #1a1a2e;
             background-image: url('background_pepe.png');
             background-size: cover;
@@ -2206,6 +2208,137 @@
             width: 18px;
             height: 18px;
             pointer-events: auto;
+        }
+
+        .topup-history-btn {
+            position: absolute;
+            left: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(35, 35, 40, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .topup-history-btn img {
+            width: 18px;
+            height: 18px;
+            filter: brightness(0) invert(1);
+            opacity: 0.92;
+        }
+
+        .topup-history-panel {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 64px;
+            bottom: 0;
+            z-index: 2;
+            background: rgba(17, 18, 27, 0.96);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            padding: 14px 18px 28px;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.22s ease, visibility 0.22s ease;
+        }
+
+        .topup-history-panel.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .topup-history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: calc(75vh - 110px);
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .topup-history-empty {
+            min-height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: rgba(255,255,255,0.72);
+            font-size: 14px;
+            padding: 24px 18px;
+        }
+
+        .topup-history-item {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .topup-history-main {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .topup-history-amount {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #fff;
+            font-size: 17px;
+            font-weight: 800;
+        }
+
+        .topup-history-amount img {
+            width: 18px;
+            height: 18px;
+        }
+
+        .topup-history-date {
+            color: rgba(255,255,255,0.62);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .topup-history-status {
+            flex-shrink: 0;
+            border-radius: 999px;
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(255,255,255,0.10);
+        }
+
+        .topup-history-status.paid {
+            background: rgba(52, 199, 89, 0.18);
+            color: #7dff9f;
+        }
+
+        .topup-history-status.pending,
+        .topup-history-status.invoice_created {
+            background: rgba(255, 204, 0, 0.16);
+            color: #ffd85e;
+        }
+
+        .topup-history-status.failed,
+        .topup-history-status.cancelled,
+        .topup-history-status.error {
+            background: rgba(255, 69, 58, 0.16);
+            color: #ff8d86;
         }
 
         .topup-grid {
@@ -3015,12 +3148,18 @@
     <div class="topup-menu" id="topupMenu">
         <div class="topup-box">
             <div class="topup-header">
+                <button class="topup-history-btn" type="button" onclick="toggleTopupHistory()">
+                    <img src="history.svg" alt="history">
+                </button>
                 <span class="topup-title" id="topupTitleEl">Пополнение</span>
                 <div class="topup-close" onclick="closeTopup()">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round"/>
                     </svg>
                 </div>
+            </div>
+            <div class="topup-history-panel" id="topupHistoryPanel">
+                <div class="topup-history-list" id="topupHistoryList"></div>
             </div>
             <div class="topup-grid">
                 <div class="topup-item" onclick="buyStars(10)"><img src="star.png" alt=""><span>10</span></div>
@@ -4142,7 +4281,7 @@
                 sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', staleIds).then(() => {});
             }
             if (extraIds.length) {
-                sb.from('crash_rounds').update({ status: 'crashed', crash_time: nowIso }).in('id', extraIds).then(() => {});
+                sb.from('crash_rounds').update({ status: 'aborted', abort_reason: 'extra_active_round' }).in('id', extraIds).then(() => {});
             }
         }
         function pickCurrentCrashRound(rounds, preferredRound, opts = {}) {
@@ -4213,12 +4352,27 @@
                 return Array.isArray(data) ? data : [];
             }
 
-            async function crashRows(rowsToCrash) {
-                const ids = (Array.isArray(rowsToCrash) ? rowsToCrash : []).map(r => r && r.id).filter(id => id !== undefined && id !== null);
-                if (!ids.length) return;
-                await sb.from('crash_rounds')
-                    .update({ status: 'crashed', crash_time: new Date(srvNow()).toISOString() })
-                    .in('id', ids);
+            async function finalizeRows(rowsToFinalize) {
+                const safeRows = Array.isArray(rowsToFinalize) ? rowsToFinalize.filter(Boolean) : [];
+                if (!safeRows.length) return;
+                const now = srvNow();
+                const staleIds = [];
+                const liveIds = [];
+                safeRows.forEach(row => {
+                    const times = getActualRoundTimes(row);
+                    if (times.nextAt <= now - 250) staleIds.push(row.id);
+                    else liveIds.push(row.id);
+                });
+                if (staleIds.length) {
+                    await sb.from('crash_rounds')
+                        .update({ status: 'crashed', crash_time: new Date(now).toISOString() })
+                        .in('id', staleIds);
+                }
+                if (liveIds.length) {
+                    await sb.from('crash_rounds')
+                        .update({ status: 'aborted', abort_reason: 'fresh_round_recovery' })
+                        .in('id', liveIds);
+                }
             }
 
             let rows = await readActiveRows();
@@ -4233,7 +4387,7 @@
             if (rows.length && requireFreshCountdown) {
                 const blockingRows = rows.filter(row => isRoundStillAlive(row, 250));
                 if (blockingRows.length) {
-                    await crashRows(blockingRows);
+                    await finalizeRows(blockingRows);
                     rows = await readActiveRows();
                     if (rows === null) return null;
                 }
@@ -4245,7 +4399,7 @@
             }
 
             if (rows.length) {
-                await crashRows(rows);
+                await finalizeRows(rows);
             }
 
             if (!ensure) return null;
@@ -4273,7 +4427,7 @@
 
                 if (attempt < 2) {
                     const activeRows = rows.filter(row => isRoundStillAlive(row, 250));
-                    if (activeRows.length) await crashRows(activeRows);
+                    if (activeRows.length) await finalizeRows(activeRows);
                     await new Promise(resolve => setTimeout(resolve, 180));
                 }
             }
@@ -6075,6 +6229,123 @@
 
         // ─── Top-up via Telegram Stars ───
         let _buyStarsLock = false;
+        let topupHistoryLoading = false;
+
+        function formatTopupHistoryDate(value) {
+            if (!value) return 'Без даты';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return 'Без даты';
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function topupStatusLabel(status) {
+            const map = {
+                paid: 'Оплачено',
+                pending: 'Ожидание',
+                invoice_created: 'Счёт создан',
+                failed: 'Ошибка',
+                cancelled: 'Отменено',
+                error: 'Ошибка'
+            };
+            return map[String(status || '').toLowerCase()] || 'Ожидание';
+        }
+
+        function renderTopupHistory(items) {
+            const list = document.getElementById('topupHistoryList');
+            if (!list) return;
+            const rows = Array.isArray(items) ? items : [];
+            if (!rows.length) {
+                list.innerHTML = '<div class="topup-history-empty">История оплат пока пуста</div>';
+                return;
+            }
+            list.innerHTML = rows.map(row => {
+                const amount = Math.max(0, parseInt(row && row.amount, 10) || 0);
+                const status = String((row && row.status) || 'pending').toLowerCase();
+                const dateValue = row && (row.paid_at || row.updated_at || row.created_at);
+                return '<div class="topup-history-item">' +
+                    '<div class="topup-history-main">' +
+                        '<div class="topup-history-amount"><img src="star.png" alt="">' + amount + '</div>' +
+                        '<div class="topup-history-date">' + escapeHtml(formatTopupHistoryDate(dateValue)) + '</div>' +
+                    '</div>' +
+                    '<div class="topup-history-status ' + escapeHtml(status) + '">' + escapeHtml(topupStatusLabel(status)) + '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        async function loadTopupHistory(force = false) {
+            if (!sb || topupHistoryLoading) return;
+            const list = document.getElementById('topupHistoryList');
+            if (!list) return;
+            topupHistoryLoading = true;
+            if (force || !list.innerHTML.trim()) {
+                list.innerHTML = '<div class="topup-history-empty">Загрузка истории оплат...</div>';
+            }
+            try {
+                const { data, error } = await sb.from('topups')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(30);
+                if (error) throw error;
+                renderTopupHistory(data || []);
+            } catch (e) {
+                console.error('loadTopupHistory error', e);
+                list.innerHTML = '<div class="topup-history-empty">Не удалось загрузить историю оплат</div>';
+            } finally {
+                topupHistoryLoading = false;
+            }
+        }
+
+        function openTopupHistory() {
+            const panel = document.getElementById('topupHistoryPanel');
+            if (!panel) return;
+            panel.classList.add('show');
+            loadTopupHistory(true).catch(() => {});
+        }
+
+        function closeTopupHistory() {
+            document.getElementById('topupHistoryPanel')?.classList.remove('show');
+        }
+
+        function toggleTopupHistory() {
+            const panel = document.getElementById('topupHistoryPanel');
+            if (!panel) return;
+            if (panel.classList.contains('show')) {
+                closeTopupHistory();
+                return;
+            }
+            openTopupHistory();
+        }
+
+        async function confirmTopupWithRetries(topupKey, amount) {
+            let settled = null;
+            for (let attempt = 0; attempt < 5; attempt++) {
+                try {
+                    settled = await apiRequest('/api/payments/confirm', { body: { topupKey } });
+                } catch (e) {
+                    console.error('payment confirm failed', e);
+                }
+                if (settled?.ok) {
+                    setBalance(settled.balance || 0, { persist: false, cache: true });
+                    await refreshBalanceFromDB();
+                    await refreshTopLeaderboard(true);
+                    await loadTopupHistory(true);
+                    refreshReferralStats();
+                    showClaimToast(true, amount, '✅ Баланс пополнен');
+                    return true;
+                }
+                await refreshBalanceFromDB();
+                await refreshTopLeaderboard(true);
+                await loadTopupHistory(true);
+                await new Promise(resolve => setTimeout(resolve, 1400));
+            }
+            return false;
+        }
 
         async function buyStars(amount) {
             const safeAmount = Math.max(1, parseInt(amount, 10) || 0);
@@ -6085,11 +6356,8 @@
 
             _buyStarsLock = true;
 
-            const toast = null;
-
             try {
                 const created = await apiRequest('/api/payments/create-invoice', { body: { amount: safeAmount } });
-                try { toast.remove(); } catch (_) {}
 
                 if (!created?.ok || !created.invoiceUrl) {
                     alert('Не удалось создать счёт');
@@ -6098,40 +6366,36 @@
                 }
 
                 tg.openInvoice(created.invoiceUrl, async (status) => {
-                    if (status === 'paid') {
-                        try {
-                            const settled = await apiRequest('/api/payments/confirm', { body: { topupKey: created.topupKey } });
-                            if (settled?.ok) {
-                                setBalance(settled.balance || 0, { persist: false, cache: true });
-                                refreshReferralStats();
-                                refreshTopLeaderboard(true);
-                                showClaimToast(true, safeAmount, '✅ Баланс пополнен');
-                            } else {
-                                await refreshBalanceFromDB();
-                                await refreshTopLeaderboard(true);
-                                showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
+                    try {
+                        if (status === 'paid') {
+                            const confirmed = await confirmTopupWithRetries(created.topupKey, safeAmount);
+                            if (!confirmed) {
+                                showClaimToast(false, 0, 'Платёж принят, но баланс ещё обновляется');
                             }
-                        } catch (e) {
-                            console.error('payment confirm failed', e);
-                            await refreshBalanceFromDB();
-                            await refreshTopLeaderboard(true);
-                            showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
+                        } else if (status === 'failed') {
+                            showClaimToast(false, 0, 'Платёж не прошёл');
                         }
-                    } else if (status === 'failed') {
-                        showClaimToast(false, 0, 'Платёж не прошёл');
+                    } finally {
+                        _buyStarsLock = false;
                     }
-                    _buyStarsLock = false;
                 });
             } catch (e) {
-                try { toast.remove(); } catch(_) {}
                 _buyStarsLock = false;
                 console.error('buyStars error', e);
                 alert('Ошибка: ' + (e.message || 'проверьте соединение'));
             }
         }
 
-        function openTopup() { document.getElementById('topupMenu').classList.add('show'); document.getElementById('topupOverlay').classList.add('show'); }
-        function closeTopup() { document.getElementById('topupMenu').classList.remove('show'); document.getElementById('topupOverlay').classList.remove('show'); }
+        function openTopup() {
+            closeTopupHistory();
+            document.getElementById('topupMenu').classList.add('show');
+            document.getElementById('topupOverlay').classList.add('show');
+        }
+        function closeTopup() {
+            closeTopupHistory();
+            document.getElementById('topupMenu').classList.remove('show');
+            document.getElementById('topupOverlay').classList.remove('show');
+        }
 
         // ═══════════════════════════════════════════════════
         // ─── ADMIN PANEL ────────────────────────────────────
