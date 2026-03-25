@@ -879,7 +879,7 @@
         .craft-slot {
             position: relative;
             width: 100%;
-            min-height: 92px;
+            min-height: 86px;
             border-radius: 18px;
             background: rgba(255,255,255,0.01);
             border: 1px solid rgba(255,255,255,0.10);
@@ -887,7 +887,7 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 8px 5px;
+            padding: 7px 6px;
             color: rgba(255,255,255,0.42);
             font-size: 12px;
             font-weight: 600;
@@ -903,12 +903,12 @@
         }
 
         .craft-slot.filled {
-            padding: 8px 5px 7px;
+            padding: 7px 6px 6px;
             color: #fff;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            gap: 4px;
+            gap: 3px;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
         }
@@ -929,8 +929,8 @@
         }
 
         .craft-slot-img {
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             object-fit: contain;
             display: block;
             flex: 0 0 auto;
@@ -938,17 +938,17 @@
 
         .craft-slot-name {
             width: 100%;
-            font-size: 9px;
+            font-size: 9.5px;
             font-weight: 700;
             line-height: 1.05;
-            color: rgba(255,255,255,0.90);
+            color: rgba(255,255,255,0.92);
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
             text-overflow: ellipsis;
             word-break: break-word;
-            min-height: 18px;
+            min-height: 20px;
         }
 
         .craft-slot-price {
@@ -956,15 +956,15 @@
             align-items: center;
             justify-content: center;
             gap: 3px;
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 800;
             color: #fff;
             line-height: 1;
         }
 
         .craft-slot-price img {
-            width: 11px;
-            height: 11px;
+            width: 12px;
+            height: 12px;
             display: block;
             position: relative;
             top: -1px;
@@ -1203,11 +1203,11 @@
         }
 
         .craft-sheet-item img {
-            width: 66px;
-            height: 66px;
+            width: 82px;
+            height: 82px;
             object-fit: contain;
             display: block;
-            margin-top: 2px;
+            margin-top: 0;
         }
 
         .craft-sheet-item-name {
@@ -1236,14 +1236,14 @@
         }
 
         .craft-sheet-item-price img {
-            width: 14px !important;
-            height: 14px !important;
-            min-width: 14px;
-            min-height: 14px;
-            flex: 0 0 14px;
+            width: 16px !important;
+            height: 16px !important;
+            min-width: 16px;
+            min-height: 16px;
+            flex: 0 0 16px;
             margin-top: 0;
             position: relative;
-            top: -2px;
+            top: -4px;
         }
 
         .craft-sheet-item-badge {
@@ -1373,7 +1373,7 @@
 
         .crash-back {
             position: absolute;
-            top: calc(154px + env(safe-area-inset-top, 0px));
+            top: calc(144px + env(safe-area-inset-top, 0px));
             left: 16px;
             display: inline-flex;
             align-items: center;
@@ -3980,7 +3980,10 @@
             } catch (e) {
                 console.error('refreshInventoryFromDB failed', e);
             }
+            reconcileCraftSelection();
             renderInventory();
+            renderCraftUI();
+            renderCraftInventorySheet();
             return inventory;
         }
 
@@ -4327,9 +4330,13 @@
 
         let _syncRetryTimer = null;
         let _syncFailCount = 0;
+        let crashRoundSyncBusy = false;
 
         async function syncCrashRound(forceReloadBets) {
             if (!crashActive || !sb) return;
+            if (crashRoundSyncBusy) return;
+            crashRoundSyncBusy = true;
+            try {
 
             const now = srvNow();
             const currentTimes = currentRound ? getRoundTimes(currentRound) : null;
@@ -4402,7 +4409,7 @@
                 return;
             }
 
-            if (pendingFreshRoundVisual && getActualRoundTimes(round).gameStart > srvNow() - 250) {
+            if (pendingFreshRoundVisual && isFreshCountdownRound(round)) {
                 startRoundCountdownFromNow(round);
             }
             pendingFreshRoundVisual = false;
@@ -4417,6 +4424,9 @@
             lastCountNum = -1;
             runLoop();
             loadBets(round.id).catch(() => {});
+            } finally {
+                crashRoundSyncBusy = false;
+            }
         }
 
         function subRounds() {
@@ -4441,6 +4451,60 @@
         let craftSelectedGifts = [];
         let craftSheetSelectedIds = [];
         let craftAnimatedGiftKeys = [];
+        const CRAFT_STORAGE_PREFIX = 'giftpepe_craft_selection_';
+
+        function craftSelectionStorageKey(uid = myUserId) {
+            return uid ? (CRAFT_STORAGE_PREFIX + String(uid)) : '';
+        }
+
+        function persistCraftSelection() {
+            try {
+                const key = craftSelectionStorageKey();
+                if (!key) return;
+                const safe = craftSelectedGifts
+                    .map(sanitizeInventoryItem)
+                    .filter(Boolean)
+                    .slice(0, 10)
+                    .map(item => ({ id: item.id ?? null, name: item.name, img: item.img, price: item.price }));
+                localStorage.setItem(key, JSON.stringify(safe));
+            } catch (e) {}
+        }
+
+        function restoreCraftSelection(uid = myUserId) {
+            try {
+                const key = craftSelectionStorageKey(uid);
+                if (!key) return [];
+                const raw = localStorage.getItem(key);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed.map(sanitizeInventoryItem).filter(Boolean).slice(0, 10) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function reconcileCraftSelection() {
+            const saved = restoreCraftSelection();
+            const invById = new Map();
+            const invByPair = new Map();
+            inventory.map(sanitizeInventoryItem).filter(Boolean).forEach(item => {
+                if (item.id != null) invById.set(String(item.id), item);
+                invByPair.set(String(item.name) + '||' + String(item.img), item);
+            });
+            const source = (craftSelectedGifts.length ? craftSelectedGifts : saved).map(sanitizeInventoryItem).filter(Boolean);
+            const next = [];
+            source.forEach(item => {
+                let resolved = null;
+                if (item.id != null && invById.has(String(item.id))) resolved = invById.get(String(item.id));
+                else if (invByPair.has(String(item.name) + '||' + String(item.img))) resolved = invByPair.get(String(item.name) + '||' + String(item.img));
+                else if (!inventory.length) resolved = item;
+                if (resolved && !next.some(existing => craftGiftKey(existing) === craftGiftKey(resolved) || ((existing.name + '||' + existing.img) === (resolved.name + '||' + resolved.img)))) {
+                    next.push(resolved);
+                }
+            });
+            craftSelectedGifts = next.slice(0, 10);
+            persistCraftSelection();
+            return craftSelectedGifts;
+        }
 
         function craftGiftKey(item) {
             if (!item) return '';
@@ -4472,6 +4536,7 @@
 
         function removeCraftGift(index) {
             craftSelectedGifts.splice(index, 1);
+            persistCraftSelection();
             renderCraftUI();
             renderCraftInventorySheet();
         }
@@ -4482,6 +4547,7 @@
             const createBtn = document.getElementById('craftCreateBtn');
             if (!grid || !totalEl || !createBtn) return;
 
+            reconcileCraftSelection();
             const animatedKeys = craftAnimatedGiftKeys.slice();
             const slots = Array.from({ length: 10 }, (_, index) => ({ item: craftSelectedGifts[index] || null, index }));
             grid.innerHTML = slots.map(({ item, index }) => {
@@ -4512,6 +4578,7 @@
                     craftAnimatedGiftKeys = [];
                 }, 420);
             }
+            persistCraftSelection();
         }
 
         function openCraftInventorySheet() {
@@ -4568,6 +4635,7 @@
         function renderCraftInventorySheet() {
             const grid = document.getElementById('craftInventoryGrid');
             if (!grid) return;
+            reconcileCraftSelection();
             const items = inventory.map(sanitizeInventoryItem).filter(Boolean);
             grid.classList.toggle('is-empty', !items.length);
             if (!items.length) {
@@ -4616,6 +4684,7 @@
                     if (key) craftAnimatedGiftKeys.push(key);
                 }
             });
+            persistCraftSelection();
             closeCraftInventorySheet();
             renderCraftUI();
         }
@@ -5090,6 +5159,7 @@
 
         async function loadBets(rid) {
             if (!sb) return;
+            const optimisticMyBet = myUserId ? crashBetsState.get(crashBetKey({ round_id: rid, user_id: myUserId })) : null;
             clearCrashPlayers();
             const { data, error } = await sb.from('crash_bets')
                 .select('*')
@@ -5098,11 +5168,20 @@
 
             if (error) {
                 console.error('loadBets failed', error);
+                if (optimisticMyBet && optimisticMyBet.status === 'active') applyBetPayload(optimisticMyBet);
                 return;
             }
 
-            if (!data || !data.length) return;
-            data.forEach(applyBetPayload);
+            const seenKeys = new Set();
+            if (data && data.length) {
+                data.forEach(item => {
+                    seenKeys.add(crashBetKey(item));
+                    applyBetPayload(item);
+                });
+            }
+            if (optimisticMyBet && optimisticMyBet.status === 'active' && !seenKeys.has(String(optimisticMyBet.key || ''))) {
+                applyBetPayload(optimisticMyBet);
+            }
         }
 
         function setBtnState(html, cls) {
@@ -5723,14 +5802,32 @@
             const m = document.getElementById('giftModal');
             if (!m || !m._gift || m.dataset.busy === '1' || _giftBeingTaken) return;
 
+            const expectedGift = sanitizeInventoryItem({
+                id: null,
+                name: m._gift?.name || '',
+                img: m._gift?.img || '',
+                price: Math.max(0, parseInt(m._win, 10) || 0)
+            });
+            const expectedPair = expectedGift ? (String(expectedGift.name) + '||' + String(expectedGift.img)) : '';
+            const myKey = crashBetKey({ round_id: m._roundId, user_id: myUserId });
+
             _giftBeingTaken = true;
             m.dataset.busy = '1';
             m.classList.remove('show');
 
             try {
                 const result = await apiRequest('/api/crash/reward/take', { body: { round_id: m._roundId } });
-                const savedItem = sanitizeInventoryItem(result?.item);
-                const myKey = crashBetKey({ round_id: m._roundId, user_id: myUserId });
+                let savedItem = sanitizeInventoryItem(result?.item);
+
+                if (!savedItem) {
+                    await refreshInventoryFromDB();
+                    savedItem = inventory.find(it => (String(it.name) + '||' + String(it.img)) === expectedPair) || null;
+                }
+
+                if (!savedItem && expectedGift) {
+                    throw new Error('TAKE_GIFT_NOT_CONFIRMED');
+                }
+
                 const existingBet = crashBetsState.get(myKey);
                 if (existingBet) {
                     existingBet.status = 'won';
@@ -5739,23 +5836,23 @@
                     existingBet.cashout_amount = existingBet.cashout_amount || Math.max(0, parseInt(m._win, 10) || 0);
                     crashBetsState.set(myKey, existingBet);
                 }
-                const existingRow = document.querySelector('[data-bet-key="' + escapeHtml(myKey) + '"]');
-                if (existingRow) existingRow.remove();
+
                 m._gift = null; m._win = 0; m._roundId = null;
+
                 if (savedItem) {
                     const alreadyExists = inventory.some(inv => inv && inv.id && String(inv.id) === String(savedItem.id));
                     if (!alreadyExists) {
                         inventory.unshift(savedItem);
-                        renderInventory();
                     }
-                    rememberStickyGiftPreview(savedItem);
-                } else {
-                    await refreshInventoryFromDB();
+                    renderInventory();
                 }
             } catch (e) {
                 console.error('takeGift error', e);
                 await refreshInventoryFromDB();
-                alert('Ошибка при получении подарка');
+                const recoveredItem = expectedPair ? inventory.find(it => (String(it.name) + '||' + String(it.img)) === expectedPair) : null;
+                if (!recoveredItem) {
+                    alert('Ошибка при получении подарка');
+                }
             } finally {
                 m.dataset.busy = '0';
                 _giftBeingTaken = false;
@@ -5815,6 +5912,7 @@
             const grid = document.getElementById('inventoryGrid');
             const empty = document.getElementById('emptyInventory');
             inventory = inventory.map(sanitizeInventoryItem).filter(Boolean);
+            reconcileCraftSelection();
             updateInventorySummary();
 
             if (!inventory.length) {
@@ -5890,7 +5988,14 @@
         }
 
         // ─── Bet Menu ───
-        function placeBet() { document.getElementById('betMenu').classList.add('show'); document.getElementById('betOverlay').classList.add('show'); }
+        function placeBet() {
+            if (!currentRound) return;
+            const now = srvNow();
+            const times = getRoundTimes(currentRound);
+            if (crashRunning || crashShown || now >= times.gameStart) return;
+            document.getElementById('betMenu').classList.add('show');
+            document.getElementById('betOverlay').classList.add('show');
+        }
         function closeBetMenu() { document.getElementById('betMenu').classList.remove('show'); document.getElementById('betOverlay').classList.remove('show'); }
 
         // ─── Banner ───
@@ -5999,15 +6104,17 @@
                             if (settled?.ok) {
                                 setBalance(settled.balance || 0, { persist: false, cache: true });
                                 refreshReferralStats();
-                                refreshTopLeaderboard(false);
+                                refreshTopLeaderboard(true);
                                 showClaimToast(true, safeAmount, '✅ Баланс пополнен');
                             } else {
                                 await refreshBalanceFromDB();
+                                await refreshTopLeaderboard(true);
                                 showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
                             }
                         } catch (e) {
                             console.error('payment confirm failed', e);
                             await refreshBalanceFromDB();
+                            await refreshTopLeaderboard(true);
                             showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
                         }
                     } else if (status === 'failed') {
