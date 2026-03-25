@@ -858,12 +858,12 @@
 
         .craft-card {
             width: 100%;
-            background: rgba(255,255,255,0.035);
+            background: rgba(255,255,255,0.015);
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 24px;
             box-shadow: 0 14px 34px rgba(0,0,0,0.10);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
 
         .craft-grid-card {
@@ -880,7 +880,7 @@
             position: relative;
             min-height: 122px;
             border-radius: 22px;
-            background: rgba(255,255,255,0.02);
+            background: rgba(255,255,255,0.01);
             border: 1px solid rgba(255,255,255,0.10);
             display: flex;
             align-items: center;
@@ -892,13 +892,28 @@
             font-weight: 600;
             line-height: 1.15;
             overflow: visible;
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         .craft-slot.filled {
             padding: 12px 8px;
             color: #fff;
+        }
+
+        .craft-slot-appear {
+            animation: craftGiftAppear 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes craftGiftAppear {
+            0% {
+                opacity: 0;
+                transform: translateY(10px) scale(0.92);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .craft-slot-img {
@@ -942,7 +957,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            background: rgba(255,255,255,0.025);
+            background: rgba(255,255,255,0.015);
         }
 
         .craft-summary-top {
@@ -983,11 +998,24 @@
             font-weight: 700;
             font-family: inherit;
             cursor: default;
+            transition: background 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease, opacity 0.22s ease;
             -webkit-tap-highlight-color: transparent;
         }
 
         .craft-create-btn[disabled] {
             opacity: 1;
+            box-shadow: none;
+        }
+
+        .craft-create-btn.ready {
+            background: #0A84FF;
+            color: #fff;
+            box-shadow: 0 12px 26px rgba(10,132,255,0.28);
+            cursor: pointer;
+        }
+
+        .craft-create-btn.ready:active {
+            transform: translateY(1px);
         }
 
         .craft-add-btn {
@@ -1046,15 +1074,19 @@
             padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px));
             border-top-left-radius: 34px;
             border-top-right-radius: 34px;
-            background: rgba(11, 14, 22, 0.34);
-            border: 1px solid rgba(255,255,255,0.08);
+            background-color: #1a1a2e;
+            background-image: url('background_pepe.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 1px solid rgba(255,255,255,0.10);
             border-bottom: 0;
             display: flex;
             flex-direction: column;
             gap: 14px;
-            box-shadow: 0 -18px 40px rgba(0,0,0,0.28);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            box-shadow: 0 -18px 40px rgba(0,0,0,0.30);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
 
         .craft-sheet-header {
@@ -1120,16 +1152,16 @@
 
         .craft-sheet-item {
             position: relative;
-            background: rgba(255,255,255,0.03);
+            background: rgba(22, 25, 34, 0.62);
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 20px;
-            padding: 14px 10px 12px;
-            min-height: 154px;
+            padding: 12px 9px 11px;
+            min-height: 142px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            gap: 8px;
+            gap: 7px;
             transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
             -webkit-tap-highlight-color: transparent;
             overflow: visible;
@@ -1149,8 +1181,8 @@
         }
 
         .craft-sheet-item img {
-            width: 74px;
-            height: 74px;
+            width: 66px;
+            height: 66px;
             object-fit: contain;
             display: block;
             margin-top: 2px;
@@ -1182,8 +1214,12 @@
         }
 
         .craft-sheet-item-price img {
-            width: 10px;
-            height: 10px;
+            width: 8px !important;
+            height: 8px !important;
+            min-width: 8px;
+            min-height: 8px;
+            flex: 0 0 8px;
+            margin-top: 0;
         }
 
         .craft-sheet-item-badge {
@@ -1286,12 +1322,12 @@
                 gap: 9px;
             }
             .craft-sheet-item {
-                min-height: 144px;
-                padding: 12px 9px 11px;
+                min-height: 134px;
+                padding: 11px 8px 10px;
             }
             .craft-sheet-item img {
-                width: 68px;
-                height: 68px;
+                width: 60px;
+                height: 60px;
             }
         }
 
@@ -4368,6 +4404,7 @@
         }
         let craftSelectedGifts = [];
         let craftSheetSelectedIds = [];
+        let craftAnimatedGiftKeys = [];
 
         function craftGiftKey(item) {
             if (!item) return '';
@@ -4388,6 +4425,10 @@
             return count === 1 ? 'Добавить подарок' : 'Добавить подарки';
         }
 
+        function craftCreateButtonText(count) {
+            return count >= 3 ? 'Сделать контракт' : craftNeedText(3 - count);
+        }
+
         function isGiftAlreadyInCraft(item) {
             const key = craftGiftKey(item);
             return !!key && craftSelectedGifts.some(g => craftGiftKey(g) === key);
@@ -4405,11 +4446,14 @@
             const createBtn = document.getElementById('craftCreateBtn');
             if (!grid || !totalEl || !createBtn) return;
 
+            const animatedKeys = craftAnimatedGiftKeys.slice();
             const slots = Array.from({ length: 10 }, (_, index) => ({ item: craftSelectedGifts[index] || null, index }));
             grid.innerHTML = slots.map(({ item, index }) => {
                 if (!item) return '<div class="craft-slot">Пусто</div>';
                 const img = escapeHtml(String(item.img || ''));
-                return '<div class="craft-slot filled">' +
+                const key = craftGiftKey(item);
+                const appearClass = animatedKeys.includes(key) ? ' craft-slot-appear' : '';
+                return '<div class="craft-slot filled' + appearClass + '">' +
                     '<button class="craft-slot-remove" type="button" onclick="removeCraftGift(' + index + ');event.stopPropagation();">×</button>' +
                     '<img class="craft-slot-img" src="' + img + '" alt="">' +
                 '</div>';
@@ -4418,8 +4462,17 @@
             const total = craftSelectedGifts.reduce((sum, item) => sum + (Math.max(0, parseInt(item && item.price, 10) || 0)), 0);
             totalEl.textContent = String(total);
 
-            const need = Math.max(0, 3 - craftSelectedGifts.length);
-            createBtn.textContent = need > 0 ? craftNeedText(need) : 'Крафт доступен';
+            const enough = craftSelectedGifts.length >= 3;
+            createBtn.textContent = craftCreateButtonText(craftSelectedGifts.length);
+            createBtn.disabled = !enough;
+            createBtn.classList.toggle('ready', enough);
+
+            if (animatedKeys.length) {
+                clearTimeout(window.__craftAppearTimer);
+                window.__craftAppearTimer = setTimeout(() => {
+                    craftAnimatedGiftKeys = [];
+                }, 420);
+            }
         }
 
         function openCraftInventorySheet() {
@@ -4516,8 +4569,13 @@
                 .filter(Boolean)
                 .filter(item => craftSheetSelectedIds.includes(craftGiftKey(item)))
                 .slice(0, freeSlots);
+            craftAnimatedGiftKeys = [];
             selectedItems.forEach(item => {
-                if (!isGiftAlreadyInCraft(item)) craftSelectedGifts.push(item);
+                if (!isGiftAlreadyInCraft(item)) {
+                    craftSelectedGifts.push(item);
+                    const key = craftGiftKey(item);
+                    if (key) craftAnimatedGiftKeys.push(key);
+                }
             });
             closeCraftInventorySheet();
             renderCraftUI();
