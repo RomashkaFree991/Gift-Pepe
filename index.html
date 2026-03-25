@@ -831,6 +831,129 @@
             background: #006ae6;
         }
 
+
+        /* ─── Craft Page ─── */
+        .craft-page {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #101114 0%, #0c0d10 100%);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .craft-wrap {
+            padding: calc(210px + env(safe-area-inset-top, 0px)) 16px calc(112px + env(safe-area-inset-bottom, 0px));
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .craft-card {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 22px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.20);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .craft-grid-card {
+            padding: 14px;
+        }
+
+        .craft-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .craft-slot {
+            min-height: 76px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 8px 6px;
+            color: rgba(255,255,255,0.38);
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.15;
+        }
+
+        .craft-summary-card {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .craft-summary-top {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 28px;
+        }
+
+        .craft-summary-top img {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
+        .craft-summary-value {
+            font-size: 28px;
+            line-height: 1;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.03em;
+        }
+
+        .craft-summary-label {
+            font-size: 13px;
+            color: rgba(255,255,255,0.46);
+            font-weight: 500;
+        }
+
+        .craft-create-btn {
+            width: 100%;
+            height: 52px;
+            border: 0;
+            border-radius: 16px;
+            background: rgba(0,122,255,0.34);
+            color: rgba(255,255,255,0.92);
+            font-size: 15px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: default;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .craft-create-btn[disabled] {
+            opacity: 1;
+        }
+
+        .craft-add-btn {
+            width: 100%;
+            height: 54px;
+            border: 0;
+            border-radius: 18px;
+            background: #0A84FF;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: inherit;
+            box-shadow: 0 12px 26px rgba(10,132,255,0.28);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .craft-add-btn:active {
+            transform: translateY(1px);
+        }
+
         /* ─── Crash Game Page ─── */
         .crash-page {
             display: flex;
@@ -2401,7 +2524,36 @@
         </div>
     </div>
 
+
+    <!-- Craft Page -->
+    <div class="tab-page craft-page" id="page-craft">
+        <div class="crash-back" onclick="closeCraft()">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="craftBackLabel">Назад</span>
+        </div>
+
+        <div class="craft-wrap">
+            <div class="craft-card craft-grid-card">
+                <div class="craft-grid" id="craftGrid"></div>
+            </div>
+
+            <div class="craft-card craft-summary-card">
+                <div class="craft-summary-top">
+                    <img src="star.png" alt="star">
+                    <div class="craft-summary-value" id="craftTotalValue">0</div>
+                </div>
+                <div class="craft-summary-label">Стоимость ваших подарков</div>
+                <button class="craft-create-btn" id="craftCreateBtn" type="button" disabled>Добавьте еще 3 подарка</button>
+            </div>
+
+            <button class="craft-add-btn" type="button" id="craftAddBtn">Добавить свои подарки</button>
+        </div>
+    </div>
+
     <!-- Gift Modal -->
+
     <div class="gift-modal-overlay" id="giftModal">
         <div class="gift-modal-box">
             <img class="gift-modal-img" id="giftModalImg" src="" alt="">
@@ -3801,8 +3953,55 @@
                 .subscribe();
         }
 
+
+        let craftSelectedGifts = [];
+
+        function renderCraftUI() {
+            const grid = document.getElementById('craftGrid');
+            const totalEl = document.getElementById('craftTotalValue');
+            const createBtn = document.getElementById('craftCreateBtn');
+            if (!grid || !totalEl || !createBtn) return;
+
+            const slots = Array.from({ length: 10 }, (_, index) => craftSelectedGifts[index] || null);
+            grid.innerHTML = slots.map(item => {
+                if (!item) return '<div class="craft-slot">Пусто</div>';
+                const price = Math.max(0, parseInt(item.price, 10) || 0);
+                const img = escapeHtml(String(item.img || ''));
+                const name = escapeHtml(String(item.name || ''));
+                return '<div class="craft-slot" style="flex-direction:column;gap:6px;color:#fff;">' +
+                    '<img src="' + img + '" alt="" style="width:34px;height:34px;object-fit:contain;display:block;">' +
+                    '<div style="font-size:11px;line-height:1.15;font-weight:700;">' + name + '</div>' +
+                    '<div style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:rgba(255,255,255,0.72);">' +
+                        '<img src="star.png" alt="" style="width:12px;height:12px;">' + price +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            const total = craftSelectedGifts.reduce((sum, item) => sum + (Math.max(0, parseInt(item && item.price, 10) || 0)), 0);
+            totalEl.textContent = String(total);
+
+            const need = Math.max(0, 3 - craftSelectedGifts.length);
+            createBtn.textContent = need > 0 ? ('Добавьте еще ' + need + ' подарка') : 'Крафт доступен';
+        }
+
+        function openCraft() {
+            document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-craft').classList.add('active');
+            renderCraftUI();
+        }
+
+        function closeCraft() {
+            document.getElementById('page-craft').classList.remove('active');
+            document.getElementById('page-games').classList.add('active');
+        }
+
         // ─── Open / Close ───
         function openGame(name) {
+            if (name === 'craft') {
+                openCraft();
+                return;
+            }
+
             if (name === 'crash') {
                 document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
                 document.getElementById('page-crash').classList.add('active');
@@ -5056,15 +5255,15 @@
         const LANG_STORAGE_KEY = 'giftpepe_lang';
         let currentLang = localStorage.getItem(LANG_STORAGE_KEY) || 'ru';
         const I18N = {
-            ru: { top:'Топ', games:'Игры', profile_nav:'Профиль', choose_game:'Выберите игру', profile:'Профиль', inventory:'Инвентарь', promo_title:'Промокод', promo_placeholder:'Введите промокод', apply:'Применить', invite_friend:'ПРИГЛАСИТЬ ДРУГА', invite_sub:'Получайте бонусы', back:'Назад', referrals:'Рефералы', earned:'Заработано', copy_link:'Скопировать ссылку', copied:'Скопировано!', promo_enter:'Введите промокод', promo_unavailable:'Промокоды пока недоступны', settings_language:'Язык', settings_support:'Поддержка', settings_save:'Сохранить и продолжить', referral_title:'РЕФЕРАЛЬНАЯ СИСТЕМА', referral_desc:'За каждого приглашённого друга вы получаете 10% от его пополнений', gifts_empty_title:'Не нашли подарков?', gifts_empty_desc:'Пополните в @GiftPepeSupport или выиграйте в играх.', gift_sell:'Продать', gift_take:'Забрать', sell_all:'Продать все', withdraw:'Вывести', topup_title:'Пополнение', bet_title:'Ставка', place_bet:'Сделать ставку', waiting_bets:'Ожидание ставок', check_label:'Чек', check_subtitle:'Нажми на кнопку ниже, чтобы забрать чек', check_claim:'Получить', check_claimed:'Получено', check_claiming:'Получаем...', check_loading:'Загружаем чек...', check_unavailable:'Недоступно', check_load_failed:'Не удалось загрузить', toast_success:'Успешно', toast_error:'Ошибка', toast_received:'Получено', toast_claim_failed:'Не удалось получить', gift_count_1:'подарок', gift_count_2:'подарка', gift_count_5:'подарков' },
-            en: { top:'Top', games:'Games', profile_nav:'Profile', choose_game:'Choose a game', profile:'Profile', inventory:'Inventory', promo_title:'Promo code', promo_placeholder:'Enter promo code', apply:'Apply', invite_friend:'INVITE A FRIEND', invite_sub:'Get bonuses', back:'Back', referrals:'Referrals', earned:'Earned', copy_link:'Copy link', copied:'Copied!', promo_enter:'Enter promo code', promo_unavailable:'Promo codes are not available yet', settings_language:'Language', settings_support:'Support', settings_save:'Save and continue', referral_title:'REFERRAL SYSTEM', referral_desc:'For each invited friend, you receive 10% of their top-ups', gifts_empty_title:'No gifts found?', gifts_empty_desc:'Top up in @GiftPepeSupport or win in games.', gift_sell:'Sell', gift_take:'Collect', sell_all:'Sell all', withdraw:'Withdraw', topup_title:'Top up', bet_title:'Bet', place_bet:'Place bet', waiting_bets:'Waiting for bets', check_label:'Check', check_subtitle:'Tap the button below to claim the check', check_claim:'Claim', check_claimed:'Claimed', check_claiming:'Claiming...', check_loading:'Loading check...', check_unavailable:'Unavailable', check_load_failed:'Failed to load', toast_success:'Success', toast_error:'Error', toast_received:'Received', toast_claim_failed:'Failed to claim', gift_count_1:'gift', gift_count_2:'gifts', gift_count_5:'gifts' }
+            ru: { top:'Топ', games:'Игры', profile_nav:'Профиль', choose_game:'Выберите игру', profile:'Профиль', inventory:'Инвентарь', promo_title:'Промокод', promo_placeholder:'Введите промокод', apply:'Применить', invite_friend:'ПРИГЛАСИТЬ ДРУГА', invite_sub:'Получайте бонусы', back:'Назад', referrals:'Рефералы', earned:'Заработано', copy_link:'Скопировать ссылку', copied:'Скопировано!', promo_enter:'Введите промокод', promo_unavailable:'Промокоды пока недоступны', settings_language:'Язык', settings_support:'Поддержка', settings_save:'Сохранить и продолжить', referral_title:'РЕФЕРАЛЬНАЯ СИСТЕМА', referral_desc:'За каждого приглашённого друга вы получаете 10% от его пополнений', gifts_empty_title:'Не нашли подарков?', gifts_empty_desc:'Пополните в @GiftPepeSupport или выиграйте в играх.', gift_sell:'Продать', gift_take:'Забрать', sell_all:'Продать все', withdraw:'Вывести', topup_title:'Пополнение', bet_title:'Ставка', place_bet:'Сделать ставку', waiting_bets:'Ожидание ставок', check_label:'Чек', check_subtitle:'Нажми на кнопку ниже, чтобы забрать чек', check_claim:'Получить', check_claimed:'Получено', check_claiming:'Получаем...', check_loading:'Загружаем чек...', check_unavailable:'Недоступно', check_load_failed:'Не удалось загрузить', toast_success:'Успешно', toast_error:'Ошибка', toast_received:'Получено', toast_claim_failed:'Не удалось получить', gift_count_1:'подарок', gift_count_2:'подарка', gift_count_5:'подарков', craft_add_more:'Добавьте еще', craft_gifts_word:'подарка', craft_value_label:'Стоимость ваших подарков', craft_add_own:'Добавить свои подарки' },
+            en: { top:'Top', games:'Games', profile_nav:'Profile', choose_game:'Choose a game', profile:'Profile', inventory:'Inventory', promo_title:'Promo code', promo_placeholder:'Enter promo code', apply:'Apply', invite_friend:'INVITE A FRIEND', invite_sub:'Get bonuses', back:'Back', referrals:'Referrals', earned:'Earned', copy_link:'Copy link', copied:'Copied!', promo_enter:'Enter promo code', promo_unavailable:'Promo codes are not available yet', settings_language:'Language', settings_support:'Support', settings_save:'Save and continue', referral_title:'REFERRAL SYSTEM', referral_desc:'For each invited friend, you receive 10% of their top-ups', gifts_empty_title:'No gifts found?', gifts_empty_desc:'Top up in @GiftPepeSupport or win in games.', gift_sell:'Sell', gift_take:'Collect', sell_all:'Sell all', withdraw:'Withdraw', topup_title:'Top up', bet_title:'Bet', place_bet:'Place bet', waiting_bets:'Waiting for bets', check_label:'Check', check_subtitle:'Tap the button below to claim the check', check_claim:'Claim', check_claimed:'Claimed', check_claiming:'Claiming...', check_loading:'Loading check...', check_unavailable:'Unavailable', check_load_failed:'Failed to load', toast_success:'Success', toast_error:'Error', toast_received:'Received', toast_claim_failed:'Failed to claim', gift_count_1:'gift', gift_count_2:'gifts', gift_count_5:'gifts', craft_add_more:'Add', craft_gifts_word:'more gifts', craft_value_label:'Value of your gifts', craft_add_own:'Add your gifts' }
         };
         function t(key) { const dict = I18N[currentLang] || I18N.ru; return dict[key] || I18N.ru[key] || key; }
         function getInventoryCountLabel(count) { const n = Math.max(0, parseInt(count, 10) || 0); if (currentLang === 'en') return n + ' ' + (n === 1 ? t('gift_count_1') : t('gift_count_2')); const mod10 = n % 10; const mod100 = n % 100; let word = t('gift_count_5'); if (mod10 === 1 && mod100 !== 11) word = t('gift_count_1'); else if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) word = t('gift_count_2'); return n + ' ' + word; }
         function getSellAllLabel(total) { return t('sell_all') + ' ' + (Math.max(0, parseInt(total, 10) || 0)); }
         function updateGiftModalTranslations() { const sellAmount = document.getElementById('giftSellAmount')?.textContent || ''; const sellBtn = document.getElementById('giftSellBtn'); const takeBtn = document.getElementById('giftTakeBtn'); if (sellBtn) sellBtn.innerHTML = t('gift_sell') + ' <span id="giftSellAmount">' + sellAmount + '</span> <img src="star.png" alt="">'; if (takeBtn) takeBtn.textContent = t('gift_take'); }
         function updateCheckTranslations() { const subtitle = document.getElementById('checkSubtitle'); const label = document.getElementById('checkLabel'); if (label) label.textContent = t('check_label'); if (subtitle && (!subtitle.textContent || subtitle.dataset.i18n !== 'manual')) subtitle.textContent = t('check_subtitle'); }
-        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = t('games'); if (navSpans[2]) navSpans[2].textContent = t('profile_nav'); const gameTitle = document.querySelector('#page-games .section-title'); if (gameTitle) gameTitle.textContent = t('choose_game'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const crashBack = document.getElementById('crashBackLabel'); if (crashBack) crashBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
+        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = t('games'); if (navSpans[2]) navSpans[2].textContent = t('profile_nav'); const gameTitle = document.querySelector('#page-games .section-title'); if (gameTitle) gameTitle.textContent = t('choose_game'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const crashBack = document.getElementById('crashBackLabel'); if (crashBack) crashBack.textContent = t('back'); const craftBack = document.getElementById('craftBackLabel'); if (craftBack) craftBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); const craftLabel = document.querySelector('.craft-summary-label'); if (craftLabel) craftLabel.textContent = t('craft_value_label'); const craftAddBtn = document.getElementById('craftAddBtn'); if (craftAddBtn) craftAddBtn.textContent = t('craft_add_own'); if (typeof renderCraftUI === 'function') renderCraftUI(); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
         function closeSettingsOutside(e) { if (e.target === e.currentTarget) closeSettings(); }
         function toggleLang() { document.getElementById('langOptions').classList.toggle('show'); document.getElementById('langRow').classList.toggle('open'); }
         function selectLang(lang, el) { currentLang = I18N[lang] ? lang : 'ru'; localStorage.setItem(LANG_STORAGE_KEY, currentLang); document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); if (el) el.classList.add('active'); applyTranslations(); }
