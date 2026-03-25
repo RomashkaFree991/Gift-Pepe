@@ -7,7 +7,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script>
-        window.BACKEND_URL = "https://server-gift--cizzrustex.replit.app";
+        window.BACKEND_URL = "https://just-inquire--bulba6597.replit.app";
     </script>
     <style>
         * {
@@ -2175,7 +2175,6 @@
             align-items: center;
             justify-content: center;
             position: relative;
-            min-height: 40px;
         }
 
         .topup-title {
@@ -2188,9 +2187,9 @@
             color: rgba(255, 255, 255, 0.9);
         }
 
-        .topup-history-btn,
         .topup-close {
             position: absolute;
+            right: 0;
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -2201,27 +2200,6 @@
             justify-content: center;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
-        }
-
-        .topup-history-btn {
-            left: 0;
-        }
-
-        .topup-history-btn.active {
-            background: rgba(255, 255, 255, 0.14);
-            border-color: rgba(255, 255, 255, 0.16);
-        }
-
-        .topup-history-btn img {
-            width: 18px;
-            height: 18px;
-            filter: brightness(0) invert(1);
-            opacity: 0.88;
-            pointer-events: none;
-        }
-
-        .topup-close {
-            right: 0;
         }
 
         .topup-close svg {
@@ -2264,97 +2242,6 @@
             font-size: 18px;
             font-weight: 700;
             color: #fff;
-        }
-
-        .topup-view.hidden {
-            display: none;
-        }
-
-        .topup-history-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            padding-top: 4px;
-        }
-
-        .topup-history-item {
-            background: rgba(35, 35, 40, 0.55);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 18px;
-            padding: 14px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .topup-history-main {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .topup-history-amount {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            color: #fff;
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .topup-history-amount img {
-            width: 18px;
-            height: 18px;
-        }
-
-        .topup-history-date {
-            color: rgba(255,255,255,0.62);
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .topup-history-status {
-            padding: 8px 12px;
-            border-radius: 999px;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 700;
-            white-space: nowrap;
-            background: rgba(255,255,255,0.12);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .topup-history-status.paid {
-            background: rgba(77, 214, 112, 0.16);
-            border-color: rgba(77, 214, 112, 0.24);
-        }
-
-        .topup-history-status.pending,
-        .topup-history-status.invoice_created {
-            background: rgba(255, 184, 0, 0.14);
-            border-color: rgba(255, 184, 0, 0.24);
-        }
-
-        .topup-history-status.failed,
-        .topup-history-status.canceled {
-            background: rgba(255, 87, 87, 0.16);
-            border-color: rgba(255, 87, 87, 0.24);
-        }
-
-        .topup-history-empty {
-            min-height: 140px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            color: rgba(255,255,255,0.68);
-            font-size: 15px;
-            font-weight: 600;
-            background: rgba(35, 35, 40, 0.4);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 18px;
-            padding: 20px;
         }
 
         /* ─── Settings Modal ─── */
@@ -3128,9 +3015,6 @@
     <div class="topup-menu" id="topupMenu">
         <div class="topup-box">
             <div class="topup-header">
-                <div class="topup-history-btn" id="topupHistoryBtn" onclick="openTopupHistory()">
-                    <img src="history.svg" alt="История">
-                </div>
                 <span class="topup-title" id="topupTitleEl">Пополнение</span>
                 <div class="topup-close" onclick="closeTopup()">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -3138,21 +3022,14 @@
                     </svg>
                 </div>
             </div>
-            <div class="topup-view" id="topupMainView">
-                <div class="topup-grid">
-                    <div class="topup-item" onclick="buyStars(10)"><img src="star.png" alt=""><span>10</span></div>
-                    <div class="topup-item" onclick="buyStars(25)"><img src="star.png" alt=""><span>25</span></div>
-                    <div class="topup-item" onclick="buyStars(50)"><img src="star.png" alt=""><span>50</span></div>
-                    <div class="topup-item" onclick="buyStars(100)"><img src="star.png" alt=""><span>100</span></div>
-                    <div class="topup-item" onclick="buyStars(250)"><img src="star.png" alt=""><span>250</span></div>
-                    <div class="topup-item" onclick="buyStars(500)"><img src="star.png" alt=""><span>500</span></div>
-                    <div class="topup-item" onclick="buyStars(1000)"><img src="star.png" alt=""><span>1000</span></div>
-                </div>
-            </div>
-            <div class="topup-view hidden" id="topupHistoryView">
-                <div class="topup-history-list" id="topupHistoryList">
-                    <div class="topup-history-empty">Загрузка истории оплат...</div>
-                </div>
+            <div class="topup-grid">
+                <div class="topup-item" onclick="buyStars(10)"><img src="star.png" alt=""><span>10</span></div>
+                <div class="topup-item" onclick="buyStars(25)"><img src="star.png" alt=""><span>25</span></div>
+                <div class="topup-item" onclick="buyStars(50)"><img src="star.png" alt=""><span>50</span></div>
+                <div class="topup-item" onclick="buyStars(100)"><img src="star.png" alt=""><span>100</span></div>
+                <div class="topup-item" onclick="buyStars(250)"><img src="star.png" alt=""><span>250</span></div>
+                <div class="topup-item" onclick="buyStars(500)"><img src="star.png" alt=""><span>500</span></div>
+                <div class="topup-item" onclick="buyStars(1000)"><img src="star.png" alt=""><span>1000</span></div>
             </div>
         </div>
     </div>
@@ -6198,96 +6075,6 @@
 
         // ─── Top-up via Telegram Stars ───
         let _buyStarsLock = false;
-        let _topupHistoryOpened = false;
-
-        function formatTopupHistoryDate(value) {
-            if (!value) return '—';
-            try {
-                return new Date(value).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-            } catch (e) {
-                return String(value);
-            }
-        }
-
-        function topupStatusLabel(status) {
-            const s = String(status || 'pending');
-            if (s === 'paid') return 'Оплачено';
-            if (s === 'invoice_created') return 'Ожидает оплаты';
-            if (s === 'failed') return 'Ошибка';
-            if (s === 'canceled') return 'Отменено';
-            return 'В обработке';
-        }
-
-        function renderTopupHistory(items) {
-            const list = document.getElementById('topupHistoryList');
-            if (!list) return;
-            const rows = Array.isArray(items) ? items : [];
-            if (!rows.length) {
-                list.innerHTML = '<div class="topup-history-empty">История оплат пока пустая</div>';
-                return;
-            }
-            list.innerHTML = rows.map(row => {
-                const amount = Math.max(0, parseInt(row?.amount, 10) || 0);
-                const status = String(row?.status || 'pending');
-                const date = formatTopupHistoryDate(row?.paid_at || row?.created_at);
-                return `
-                    <div class="topup-history-item">
-                        <div class="topup-history-main">
-                            <div class="topup-history-amount"><img src="star.png" alt="">${amount}</div>
-                            <div class="topup-history-date">${date}</div>
-                        </div>
-                        <div class="topup-history-status ${status}">${topupStatusLabel(status)}</div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        async function loadTopupHistory() {
-            const list = document.getElementById('topupHistoryList');
-            if (list) list.innerHTML = '<div class="topup-history-empty">Загрузка истории оплат...</div>';
-            if (!sb || !myUserId) {
-                renderTopupHistory([]);
-                return;
-            }
-            try {
-                await ensureBackendAuth();
-                const { data, error } = await sb.from('topups')
-                    .select('id, amount, status, created_at, paid_at')
-                    .eq('user_id', myUserId)
-                    .order('created_at', { ascending: false })
-                    .limit(30);
-                if (error) throw error;
-                renderTopupHistory(data || []);
-            } catch (e) {
-                console.error('loadTopupHistory failed', e);
-                if (list) list.innerHTML = '<div class="topup-history-empty">Не удалось загрузить историю оплат</div>';
-            }
-        }
-
-        function setTopupView(showHistory) {
-            _topupHistoryOpened = !!showHistory;
-            const main = document.getElementById('topupMainView');
-            const history = document.getElementById('topupHistoryView');
-            const title = document.getElementById('topupTitleEl');
-            const historyBtn = document.getElementById('topupHistoryBtn');
-            if (main) main.classList.toggle('hidden', _topupHistoryOpened);
-            if (history) history.classList.toggle('hidden', !_topupHistoryOpened);
-            if (title) title.textContent = _topupHistoryOpened ? 'История оплат' : t('topup_title');
-            if (historyBtn) historyBtn.classList.toggle('active', _topupHistoryOpened);
-        }
-
-        async function openTopupHistory() {
-            if (_topupHistoryOpened) {
-                setTopupView(false);
-                return;
-            }
-            const menu = document.getElementById('topupMenu');
-            const overlay = document.getElementById('topupOverlay');
-            if (menu && !menu.classList.contains('show')) menu.classList.add('show');
-            if (overlay && !overlay.classList.contains('show')) overlay.classList.add('show');
-            setTopupView(true);
-            await loadTopupHistory();
-        }
 
         async function buyStars(amount) {
             const safeAmount = Math.max(1, parseInt(amount, 10) || 0);
@@ -6318,23 +6105,19 @@
                                 setBalance(settled.balance || 0, { persist: false, cache: true });
                                 refreshReferralStats();
                                 refreshTopLeaderboard(true);
-                                if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
                                 showClaimToast(true, safeAmount, '✅ Баланс пополнен');
                             } else {
                                 await refreshBalanceFromDB();
                                 await refreshTopLeaderboard(true);
-                                if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
                                 showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
                             }
                         } catch (e) {
                             console.error('payment confirm failed', e);
                             await refreshBalanceFromDB();
                             await refreshTopLeaderboard(true);
-                            if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
                             showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
                         }
                     } else if (status === 'failed') {
-                        if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
                         showClaimToast(false, 0, 'Платёж не прошёл');
                     }
                     _buyStarsLock = false;
@@ -6347,16 +6130,8 @@
             }
         }
 
-        function openTopup() {
-            setTopupView(false);
-            document.getElementById('topupMenu').classList.add('show');
-            document.getElementById('topupOverlay').classList.add('show');
-        }
-        function closeTopup() {
-            document.getElementById('topupMenu').classList.remove('show');
-            document.getElementById('topupOverlay').classList.remove('show');
-            setTopupView(false);
-        }
+        function openTopup() { document.getElementById('topupMenu').classList.add('show'); document.getElementById('topupOverlay').classList.add('show'); }
+        function closeTopup() { document.getElementById('topupMenu').classList.remove('show'); document.getElementById('topupOverlay').classList.remove('show'); }
 
         // ═══════════════════════════════════════════════════
         // ─── ADMIN PANEL ────────────────────────────────────
