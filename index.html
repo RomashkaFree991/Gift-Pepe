@@ -2337,9 +2337,16 @@
         }
 
         .topup-history-status.failed,
-        .topup-history-status.canceled {
+        .topup-history-status.canceled,
+        .topup-history-status.cancelled {
             background: rgba(255, 87, 87, 0.16);
             border-color: rgba(255, 87, 87, 0.24);
+        }
+
+        .topup-history-status.expired {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.10);
+            color: rgba(255, 255, 255, 0.45);
         }
 
         .topup-history-empty {
@@ -3151,7 +3158,7 @@
             </div>
             <div class="topup-view hidden" id="topupHistoryView">
                 <div class="topup-history-list" id="topupHistoryList">
-                    <div class="topup-history-empty">Загрузка истории оплат...</div>
+                    <div class="topup-history-empty">Загрузка...</div>
                 </div>
             </div>
         </div>
@@ -6211,11 +6218,12 @@
 
         function topupStatusLabel(status) {
             const s = String(status || 'pending');
-            if (s === 'paid') return 'Оплачено';
-            if (s === 'invoice_created') return 'Ожидает оплаты';
-            if (s === 'failed') return 'Ошибка';
-            if (s === 'canceled') return 'Отменено';
-            return 'В обработке';
+            if (s === 'paid') return currentLang === 'en' ? 'Paid' : 'Оплачено';
+            if (s === 'invoice_created' || s === 'pending') return currentLang === 'en' ? 'Awaiting payment' : 'Ожидание';
+            if (s === 'failed') return currentLang === 'en' ? 'Failed' : 'Ошибка';
+            if (s === 'canceled' || s === 'cancelled') return currentLang === 'en' ? 'Cancelled' : 'Отменено';
+            if (s === 'expired') return currentLang === 'en' ? 'Not paid' : 'Не оплачено';
+            return currentLang === 'en' ? 'Processing' : 'В обработке';
         }
 
         function renderTopupHistory(items) {
@@ -6223,7 +6231,7 @@
             if (!list) return;
             const rows = Array.isArray(items) ? items : [];
             if (!rows.length) {
-                list.innerHTML = '<div class="topup-history-empty">История оплат пока пустая</div>';
+                list.innerHTML = '<div class="topup-history-empty">' + (currentLang === 'en' ? 'No payment history yet' : 'История оплат пока пустая') + '</div>';
                 return;
             }
             list.innerHTML = rows.map(row => {
@@ -6234,9 +6242,9 @@
                     <div class="topup-history-item">
                         <div class="topup-history-main">
                             <div class="topup-history-amount"><img src="star.png" alt="">${amount}</div>
-                            <div class="topup-history-date">${date}</div>
+                            <div class="topup-history-date">${escapeHtml(date)}</div>
                         </div>
-                        <div class="topup-history-status ${status}">${topupStatusLabel(status)}</div>
+                        <div class="topup-history-status ${escapeHtml(status)}">${escapeHtml(topupStatusLabel(status))}</div>
                     </div>
                 `;
             }).join('');
@@ -6244,7 +6252,7 @@
 
         async function loadTopupHistory() {
             const list = document.getElementById('topupHistoryList');
-            if (list) list.innerHTML = '<div class="topup-history-empty">Загрузка истории оплат...</div>';
+            if (list) list.innerHTML = '<div class="topup-history-empty">' + (currentLang === 'en' ? 'Loading payment history...' : 'Загрузка истории оплат...') + '</div>';
             if (!sb || !myUserId) {
                 renderTopupHistory([]);
                 return;
@@ -6260,7 +6268,7 @@
                 renderTopupHistory(data || []);
             } catch (e) {
                 console.error('loadTopupHistory failed', e);
-                if (list) list.innerHTML = '<div class="topup-history-empty">Не удалось загрузить историю оплат</div>';
+                if (list) list.innerHTML = '<div class="topup-history-empty">' + (currentLang === 'en' ? 'Failed to load payment history' : 'Не удалось загрузить историю оплат') + '</div>';
             }
         }
 
@@ -6272,7 +6280,7 @@
             const historyBtn = document.getElementById('topupHistoryBtn');
             if (main) main.classList.toggle('hidden', _topupHistoryOpened);
             if (history) history.classList.toggle('hidden', !_topupHistoryOpened);
-            if (title) title.textContent = _topupHistoryOpened ? 'История оплат' : t('topup_title');
+            if (title) title.textContent = _topupHistoryOpened ? (currentLang === 'en' ? 'Payment history' : 'История оплат') : t('topup_title');
             if (historyBtn) historyBtn.classList.toggle('active', _topupHistoryOpened);
         }
 
@@ -6298,49 +6306,56 @@
 
             _buyStarsLock = true;
 
-            const toast = null;
-
             try {
+                await ensureBackendAuth();
                 const created = await apiRequest('/api/payments/create-invoice', { body: { amount: safeAmount } });
-                try { toast.remove(); } catch (_) {}
 
                 if (!created?.ok || !created.invoiceUrl) {
-                    alert('Не удалось создать счёт');
+                    alert('Не удалось создать счёт: ' + (created?.error || 'неизвестная ошибка'));
                     _buyStarsLock = false;
                     return;
                 }
 
+                const topupKey = created.topupKey;
+
                 tg.openInvoice(created.invoiceUrl, async (status) => {
-                    if (status === 'paid') {
-                        try {
-                            const settled = await apiRequest('/api/payments/confirm', { body: { topupKey: created.topupKey } });
-                            if (settled?.ok) {
-                                setBalance(settled.balance || 0, { persist: false, cache: true });
-                                refreshReferralStats();
-                                refreshTopLeaderboard(true);
-                                if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
-                                showClaimToast(true, safeAmount, '✅ Баланс пополнен');
-                            } else {
+                    try {
+                        if (status === 'paid') {
+                            // Ждём подтверждения через webhook (сервер делает polling)
+                            try {
+                                const settled = await apiRequest('/api/payments/confirm', { body: { topupKey } });
+                                if (settled?.ok) {
+                                    setBalance(settled.balance || 0, { persist: false, cache: true });
+                                    showClaimToast(true, safeAmount, '✅ Баланс пополнен');
+                                } else {
+                                    // Webhook ещё не дошёл — обновляем баланс из БД
+                                    await refreshBalanceFromDB();
+                                    showClaimToast(true, safeAmount, '✅ Платёж принят, баланс обновляется...');
+                                }
+                            } catch (e) {
+                                console.error('payment confirm failed', e);
                                 await refreshBalanceFromDB();
-                                await refreshTopLeaderboard(true);
-                                if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
-                                showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
+                                showClaimToast(true, safeAmount, '✅ Платёж принят');
                             }
-                        } catch (e) {
-                            console.error('payment confirm failed', e);
-                            await refreshBalanceFromDB();
-                            await refreshTopLeaderboard(true);
+                            // В любом случае обновляем топ и историю
+                            refreshTopLeaderboard(true).catch(() => {});
+                            refreshReferralStats().catch(() => {});
                             if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
-                            showClaimToast(true, safeAmount, '✅ Платёж подтверждён');
+                        } else if (status === 'failed') {
+                            showClaimToast(false, 0, 'Платёж не прошёл');
+                            if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
+                        } else if (status === 'cancelled') {
+                            // Пользователь закрыл окно оплаты — ничего не делаем
+                            if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
                         }
-                    } else if (status === 'failed') {
-                        if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
-                        showClaimToast(false, 0, 'Платёж не прошёл');
+                        // pending и прочие статусы — просто закрываем
+                    } catch (e) {
+                        console.error('openInvoice callback error', e);
+                    } finally {
+                        _buyStarsLock = false;
                     }
-                    _buyStarsLock = false;
                 });
             } catch (e) {
-                try { toast.remove(); } catch(_) {}
                 _buyStarsLock = false;
                 console.error('buyStars error', e);
                 alert('Ошибка: ' + (e.message || 'проверьте соединение'));
