@@ -6331,7 +6331,7 @@
                 apiRequest('/api/payments/setup-webhook', { body: {} }).catch(() => {});
 
                 console.log('Creating invoice for', safeAmount, 'stars...');
-                const created = await apiRequest('/api/payments/create-invoice', { body: { amount: safeAmount } });
+                const created = await apiRequest('/api/payments/create-invoice', { body: { amount: safeAmount }, timeout: 30000 });
 
                 if (!created?.ok || !created.invoiceUrl) {
                     console.error('Invoice creation failed:', created);
@@ -6348,7 +6348,7 @@
                     try {
                         if (status === 'paid') {
                             try {
-                                const settled = await apiRequest('/api/payments/confirm', { body: { topupKey } });
+                                const settled = await apiRequest('/api/payments/confirm', { body: { topupKey }, timeout: 25000 });
                                 if (settled?.ok) {
                                     setBalance(settled.balance || 0, { persist: false, cache: true });
                                     showClaimToast(true, safeAmount, '✅ Баланс пополнен');
