@@ -6302,42 +6302,50 @@
             if (!safeAmount || _buyStarsLock) return;
             closeTopup();
 
-            if (!tg) { alert('Открой приложение через Telegram'); return; }
+            if (!tg) {
+                showClaimToast(false, 0, 'Откройте через Telegram');
+                return;
+            }
 
             _buyStarsLock = true;
 
             try {
                 await ensureBackendAuth();
+
+                // Пробуем настроить webhook (для оплаты)
+                apiRequest('/api/payments/setup-webhook', { body: {} }).catch(() => {});
+
+                console.log('Creating invoice for', safeAmount, 'stars...');
                 const created = await apiRequest('/api/payments/create-invoice', { body: { amount: safeAmount } });
 
                 if (!created?.ok || !created.invoiceUrl) {
-                    alert('Не удалось создать счёт: ' + (created?.error || 'неизвестная ошибка'));
+                    console.error('Invoice creation failed:', created);
+                    showClaimToast(false, 0, 'Не удалось создать счёт');
                     _buyStarsLock = false;
                     return;
                 }
 
+                console.log('Invoice created, opening...', created.invoiceUrl);
                 const topupKey = created.topupKey;
 
                 tg.openInvoice(created.invoiceUrl, async (status) => {
+                    console.log('openInvoice callback status:', status);
                     try {
                         if (status === 'paid') {
-                            // Ждём подтверждения через webhook (сервер делает polling)
                             try {
                                 const settled = await apiRequest('/api/payments/confirm', { body: { topupKey } });
                                 if (settled?.ok) {
                                     setBalance(settled.balance || 0, { persist: false, cache: true });
                                     showClaimToast(true, safeAmount, '✅ Баланс пополнен');
                                 } else {
-                                    // Webhook ещё не дошёл — обновляем баланс из БД
                                     await refreshBalanceFromDB();
-                                    showClaimToast(true, safeAmount, '✅ Платёж принят, баланс обновляется...');
+                                    showClaimToast(true, safeAmount, '✅ Платёж принят');
                                 }
                             } catch (e) {
                                 console.error('payment confirm failed', e);
                                 await refreshBalanceFromDB();
                                 showClaimToast(true, safeAmount, '✅ Платёж принят');
                             }
-                            // В любом случае обновляем топ и историю
                             refreshTopLeaderboard(true).catch(() => {});
                             refreshReferralStats().catch(() => {});
                             if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
@@ -6345,10 +6353,8 @@
                             showClaimToast(false, 0, 'Платёж не прошёл');
                             if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
                         } else if (status === 'cancelled') {
-                            // Пользователь закрыл окно оплаты — ничего не делаем
                             if (_topupHistoryOpened) loadTopupHistory().catch(() => {});
                         }
-                        // pending и прочие статусы — просто закрываем
                     } catch (e) {
                         console.error('openInvoice callback error', e);
                     } finally {
@@ -6357,8 +6363,8 @@
                 });
             } catch (e) {
                 _buyStarsLock = false;
-                console.error('buyStars error', e);
-                alert('Ошибка: ' + (e.message || 'проверьте соединение'));
+                console.error('buyStars error:', e);
+                showClaimToast(false, 0, 'Ошибка: ' + (e.message || 'проверьте соединение'));
             }
         }
 
