@@ -3270,27 +3270,42 @@
             const initData = tgInitData();
             if (initData) headers['X-Telegram-Init-Data'] = initData;
 
-            const res = await fetch(API_BASE + path, {
-                method: options.method || (hasBody ? 'POST' : 'GET'),
-                headers,
-                body: hasBody ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined
-            });
+            const controller = new AbortController();
+            const timeoutMs = options.timeout || 20000; // 20 сек по умолчанию
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-            const text = await res.text();
-            let json = {};
-            try { json = text ? JSON.parse(text) : {}; } catch (e) {
-                throw new Error(text || ('HTTP ' + res.status));
+            try {
+                const res = await fetch(API_BASE + path, {
+                    method: options.method || (hasBody ? 'POST' : 'GET'),
+                    headers,
+                    body: hasBody ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
+                    signal: controller.signal
+                });
+
+                clearTimeout(timer);
+
+                const text = await res.text();
+                let json = {};
+                try { json = text ? JSON.parse(text) : {}; } catch (e) {
+                    throw new Error(text || ('HTTP ' + res.status));
+                }
+
+                if (!res.ok) {
+                    const msg = json?.error?.message || json?.error || json?.message || ('HTTP ' + res.status);
+                    const err = new Error(msg);
+                    err.status = res.status;
+                    err.payload = json;
+                    throw err;
+                }
+
+                return json;
+            } catch (e) {
+                clearTimeout(timer);
+                if (e.name === 'AbortError') {
+                    throw new Error('Таймаут запроса к серверу');
+                }
+                throw e;
             }
-
-            if (!res.ok) {
-                const msg = json?.error?.message || json?.error || json?.message || ('HTTP ' + res.status);
-                const err = new Error(msg);
-                err.status = res.status;
-                err.payload = json;
-                throw err;
-            }
-
-            return json;
         }
 
         async function ensureBackendAuth() {
