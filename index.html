@@ -2364,6 +2364,72 @@
             padding: 20px;
         }
 
+        /* ─ Custom topup ─ */
+        .topup-custom-link {
+            width: 100%;
+            text-align: center;
+            padding: 16px 0 4px;
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(100, 170, 255, 0.85);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .topup-custom-link:active {
+            opacity: 0.7;
+        }
+
+        .topup-custom-input-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 40px 16px 30px;
+        }
+
+        .topup-custom-input {
+            background: none;
+            border: none;
+            outline: none;
+            font-size: 42px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.92);
+            font-family: inherit;
+            -webkit-user-select: text;
+            user-select: text;
+            width: 140px;
+            text-align: center;
+        }
+
+        .topup-custom-input::placeholder {
+            color: rgba(255, 255, 255, 0.18);
+        }
+
+        .topup-custom-star {
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
+        }
+
+        .topup-custom-pay-btn {
+            width: 100%;
+            height: 54px;
+            background: #007AFF;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            font-family: inherit;
+        }
+
+        .topup-custom-pay-btn:active {
+            background: #006ae6;
+        }
+
         /* ─── Settings Modal ─── */
         .modal-overlay {
             position: fixed;
@@ -3145,6 +3211,7 @@
                     </svg>
                 </div>
             </div>
+            <!-- Preset amounts view -->
             <div class="topup-view" id="topupMainView">
                 <div class="topup-grid">
                     <div class="topup-item" onclick="buyStars(10)"><img src="star.png" alt=""><span>10</span></div>
@@ -3155,7 +3222,17 @@
                     <div class="topup-item" onclick="buyStars(500)"><img src="star.png" alt=""><span>500</span></div>
                     <div class="topup-item" onclick="buyStars(1000)"><img src="star.png" alt=""><span>1000</span></div>
                 </div>
+                <div class="topup-custom-link" onclick="showCustomTopup()" id="topupCustomLink">Выбрать свою сумму</div>
             </div>
+            <!-- Custom amount input view -->
+            <div class="topup-view hidden" id="topupCustomView">
+                <div class="topup-custom-input-wrap">
+                    <input class="topup-custom-input" id="topupCustomInput" type="number" inputmode="numeric" placeholder="0" value="">
+                    <img class="topup-custom-star" src="star.png" alt="">
+                </div>
+                <button class="topup-custom-pay-btn" id="topupCustomPayBtn" onclick="buyCustomStars()">Оплатить</button>
+            </div>
+            <!-- History view -->
             <div class="topup-view hidden" id="topupHistoryView">
                 <div class="topup-history-list" id="topupHistoryList">
                     <div class="topup-history-empty">Загрузка...</div>
@@ -3871,7 +3948,7 @@
             toast.classList.add(success ? 'success' : 'error');
             if (icon) icon.textContent = success ? '✓' : '!';
             if (title) title.textContent = success ? t('toast_success') : t('toast_error');
-            if (body) body.innerHTML = (text || '') + (amount > 0 ? ' <img src="star.png" alt="star"> ' + amount : '');
+            if (body) body.innerHTML = (text || '') + (amount > 0 ? ' ' + amount + ' <img src="star.png" alt="star">' : '');
             clearTimeout(giftCheckToastTimer);
             requestAnimationFrame(() => toast.classList.add('show'));
             giftCheckToastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
@@ -6287,28 +6364,54 @@
             }
         }
 
-        function setTopupView(showHistory) {
-            _topupHistoryOpened = !!showHistory;
+        let _topupCurrentView = 'main'; // 'main' | 'custom' | 'history'
+
+        function setTopupView(view) {
+            _topupCurrentView = view || 'main';
+            _topupHistoryOpened = _topupCurrentView === 'history';
             const main = document.getElementById('topupMainView');
+            const custom = document.getElementById('topupCustomView');
             const history = document.getElementById('topupHistoryView');
             const title = document.getElementById('topupTitleEl');
             const historyBtn = document.getElementById('topupHistoryBtn');
-            if (main) main.classList.toggle('hidden', _topupHistoryOpened);
-            if (history) history.classList.toggle('hidden', !_topupHistoryOpened);
-            if (title) title.textContent = _topupHistoryOpened ? (currentLang === 'en' ? 'Payment history' : 'История оплат') : t('topup_title');
-            if (historyBtn) historyBtn.classList.toggle('active', _topupHistoryOpened);
+            if (main) main.classList.toggle('hidden', _topupCurrentView !== 'main');
+            if (custom) custom.classList.toggle('hidden', _topupCurrentView !== 'custom');
+            if (history) history.classList.toggle('hidden', _topupCurrentView !== 'history');
+            if (title) {
+                if (_topupCurrentView === 'history') title.textContent = currentLang === 'en' ? 'Payment history' : 'История оплат';
+                else title.textContent = t('topup_title');
+            }
+            if (historyBtn) historyBtn.classList.toggle('active', _topupCurrentView === 'history');
+            if (_topupCurrentView === 'custom') {
+                const input = document.getElementById('topupCustomInput');
+                if (input) { input.value = ''; setTimeout(() => input.focus(), 100); }
+            }
+        }
+
+        function showCustomTopup() {
+            setTopupView('custom');
+        }
+
+        function buyCustomStars() {
+            const input = document.getElementById('topupCustomInput');
+            const amount = parseInt(input?.value, 10) || 0;
+            if (amount < 1) {
+                showClaimToast(false, 0, currentLang === 'en' ? 'Enter amount' : 'Введите сумму');
+                return;
+            }
+            buyStars(amount);
         }
 
         async function openTopupHistory() {
-            if (_topupHistoryOpened) {
-                setTopupView(false);
+            if (_topupCurrentView === 'history') {
+                setTopupView('main');
                 return;
             }
             const menu = document.getElementById('topupMenu');
             const overlay = document.getElementById('topupOverlay');
             if (menu && !menu.classList.contains('show')) menu.classList.add('show');
             if (overlay && !overlay.classList.contains('show')) overlay.classList.add('show');
-            setTopupView(true);
+            setTopupView('history');
             await loadTopupHistory();
         }
 
@@ -6351,15 +6454,15 @@
                                 const settled = await apiRequest('/api/payments/confirm', { body: { topupKey }, timeout: 25000 });
                                 if (settled?.ok) {
                                     setBalance(settled.balance || 0, { persist: false, cache: true });
-                                    showClaimToast(true, safeAmount, '✅ Баланс пополнен');
+                                    showClaimToast(true, safeAmount, 'Пополнено');
                                 } else {
                                     await refreshBalanceFromDB();
-                                    showClaimToast(true, safeAmount, '✅ Платёж принят');
+                                    showClaimToast(true, safeAmount, 'Пополнено');
                                 }
                             } catch (e) {
                                 console.error('payment confirm failed', e);
                                 await refreshBalanceFromDB();
-                                showClaimToast(true, safeAmount, '✅ Платёж принят');
+                                showClaimToast(true, safeAmount, 'Пополнено');
                             }
                             refreshTopLeaderboard(true).catch(() => {});
                             refreshReferralStats().catch(() => {});
@@ -6384,14 +6487,14 @@
         }
 
         function openTopup() {
-            setTopupView(false);
+            setTopupView('main');
             document.getElementById('topupMenu').classList.add('show');
             document.getElementById('topupOverlay').classList.add('show');
         }
         function closeTopup() {
             document.getElementById('topupMenu').classList.remove('show');
             document.getElementById('topupOverlay').classList.remove('show');
-            setTopupView(false);
+            setTopupView('main');
         }
 
         // ═══════════════════════════════════════════════════
