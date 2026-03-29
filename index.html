@@ -230,7 +230,7 @@
             height: 24px;
             filter: brightness(0) invert(1);
             opacity: 0.4;
-            transition: opacity 0.25s ease, filter 0.25s ease;
+            transition: none;
         }
 
         .nav-item.active img {
@@ -242,7 +242,7 @@
             font-size: 10px;
             font-weight: 500;
             color: rgba(255, 255, 255, 0.4);
-            transition: color 0.25s ease;
+            transition: none;
             letter-spacing: 0.2px;
         }
 
@@ -2287,10 +2287,6 @@
             color: #fff;
         }
 
-        .topup-view.hidden {
-            display: none;
-        }
-
         .topup-history-list {
             display: flex;
             flex-direction: column;
@@ -2453,32 +2449,27 @@
 
         /* Topup view transitions */
         .topup-view {
-            transition: opacity 0.25s ease, max-height 0.35s ease, transform 0.25s ease;
             overflow: hidden;
             opacity: 1;
-            max-height: 800px;
-            transform: scale(1);
-            transform-origin: top center;
         }
 
         .topup-view.hidden {
-            display: none;
+            display: none !important;
         }
 
-        .topup-view.shrink-out {
+        .topup-view.fade-out {
             opacity: 0;
-            max-height: 0;
-            transform: scale(0.95);
+            transition: opacity 0.15s ease;
             pointer-events: none;
         }
 
-        .topup-view.grow-in {
-            animation: topupGrowIn 0.3s ease forwards;
+        .topup-view.fade-in {
+            animation: topupFadeIn 0.28s ease forwards;
         }
 
-        @keyframes topupGrowIn {
-            0% { opacity: 0; max-height: 0; transform: scale(0.95); }
-            100% { opacity: 1; max-height: 800px; transform: scale(1); }
+        @keyframes topupFadeIn {
+            0% { opacity: 0; transform: translateY(-8px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
 
         /* ─── Settings Modal ─── */
@@ -6455,49 +6446,34 @@
             const historyBtn = document.getElementById('topupHistoryBtn');
             const views = { main, custom, history };
 
-            // Title
             if (title) {
                 if (_topupCurrentView === 'history') title.textContent = currentLang === 'en' ? 'Payment history' : 'История оплат';
                 else title.textContent = t('topup_title');
             }
             if (historyBtn) historyBtn.classList.toggle('active', _topupCurrentView === 'history');
 
-            // Компактный режим для кастомного ввода
+            // Компактный режим для кастомного ввода и истории
             const box = document.querySelector('.topup-box');
-            if (box) box.classList.toggle('compact', _topupCurrentView === 'custom');
+            if (box) box.classList.toggle('compact', _topupCurrentView === 'custom' || _topupCurrentView === 'history');
 
-            // Анимация: скрываем старый, показываем новый
-            const outgoing = views[prev];
-            const incoming = views[_topupCurrentView];
-
-            if (outgoing && outgoing !== incoming) {
-                outgoing.classList.add('shrink-out');
-                outgoing.classList.remove('grow-in');
-                setTimeout(() => {
-                    outgoing.classList.add('hidden');
-                    outgoing.classList.remove('shrink-out');
-                }, 280);
-            }
-
-            if (incoming) {
-                incoming.classList.remove('hidden', 'shrink-out');
-                if (prev !== _topupCurrentView) {
-                    incoming.classList.add('grow-in');
-                    incoming.addEventListener('animationend', () => incoming.classList.remove('grow-in'), { once: true });
-                }
-            }
-
-            // Остальные скрываем сразу
+            // Скрываем старый, показываем новый
             Object.entries(views).forEach(([key, el]) => {
-                if (el && key !== _topupCurrentView && key !== prev) {
+                if (!el) return;
+                if (key === _topupCurrentView) {
+                    el.classList.remove('hidden', 'fade-out');
+                    if (prev !== _topupCurrentView) {
+                        el.classList.add('fade-in');
+                        el.addEventListener('animationend', () => el.classList.remove('fade-in'), { once: true });
+                    }
+                } else {
                     el.classList.add('hidden');
-                    el.classList.remove('shrink-out', 'grow-in');
+                    el.classList.remove('fade-in', 'fade-out');
                 }
             });
 
             if (_topupCurrentView === 'custom') {
                 const input = document.getElementById('topupCustomInput');
-                if (input) { input.value = ''; setTimeout(() => input.focus(), 350); }
+                if (input) { input.value = ''; setTimeout(() => input.focus(), 300); }
             }
         }
 
