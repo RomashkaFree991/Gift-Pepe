@@ -2430,6 +2430,36 @@
             background: #006ae6;
         }
 
+        /* Topup view transitions */
+        .topup-view {
+            transition: opacity 0.25s ease, max-height 0.35s ease, transform 0.25s ease;
+            overflow: hidden;
+            opacity: 1;
+            max-height: 800px;
+            transform: scale(1);
+            transform-origin: top center;
+        }
+
+        .topup-view.hidden {
+            display: none;
+        }
+
+        .topup-view.shrink-out {
+            opacity: 0;
+            max-height: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
+
+        .topup-view.grow-in {
+            animation: topupGrowIn 0.3s ease forwards;
+        }
+
+        @keyframes topupGrowIn {
+            0% { opacity: 0; max-height: 0; transform: scale(0.95); }
+            100% { opacity: 1; max-height: 800px; transform: scale(1); }
+        }
+
         /* ─── Settings Modal ─── */
         .modal-overlay {
             position: fixed;
@@ -6367,24 +6397,56 @@
         let _topupCurrentView = 'main'; // 'main' | 'custom' | 'history'
 
         function setTopupView(view) {
+            const prev = _topupCurrentView;
             _topupCurrentView = view || 'main';
             _topupHistoryOpened = _topupCurrentView === 'history';
+
             const main = document.getElementById('topupMainView');
             const custom = document.getElementById('topupCustomView');
             const history = document.getElementById('topupHistoryView');
             const title = document.getElementById('topupTitleEl');
             const historyBtn = document.getElementById('topupHistoryBtn');
-            if (main) main.classList.toggle('hidden', _topupCurrentView !== 'main');
-            if (custom) custom.classList.toggle('hidden', _topupCurrentView !== 'custom');
-            if (history) history.classList.toggle('hidden', _topupCurrentView !== 'history');
+            const views = { main, custom, history };
+
+            // Title
             if (title) {
                 if (_topupCurrentView === 'history') title.textContent = currentLang === 'en' ? 'Payment history' : 'История оплат';
                 else title.textContent = t('topup_title');
             }
             if (historyBtn) historyBtn.classList.toggle('active', _topupCurrentView === 'history');
+
+            // Анимация: скрываем старый, показываем новый
+            const outgoing = views[prev];
+            const incoming = views[_topupCurrentView];
+
+            if (outgoing && outgoing !== incoming) {
+                outgoing.classList.add('shrink-out');
+                outgoing.classList.remove('grow-in');
+                setTimeout(() => {
+                    outgoing.classList.add('hidden');
+                    outgoing.classList.remove('shrink-out');
+                }, 280);
+            }
+
+            if (incoming) {
+                incoming.classList.remove('hidden', 'shrink-out');
+                if (prev !== _topupCurrentView) {
+                    incoming.classList.add('grow-in');
+                    incoming.addEventListener('animationend', () => incoming.classList.remove('grow-in'), { once: true });
+                }
+            }
+
+            // Остальные скрываем сразу
+            Object.entries(views).forEach(([key, el]) => {
+                if (el && key !== _topupCurrentView && key !== prev) {
+                    el.classList.add('hidden');
+                    el.classList.remove('shrink-out', 'grow-in');
+                }
+            });
+
             if (_topupCurrentView === 'custom') {
                 const input = document.getElementById('topupCustomInput');
-                if (input) { input.value = ''; setTimeout(() => input.focus(), 100); }
+                if (input) { input.value = ''; setTimeout(() => input.focus(), 350); }
             }
         }
 
