@@ -195,14 +195,14 @@
         /* Скользящий индикатор */
         .nav-indicator {
             position: absolute;
-            width: 58px;
-            height: 50px;
-            background: rgba(0, 122, 255, 0.12);
-            border: 1px solid rgba(0, 122, 255, 0.18);
-            border-radius: 16px;
+            width: 62px;
+            height: 54px;
+            background: rgba(0, 122, 255, 0.13);
+            border: none;
+            border-radius: 50px;
             top: 50%;
             transform: translateY(-50%);
-            transition: left 0.35s cubic-bezier(0.32, 1, 0.64, 1), width 0.3s ease;
+            transition: left 0.35s cubic-bezier(0.32, 1, 0.64, 1);
             z-index: 0;
             pointer-events: none;
         }
@@ -2183,6 +2183,12 @@
             display: flex;
             flex-direction: column;
             gap: 18px;
+            transition: min-height 0.35s cubic-bezier(0.32, 1, 0.64, 1), padding 0.35s ease;
+        }
+
+        .topup-box.compact {
+            min-height: 0;
+            padding-bottom: 28px;
         }
 
         .topup-header {
@@ -2400,7 +2406,7 @@
             align-items: center;
             justify-content: center;
             gap: 10px;
-            padding: 40px 16px 30px;
+            padding: 24px 16px 20px;
         }
 
         .topup-custom-input {
@@ -4281,7 +4287,7 @@
             if (!container) return;
             const containerRect = container.getBoundingClientRect();
             const itemRect = item.getBoundingClientRect();
-            const left = itemRect.left - containerRect.left + (itemRect.width - 58) / 2;
+            const left = itemRect.left - containerRect.left + (itemRect.width - 62) / 2;
             indicator.style.left = left + 'px';
         }
 
@@ -6455,6 +6461,10 @@
                 else title.textContent = t('topup_title');
             }
             if (historyBtn) historyBtn.classList.toggle('active', _topupCurrentView === 'history');
+
+            // Компактный режим для кастомного ввода
+            const box = document.querySelector('.topup-box');
+            if (box) box.classList.toggle('compact', _topupCurrentView === 'custom');
 
             // Анимация: скрываем старый, показываем новый
             const outgoing = views[prev];
