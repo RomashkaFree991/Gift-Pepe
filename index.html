@@ -171,7 +171,7 @@
             bottom: 14px;
             left: 50%;
             transform: translateX(-50%);
-            width: 240px;
+            width: 340px;
             height: 66px;
             background: rgba(35, 35, 40, 0.55);
             backdrop-filter: blur(16px);
@@ -195,8 +195,8 @@
         /* Скользящий индикатор */
         .nav-indicator {
             position: absolute;
-            width: 62px;
-            height: 54px;
+            width: 56px;
+            height: 52px;
             background: rgba(0, 122, 255, 0.13);
             border: none;
             border-radius: 50px;
@@ -211,23 +211,23 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 3px;
+            gap: 2px;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
             position: relative;
             z-index: 1;
-            width: 58px;
+            width: 50px;
             padding: 6px 0;
             transition: transform 0.3s cubic-bezier(0.32, 1, 0.64, 1);
         }
 
         .nav-item.active {
-            transform: scale(1.12);
+            transform: scale(1.1);
         }
 
         .nav-item img {
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             filter: brightness(0) invert(1);
             opacity: 0.4;
             transition: none;
@@ -239,11 +239,11 @@
         }
 
         .nav-item span {
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 500;
             color: rgba(255, 255, 255, 0.4);
             transition: none;
-            letter-spacing: 0.2px;
+            letter-spacing: 0.1px;
         }
 
         .nav-item.active span {
@@ -865,7 +865,7 @@
         }
 
         .craft-wrap {
-            padding: calc(210px + env(safe-area-inset-top, 0px)) 16px calc(112px + env(safe-area-inset-bottom, 0px));
+            padding: calc(140px + env(safe-area-inset-top, 0px)) 16px calc(100px + env(safe-area-inset-bottom, 0px));
             display: flex;
             flex-direction: column;
             gap: 14px;
@@ -2776,6 +2776,43 @@
             margin-bottom: 10px;
         }
 
+        /* ─── Upgrade Visual ─── */
+        .upgrade-visual {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 50px 0 16px;
+        }
+
+        .upgrade-circle {
+            position: relative;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: rgba(0, 122, 255, 0.10);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upgrade-circle-inner {
+            width: 228px;
+            height: 228px;
+            border-radius: 50%;
+            background: rgba(10, 12, 24, 0.65);
+        }
+
+        .upgrade-arrow-up {
+            position: absolute;
+            top: -18px;
+            left: 50%;
+            width: 26px;
+            height: 26px;
+            background: rgba(0, 122, 255, 0.40);
+            border-radius: 50% 50% 50% 0;
+            transform: translateX(-50%) rotate(-45deg);
+        }
+
         /* ─── Ad Banner ─── */
         .ad-banner {
             width: 100%;
@@ -3048,18 +3085,17 @@
             </div>
         </div>
     </div>
-    <div class="tab-page active" id="page-games">
+    <!-- Upgrade Page -->
+    <div class="tab-page" id="page-upgrade">
         <div class="games-page">
-            <div class="section-title">Выберите игру</div>
-            <div class="game-banner" onclick="openGame('crash')">
-                <img src="Crash.png" alt="Crash">
+            <div class="upgrade-visual">
+                <div class="upgrade-circle">
+                    <div class="upgrade-arrow-up"></div>
+                    <div class="upgrade-circle-inner"></div>
+                </div>
             </div>
-            <div class="game-banner" style="margin-top: 3px;" onclick="openGame('upgrade')">
-                <img src="upgrade.png" alt="Upgrade">
-            </div>
-            <div class="game-banner" style="margin-top: 3px;" onclick="openGame('craft')">
-                <img src="craft.png" alt="Craft">
-            </div>
+            <div class="gifts-title" style="text-align:center; margin-top:18px;">Скоро</div>
+            <div class="gifts-desc" style="text-align:center;">Апгрейд подарков появится<br>в ближайшем обновлении</div>
         </div>
     </div>
     <div class="tab-page profile-page" id="page-profile">
@@ -3154,13 +3190,7 @@
     </div>
 
     <!-- Crash Game Page -->
-    <div class="tab-page crash-page" id="page-crash">
-        <div class="crash-back" onclick="closeCrash()">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span id="crashBackLabel">Назад</span>
-        </div>
+    <div class="tab-page crash-page active" id="page-crash">
         <div class="crash-top" id="crashStars">
             <div class="crash-countdown" id="crashCountdown"></div>
             <div class="crash-multiplier" id="crashMultiplier">1.00x</div>
@@ -3180,13 +3210,6 @@
 
     <!-- Craft Page -->
     <div class="tab-page craft-page" id="page-craft">
-        <div class="crash-back" onclick="closeCraft()">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15 18l-6-6 6-6" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span id="craftBackLabel">Назад</span>
-        </div>
-
         <div class="craft-wrap">
             <div class="craft-card craft-grid-card">
                 <div class="craft-grid" id="craftGrid"></div>
@@ -3354,12 +3377,22 @@
                 <span>Топ</span>
             </div>
 
-            <div class="nav-item active" data-index="1" onclick="switchTab(this)">
-                <img src="game.svg" alt="Игры">
-                <span>Игры</span>
+            <div class="nav-item" data-index="1" onclick="switchTab(this)">
+                <img src="rise.svg" alt="Апгрейд">
+                <span>Апгрейд</span>
             </div>
 
-            <div class="nav-item" data-index="2" onclick="switchTab(this)">
+            <div class="nav-item active" data-index="2" onclick="switchTab(this)">
+                <img src="crash.svg" alt="Краш">
+                <span>Краш</span>
+            </div>
+
+            <div class="nav-item" data-index="3" onclick="switchTab(this)">
+                <img src="craft.svg" alt="Крафт">
+                <span>Крафт</span>
+            </div>
+
+            <div class="nav-item" data-index="4" onclick="switchTab(this)">
                 <img src="user.svg" alt="Профиль">
                 <span>Профиль</span>
             </div>
@@ -3776,6 +3809,12 @@
                     markLoaderTask('profile');
                     await Promise.allSettled(warmups);
                     handleLaunchPayload();
+                    // Crash — default tab, auto-start
+                    if (document.getElementById('page-crash')?.classList.contains('active')) {
+                        crashActive = true;
+                        genStars();
+                        initCrash();
+                    }
                 });
             }
         }
@@ -4269,7 +4308,7 @@
 
         // ─── Navigation ───
         const navItems = document.getElementById('navItems');
-        const pages = ['page-top', 'page-games', 'page-profile'];
+        const pages = ['page-top', 'page-upgrade', 'page-crash', 'page-craft', 'page-profile'];
 
         function positionIndicator(item) {
             const indicator = document.getElementById('navIndicator');
@@ -4278,7 +4317,7 @@
             if (!container) return;
             const containerRect = container.getBoundingClientRect();
             const itemRect = item.getBoundingClientRect();
-            const left = itemRect.left - containerRect.left + (itemRect.width - 62) / 2;
+            const left = itemRect.left - containerRect.left + (itemRect.width - 56) / 2;
             indicator.style.left = left + 'px';
         }
 
@@ -4299,22 +4338,54 @@
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
             positionIndicator(el);
-            // Только паузим UI-цикл, НЕ убиваем подписки и состояние раунда
-            crashActive = false;
-            if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
-            if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
-            if (roundSyncTimer) { clearTimeout(roundSyncTimer); roundSyncTimer = null; }
-            if (typeof _syncRetryTimer !== 'undefined' && _syncRetryTimer) {
-                clearTimeout(_syncRetryTimer); _syncRetryTimer = null;
-            }
-            crashRunning = false;
+
             const idx = parseInt(el.dataset.index);
+            const targetPage = pages[idx];
+
+            // Паузим crash если уходим с него
+            if (targetPage !== 'page-crash') {
+                crashActive = false;
+                if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
+                if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
+                if (roundSyncTimer) { clearTimeout(roundSyncTimer); roundSyncTimer = null; }
+                if (typeof _syncRetryTimer !== 'undefined' && _syncRetryTimer) {
+                    clearTimeout(_syncRetryTimer); _syncRetryTimer = null;
+                }
+                crashRunning = false;
+            }
+
+            // Переключаем страницы
             document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-            document.getElementById(pages[idx]).classList.add('active');
-            if (pages[idx] === 'page-top') {
+            document.getElementById(targetPage).classList.add('active');
+
+            // Специальная логика для каждой вкладки
+            if (targetPage === 'page-top') {
                 refreshTopLeaderboard(false);
             }
-            if (pages[idx] === 'page-profile') {
+            if (targetPage === 'page-crash') {
+                crashActive = true;
+                genStars();
+                const roundAlive = currentRound && isRoundStillAlive(currentRound, 500);
+                if (roundAlive && (betsSub || roundsSub)) {
+                    if (!gameLoop) { crashShown = false; lastCountNum = -1; runLoop(); }
+                    if (!pollLoop) {
+                        pollLoop = setInterval(async () => {
+                            if (!crashActive) return;
+                            try {
+                                if (!gameLoop && !roundSyncTimer) await syncCrashRound(true);
+                                else await syncCrashRound(false);
+                            } catch(e) {}
+                        }, POLL_MS);
+                    }
+                } else {
+                    stopAll();
+                    initCrash();
+                }
+            }
+            if (targetPage === 'page-craft') {
+                renderCraftUI();
+            }
+            if (targetPage === 'page-profile') {
                 refreshInventoryFromDB().catch(() => {});
             }
         }
@@ -4978,15 +5049,13 @@
         }
 
         function openCraft() {
-            document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-            document.getElementById('page-craft').classList.add('active');
-            renderCraftUI();
+            // Теперь просто переключаем на вкладку
+            const navItem = document.querySelector('.nav-item[data-index="3"]');
+            if (navItem) switchTab(navItem);
         }
 
         function closeCraft() {
             closeCraftInventorySheet();
-            document.getElementById('page-craft').classList.remove('active');
-            document.getElementById('page-games').classList.add('active');
         }
 
         function animateCrashEntrance() {
@@ -5002,59 +5071,19 @@
         document.getElementById('craftAddBtn')?.addEventListener('click', openCraftInventorySheet);
         document.getElementById('craftSheetAddBtn')?.addEventListener('click', addSelectedCraftGifts);
 
-        // ─── Open / Close ───
+        // ─── Open / Close (legacy compatibility) ───
         function openGame(name) {
             if (name === 'craft') {
-                openCraft();
-                return;
-            }
-
-            if (name === 'crash') {
-                document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-                document.getElementById('page-crash').classList.add('active');
-                animateCrashEntrance();
-                crashActive = true;
-                genStars();
-
-                // Если раунд уже загружен и живой — мгновенно возобновляем без сетевых запросов
-                const roundAlive = currentRound && isRoundStillAlive(currentRound, 500);
-                if (roundAlive && (betsSub || roundsSub)) {
-                    // Просто перезапускаем UI-цикл и poll — без syncClock/loadHist/loadBets
-                    if (!gameLoop) {
-                        crashShown = false;
-                        lastCountNum = -1;
-                        runLoop();
-                    }
-                    if (!pollLoop) {
-                        pollLoop = setInterval(async () => {
-                            if (!crashActive) return;
-                            try {
-                                if (!gameLoop && !roundSyncTimer) await syncCrashRound(true);
-                                else await syncCrashRound(false);
-                            } catch(e) {}
-                        }, POLL_MS);
-                    }
-                    return;
-                }
-
-                // Первый вход или раунд устарел — полная инициализация
-                stopAll();
-                initCrash();
+                const navItem = document.querySelector('.nav-item[data-index="3"]');
+                if (navItem) switchTab(navItem);
+            } else if (name === 'crash') {
+                const navItem = document.querySelector('.nav-item[data-index="2"]');
+                if (navItem) switchTab(navItem);
             }
         }
 
         function closeCrash() {
-            crashActive = false;
-            clearStickyGiftPreview();
-            // Только паузим UI-цикл — подписки и currentRound остаются живыми
-            if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
-            if (pollLoop) { clearInterval(pollLoop); pollLoop = null; }
-            if (roundSyncTimer) { clearTimeout(roundSyncTimer); roundSyncTimer = null; }
-            if (_syncRetryTimer) { clearTimeout(_syncRetryTimer); _syncRetryTimer = null; }
-            crashRunning = false;
-            hideAll();
-            document.getElementById('page-crash').classList.remove('active');
-            document.getElementById('page-games').classList.add('active');
+            // Нет Games page — ничего не делаем
         }
 
         function stopAll() {
@@ -6314,7 +6343,7 @@
         function getSellAllLabel(total) { return t('sell_all') + ' ' + (Math.max(0, parseInt(total, 10) || 0)); }
         function updateGiftModalTranslations() { const sellAmount = document.getElementById('giftSellAmount')?.textContent || ''; const sellBtn = document.getElementById('giftSellBtn'); const takeBtn = document.getElementById('giftTakeBtn'); if (sellBtn) sellBtn.innerHTML = t('gift_sell') + ' <span id="giftSellAmount">' + sellAmount + '</span> <img src="star.png" alt="">'; if (takeBtn) takeBtn.textContent = t('gift_take'); }
         function updateCheckTranslations() { const subtitle = document.getElementById('checkSubtitle'); const label = document.getElementById('checkLabel'); if (label) label.textContent = t('check_label'); if (subtitle && (!subtitle.textContent || subtitle.dataset.i18n !== 'manual')) subtitle.textContent = t('check_subtitle'); }
-        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = t('games'); if (navSpans[2]) navSpans[2].textContent = t('profile_nav'); const gameTitle = document.querySelector('#page-games .section-title'); if (gameTitle) gameTitle.textContent = t('choose_game'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const crashBack = document.getElementById('crashBackLabel'); if (crashBack) crashBack.textContent = t('back'); const craftBack = document.getElementById('craftBackLabel'); if (craftBack) craftBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); const craftLabel = document.querySelector('.craft-summary-label'); if (craftLabel) craftLabel.textContent = t('craft_value_label'); const craftAddBtn = document.getElementById('craftAddBtn'); if (craftAddBtn) craftAddBtn.textContent = t('craft_add_own'); if (typeof renderCraftUI === 'function') renderCraftUI(); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
+        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = currentLang === 'en' ? 'Upgrade' : 'Апгрейд'; if (navSpans[2]) navSpans[2].textContent = currentLang === 'en' ? 'Crash' : 'Краш'; if (navSpans[3]) navSpans[3].textContent = currentLang === 'en' ? 'Craft' : 'Крафт'; if (navSpans[4]) navSpans[4].textContent = t('profile_nav'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); const craftLabel = document.querySelector('.craft-summary-label'); if (craftLabel) craftLabel.textContent = t('craft_value_label'); const craftAddBtn = document.getElementById('craftAddBtn'); if (craftAddBtn) craftAddBtn.textContent = t('craft_add_own'); if (typeof renderCraftUI === 'function') renderCraftUI(); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
         function closeSettingsOutside(e) { if (e.target === e.currentTarget) closeSettings(); }
         function toggleLang() { document.getElementById('langOptions').classList.toggle('show'); document.getElementById('langRow').classList.toggle('open'); }
         function selectLang(lang, el) { currentLang = I18N[lang] ? lang : 'ru'; localStorage.setItem(LANG_STORAGE_KEY, currentLang); document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); if (el) el.classList.add('active'); applyTranslations(); }
