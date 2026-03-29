@@ -192,9 +192,19 @@
             justify-content: space-evenly;
         }
 
-        /* Скользящий индикатор - removed */
+        /* Скользящий индикатор */
         .nav-indicator {
-            display: none;
+            position: absolute;
+            width: 58px;
+            height: 50px;
+            background: rgba(0, 122, 255, 0.12);
+            border: 1px solid rgba(0, 122, 255, 0.18);
+            border-radius: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: left 0.35s cubic-bezier(0.32, 1, 0.64, 1), width 0.3s ease;
+            z-index: 0;
+            pointer-events: none;
         }
 
         .nav-item {
@@ -208,6 +218,11 @@
             z-index: 1;
             width: 58px;
             padding: 6px 0;
+            transition: transform 0.3s cubic-bezier(0.32, 1, 0.64, 1);
+        }
+
+        .nav-item.active {
+            transform: scale(1.12);
         }
 
         .nav-item img {
@@ -215,7 +230,7 @@
             height: 24px;
             filter: brightness(0) invert(1);
             opacity: 0.4;
-            transition: none;
+            transition: opacity 0.25s ease, filter 0.25s ease;
         }
 
         .nav-item.active img {
@@ -227,7 +242,7 @@
             font-size: 10px;
             font-weight: 500;
             color: rgba(255, 255, 255, 0.4);
-            transition: none;
+            transition: color 0.25s ease;
             letter-spacing: 0.2px;
         }
 
@@ -4260,12 +4275,33 @@
         const pages = ['page-top', 'page-games', 'page-profile'];
 
         function positionIndicator(item) {
-            // no indicator needed anymore
+            const indicator = document.getElementById('navIndicator');
+            if (!indicator || !item) return;
+            const container = document.getElementById('navItems');
+            if (!container) return;
+            const containerRect = container.getBoundingClientRect();
+            const itemRect = item.getBoundingClientRect();
+            const left = itemRect.left - containerRect.left + (itemRect.width - 58) / 2;
+            indicator.style.left = left + 'px';
         }
+
+        // Инициализация позиции при загрузке
+        requestAnimationFrame(() => {
+            const activeNav = document.querySelector('.nav-item.active');
+            if (activeNav) {
+                const indicator = document.getElementById('navIndicator');
+                if (indicator) indicator.style.transition = 'none';
+                positionIndicator(activeNav);
+                requestAnimationFrame(() => {
+                    if (indicator) indicator.style.transition = '';
+                });
+            }
+        });
 
         function switchTab(el) {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
+            positionIndicator(el);
             // Только паузим UI-цикл, НЕ убиваем подписки и состояние раунда
             crashActive = false;
             if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
@@ -4280,6 +4316,9 @@
             document.getElementById(pages[idx]).classList.add('active');
             if (pages[idx] === 'page-top') {
                 refreshTopLeaderboard(false);
+            }
+            if (pages[idx] === 'page-profile') {
+                refreshInventoryFromDB().catch(() => {});
             }
         }
 
@@ -5704,17 +5743,20 @@
                     currentRound = null;
                     hideAll();
                     resetBet();
-                    showCrashStatus('Загрузка раунда...', false);
 
-                    setTimeout(async () => {
+                    // Агрессивные ретраи — пока не найдём новый раунд
+                    async function retryNextRound(attempt) {
                         if (!crashActive) return;
-                        await syncCrashRound(true).catch(() => {});
-                        if (!currentRound && crashActive) {
-                            setTimeout(() => {
-                                if (crashActive) syncCrashRound(true).catch(() => {});
-                            }, 900);
+                        try {
+                            await syncCrashRound(true);
+                        } catch (e) {}
+                        if (!currentRound && crashActive && attempt < 15) {
+                            setTimeout(() => retryNextRound(attempt + 1), Math.min(600 + attempt * 200, 2000));
+                        } else if (!currentRound && crashActive) {
+                            showCrashStatus('Нет соединения с сервером', true);
                         }
-                    }, 120);
+                    }
+                    setTimeout(() => retryNextRound(0), 100);
                 }
             }, 50);
         }
@@ -6071,15 +6113,6 @@
                 const result = await apiRequest('/api/crash/reward/take', { body: { round_id: m._roundId } });
                 let savedItem = sanitizeInventoryItem(result?.item);
 
-                if (!savedItem) {
-                    await refreshInventoryFromDB();
-                    savedItem = inventory.find(it => (String(it.name) + '||' + String(it.img)) === expectedPair) || null;
-                }
-
-                if (!savedItem && expectedGift) {
-                    throw new Error('TAKE_GIFT_NOT_CONFIRMED');
-                }
-
                 const existingBet = crashBetsState.get(myKey);
                 if (existingBet) {
                     existingBet.status = 'won';
@@ -6091,19 +6124,27 @@
 
                 m._gift = null; m._win = 0; m._roundId = null;
 
+                // Оптимистично добавляем если есть
                 if (savedItem) {
                     const alreadyExists = inventory.some(inv => inv && inv.id && String(inv.id) === String(savedItem.id));
                     if (!alreadyExists) {
                         inventory.unshift(savedItem);
+                        renderInventory();
                     }
-                    renderInventory();
                 }
+
+                // ВСЕГДА обновляем из БД для надёжности
+                await refreshInventoryFromDB().catch(() => {});
+                showClaimToast(true, 0, currentLang === 'en' ? 'Gift received!' : 'Подарок получен!');
             } catch (e) {
                 console.error('takeGift error', e);
-                await refreshInventoryFromDB();
+                // Пробуем обновить из БД — возможно подарок всё же создан
+                await refreshInventoryFromDB().catch(() => {});
                 const recoveredItem = expectedPair ? inventory.find(it => (String(it.name) + '||' + String(it.img)) === expectedPair) : null;
-                if (!recoveredItem) {
-                    alert('Ошибка при получении подарка');
+                if (recoveredItem) {
+                    showClaimToast(true, 0, currentLang === 'en' ? 'Gift received!' : 'Подарок получен!');
+                } else {
+                    showClaimToast(false, 0, currentLang === 'en' ? 'Error receiving gift' : 'Ошибка при получении подарка');
                 }
             } finally {
                 m.dataset.busy = '0';
