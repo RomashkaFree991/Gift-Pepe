@@ -985,6 +985,27 @@
             top: -1px;
         }
 
+        .craft-slot-empty {
+            cursor: pointer;
+        }
+
+        .craft-slot-plus {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: 1.5px dashed rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .craft-slot-plus span {
+            font-size: 20px;
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.25);
+            line-height: 1;
+        }
+
         .craft-summary-card {
             padding: 18px 16px;
             display: flex;
@@ -1668,6 +1689,12 @@
             flex-direction: column;
             align-items: center;
             gap: 8px;
+            animation: invItemAppear 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        @keyframes invItemAppear {
+            from { opacity: 0; transform: scale(0.9) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
         }
 
         .inventory-item img.inv-img {
@@ -2382,19 +2409,29 @@
         }
 
         /* ─ Custom topup ─ */
-        .topup-custom-link {
+        .topup-custom-link-wrap {
             width: 100%;
-            text-align: center;
-            padding: 16px 0 4px;
+            display: flex;
+            justify-content: center;
+            padding: 12px 0 0;
+        }
+
+        .topup-custom-btn {
+            height: 44px;
+            padding: 0 28px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(100, 170, 255, 0.9);
             font-size: 14px;
             font-weight: 600;
-            color: rgba(100, 170, 255, 0.85);
+            font-family: inherit;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
         }
 
-        .topup-custom-link:active {
-            opacity: 0.7;
+        .topup-custom-btn:active {
+            background: rgba(0, 122, 255, 0.15);
         }
 
         .topup-custom-input-wrap {
@@ -3094,8 +3131,8 @@
                     <div class="upgrade-circle-inner"></div>
                 </div>
             </div>
-            <div class="gifts-title" style="text-align:center; margin-top:18px;">Скоро</div>
-            <div class="gifts-desc" style="text-align:center;">Апгрейд подарков появится<br>в ближайшем обновлении</div>
+            <div class="gifts-title" id="upgradeSoonTitle" style="text-align:center; margin-top:18px;">Скоро</div>
+            <div class="gifts-desc" id="upgradeSoonDesc" style="text-align:center;">Апгрейд подарков появится<br>в ближайшем обновлении</div>
         </div>
     </div>
     <div class="tab-page profile-page" id="page-profile">
@@ -3287,7 +3324,9 @@
                     <div class="topup-item" onclick="buyStars(500)"><img src="star.png" alt=""><span>500</span></div>
                     <div class="topup-item" onclick="buyStars(1000)"><img src="star.png" alt=""><span>1000</span></div>
                 </div>
-                <div class="topup-custom-link" onclick="showCustomTopup()" id="topupCustomLink">Выбрать свою сумму</div>
+                <div class="topup-custom-link-wrap">
+                    <button class="topup-custom-btn" onclick="showCustomTopup()" id="topupCustomLink">Своя сумма</button>
+                </div>
             </div>
             <!-- Custom amount input view -->
             <div class="topup-view hidden" id="topupCustomView">
@@ -4649,17 +4688,16 @@
             renderedCrashBetKeys.clear();
             if (wait) {
                 wait.style.display = '';
-                // При загрузке — показываем «Ожидание ставок», не «Загрузка раунда»
-                wait.textContent = isError ? text : 'Ожидание ставок';
+                wait.textContent = isError ? text : t('waiting_bets');
                 wait.style.opacity = isError ? '1' : '0.7';
             }
             if (btn) {
                 if (isError) {
-                    btn.innerHTML = '🔄 Повторить';
+                    btn.innerHTML = '🔄 ' + (currentLang === 'en' ? 'Retry' : 'Повторить');
                     btn.classList.remove('placed', 'disabled');
                     btn.onclick = async () => { btn.classList.add('disabled'); await syncCrashRound(true).catch(()=>{}); };
                 } else {
-                    btn.innerHTML = 'Сделать ставку';
+                    btn.innerHTML = t('place_bet');
                     btn.classList.add('disabled');
                     btn.classList.remove('placed');
                     btn.onclick = null;
@@ -4672,10 +4710,10 @@
             crashBetsState.clear();
             const p = document.getElementById('crashPlayers');
             if (p) p.innerHTML = '';
-            const t = document.getElementById('crashWaitingText');
-            if (t) {
-                t.style.display = '';
-                t.textContent = typeof t === 'function' ? t('waiting_bets') : 'Ожидание ставок';
+            const waitEl = document.getElementById('crashWaitingText');
+            if (waitEl) {
+                waitEl.style.display = '';
+                waitEl.textContent = currentLang === 'en' ? 'Waiting for bets' : 'Ожидание ставок';
             }
             renderStickyGiftPreview();
         }
@@ -4711,28 +4749,22 @@
                 if (holdingCurrentRound) return;
 
                 _syncFailCount++;
-                // Первые 3 попытки — тихо ретраимся, потом показываем кнопку
-                if (_syncFailCount <= 3) {
+                if (_syncFailCount <= 10) {
                     clearTimeout(_syncRetryTimer);
                     _syncRetryTimer = setTimeout(async () => {
                         if (!crashActive) return;
                         await syncCrashRound(true).catch(() => {});
-                    }, 1200 * _syncFailCount);
-                    const waitEl = document.getElementById('crashWaitingText');
-                    if (waitEl) { waitEl.style.display = ''; waitEl.textContent = 'Загрузка раунда...'; }
+                    }, Math.min(800 * _syncFailCount, 3000));
                 } else {
-                    _syncFailCount = 0;
                     const btn = document.getElementById('crashBetBtn');
                     const waitEl = document.getElementById('crashWaitingText');
-                    if (waitEl) { waitEl.style.display = ''; waitEl.textContent = 'Нет соединения с сервером'; }
+                    if (waitEl) { waitEl.style.display = ''; waitEl.textContent = currentLang === 'en' ? 'No connection' : 'Нет соединения'; }
                     if (btn) {
-                        btn.innerHTML = '🔄 Повторить';
+                        btn.innerHTML = '🔄 ' + (currentLang === 'en' ? 'Retry' : 'Повторить');
                         btn.classList.remove('placed', 'disabled');
                         btn.onclick = async () => {
                             btn.classList.add('disabled');
-                            btn.onclick = null;
-                            btn.innerHTML = 'Загрузка...';
-                            if (waitEl) waitEl.textContent = 'Загрузка раунда...';
+                            _syncFailCount = 0;
                             await syncCrashRound(true).catch(() => {});
                         };
                     }
@@ -4761,7 +4793,7 @@
                     // Если возвращаемся после паузы — восстанавливаем активную пилюлю
                     const times2 = getRoundTimes(round);
                     const n2 = srvNow();
-                    if (n2 < times2.gameStart) setActiveHist('Ожидание');
+                    if (n2 < times2.gameStart) setActiveHist(currentLang === 'en' ? 'Waiting' : 'Ожидание');
                     else if (n2 < times2.crashAt) setActiveHist(mult(n2 - times2.gameStart).toFixed(2) + 'x');
                     runLoop();
                 }
@@ -4777,7 +4809,7 @@
             resetBet();
             // Сразу ставим активную пилюлю «Ожидание» в историю —
             // даже если COUNTDOWN уже прошёл, пилюля будет хотя бы на миг
-            setActiveHist('Ожидание');
+            setActiveHist(currentLang === 'en' ? 'Waiting' : 'Ожидание');
             subBets(round.id);
             crashShown = false;
             lastCountNum = -1;
@@ -4856,7 +4888,7 @@
                 if (item.id != null && invById.has(String(item.id))) resolved = invById.get(String(item.id));
                 else if (invByPair.has(String(item.name) + '||' + String(item.img))) resolved = invByPair.get(String(item.name) + '||' + String(item.img));
                 else if (!inventory.length) resolved = item;
-                if (resolved && !next.some(existing => craftGiftKey(existing) === craftGiftKey(resolved) || ((existing.name + '||' + existing.img) === (resolved.name + '||' + resolved.img)))) {
+                if (resolved && !next.some(existing => craftGiftKey(existing) === craftGiftKey(resolved))) {
                     next.push(resolved);
                 }
             });
@@ -4872,6 +4904,7 @@
 
         function craftNeedText(count) {
             const n = Math.max(0, parseInt(count, 10) || 0);
+            if (currentLang === 'en') return 'Add ' + n + ' more gift' + (n === 1 ? '' : 's');
             const mod10 = n % 10;
             const mod100 = n % 100;
             let word = 'подарков';
@@ -4881,10 +4914,12 @@
         }
 
         function craftAddButtonText(count) {
+            if (currentLang === 'en') return count === 1 ? 'Add gift' : 'Add gifts';
             return count === 1 ? 'Добавить подарок' : 'Добавить подарки';
         }
 
         function craftCreateButtonText(count) {
+            if (currentLang === 'en') return count >= 3 ? 'Make contract' : craftNeedText(3 - count);
             return count >= 3 ? 'Сделать контракт' : craftNeedText(3 - count);
         }
 
@@ -4910,7 +4945,7 @@
             const animatedKeys = craftAnimatedGiftKeys.slice();
             const slots = Array.from({ length: 10 }, (_, index) => ({ item: craftSelectedGifts[index] || null, index }));
             grid.innerHTML = slots.map(({ item, index }) => {
-                if (!item) return '<div class="craft-slot">Пусто</div>';
+                if (!item) return '<button class="craft-slot craft-slot-empty" type="button" onclick="openCraftInventorySheet()"><div class="craft-slot-plus"><span>+</span></div></button>';
                 const img = escapeHtml(String(item.img || ''));
                 const key = craftGiftKey(item);
                 const appearClass = animatedKeys.includes(key) ? ' craft-slot-appear' : '';
@@ -5000,8 +5035,8 @@
             if (!items.length) {
                 grid.innerHTML = '<div class="craft-sheet-empty">' +
                     '<div class="craft-sheet-empty-lottie" id="craftEmptyLottie"></div>' +
-                    '<div class="craft-sheet-empty-title">Не нашли подарков?</div>' +
-                    '<div class="craft-sheet-empty-text">Пополните в @GiftPepeSupport или выиграйте в играх.</div>' +
+                    '<div class="craft-sheet-empty-title">' + (currentLang === 'en' ? 'No gifts found?' : 'Не нашли подарков?') + '</div>' +
+                    '<div class="craft-sheet-empty-text">' + (currentLang === 'en' ? 'Top up in @GiftPepeSupport or win in games.' : 'Пополните в @GiftPepeSupport или выиграйте в играх.') + '</div>' +
                 '</div>';
                 ensureCraftEmptyLottie();
                 updateCraftSheetAddButton();
@@ -5012,7 +5047,8 @@
                 const inCraft = isGiftAlreadyInCraft(item);
                 const selected = craftSheetSelectedIds.includes(key);
                 const cls = 'craft-sheet-item' + (selected ? ' selected' : '') + (inCraft ? ' in-craft' : '');
-                const badge = inCraft ? '<div class="craft-sheet-item-badge">В крафте</div>' : (selected ? '<div class="craft-sheet-item-badge">Выбрано</div>' : '');
+                const badgeText = inCraft ? (currentLang === 'en' ? 'In craft' : 'В крафте') : (selected ? (currentLang === 'en' ? 'Selected' : 'Выбрано') : '');
+                const badge = badgeText ? '<div class="craft-sheet-item-badge">' + badgeText + '</div>' : '';
                 return '<button type="button" class="' + cls + '" onclick="toggleCraftInventorySelection(' + index + ')" ' + (inCraft ? 'disabled' : '') + '>' +
                     badge +
                     '<img src="' + escapeHtml(String(item.img || '')) + '" alt="">' +
@@ -5110,7 +5146,7 @@
         function resetBet() {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
             const btn = document.getElementById('crashBetBtn');
-            if (btn) { btn.innerHTML = 'Сделать ставку'; btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
+            if (btn) { btn.innerHTML = t('place_bet'); btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
             clearCrashPlayers();
             resetGiftDisplay();
         }
@@ -5334,7 +5370,7 @@
             if (!players) return null;
             if (wait) wait.style.display = 'none';
 
-            const displayName = isMe ? 'Вы' : (name || 'Player');
+            const displayName = isMe ? (currentLang === 'en' ? 'You' : 'Вы') : (name || 'Player');
             const shownAmount = Math.max(0, Math.floor(Number(currentAmount != null ? currentAmount : amount) || 0));
 
             let row = players.querySelector('[data-bet-key="' + safeKey + '"]');
@@ -5374,7 +5410,7 @@
                 didCashOut = true;
                 betPlaced = false;
                 cashoutInit = false;
-                setBtnState('Забрали ' + (rec.cashout_amount || rec.amount) + ' <img src="star.png" alt="">', 'placed');
+                setBtnState((currentLang === 'en' ? 'Collected ' : 'Забрали ') + (rec.cashout_amount || rec.amount) + ' <img src="star.png" alt="">', 'placed');
             } else if (rec.status === 'lost') {
                 betPlaced = false;
                 didCashOut = false;
@@ -5383,7 +5419,7 @@
                 betPlaced = true;
                 didCashOut = false;
                 cashoutInit = false;
-                setBtnState('Ставка сделана', 'placed');
+                setBtnState(currentLang === 'en' ? 'Bet placed' : 'Ставка сделана', 'placed');
             }
         }
 
@@ -5583,12 +5619,12 @@
 
             const cachedHist = getCrashHistoryCache();
             if (cachedHist.length) renderCrashHistoryPast(cachedHist);
-            if (!currentRound) setActiveHist('Ожидание');
+            if (!currentRound) setActiveHist(currentLang === 'en' ? 'Waiting' : 'Ожидание');
 
             const btn = document.getElementById('crashBetBtn');
             // Показываем "Подключение..." только если авторизации ещё нет
             const alreadyAuthed = !!_authUser;
-            if (!alreadyAuthed && btn) { btn.innerHTML = 'Подключение...'; btn.classList.add('disabled'); btn.onclick = null; }
+            if (!alreadyAuthed && btn) { btn.innerHTML = currentLang === 'en' ? 'Connecting...' : 'Подключение...'; btn.classList.add('disabled'); btn.onclick = null; }
 
             const user = await ensureBackendAuth();
             if (!crashActive) return; // пользователь закрыл экран пока ждали
@@ -5673,7 +5709,7 @@
                         }
                     }
 
-                    setActiveHist('Ожидание');
+                    setActiveHist(currentLang === 'en' ? 'Waiting' : 'Ожидание');
                     crashRunning = false;
                     return;
                 }
@@ -5699,7 +5735,7 @@
 
                         if (!betPlaced && !didCashOut) {
                             const btn = document.getElementById('crashBetBtn');
-                            btn.innerHTML = 'Сделать ставку';
+                            btn.innerHTML = t('place_bet');
                             btn.classList.add('disabled');
                             btn.onclick = null;
                         }
@@ -5728,7 +5764,7 @@
                         multiEl.style.display = 'block';
                         multiEl.classList.add('crashed');
 
-                        setBtnState('Краш ' + Number(target).toFixed(2) + 'x', 'disabled');
+                        setBtnState((currentLang === 'en' ? 'Crash ' : 'Краш ') + Number(target).toFixed(2) + 'x', 'disabled');
                         rmActiveHist();
 
                         if (betPlaced && sb) {
@@ -5771,6 +5807,7 @@
                     resetBet();
 
                     // Агрессивные ретраи — пока не найдём новый раунд
+                    _syncFailCount = 0;
                     async function retryNextRound(attempt) {
                         if (!crashActive) return;
                         try {
@@ -5792,7 +5829,7 @@
             const btn = document.getElementById('crashBetBtn');
             const w = Math.floor(currentBet * m);
             if (!cashoutInit) {
-                btn.innerHTML = 'Забрать <span id="cashAmt">'+w+'</span> <img src="star.png" alt="">';
+                btn.innerHTML = (currentLang === 'en' ? 'Collect ' : 'Забрать ') + '<span id="cashAmt">'+w+'</span> <img src="star.png" alt="">';
                 cashoutInit = true;
                 btn.classList.remove('placed','disabled');
                 btn.onclick = function(){ doCash(); };
@@ -5819,7 +5856,7 @@
                 crashBetsState.set(myKey, existing);
                 renderBetRecord(existing);
             }
-            setBtnState('Забрали '+w+' <img src="star.png" alt="">','placed');
+            setBtnState((currentLang === 'en' ? 'Collected ' : 'Забрали ')+w+' <img src="star.png" alt="">','placed');
             betPlaced = false; didCashOut = true; cashoutInit = false;
             if (sb) sb.from('crash_bets').update({ cashout_multiplier: m, cashout_amount: w, status:'won' }).eq('round_id', currentRound.id).eq('user_id', myUserId).then(()=>{});
             if (wonGift) showGiftModal(wonGift, w); else setBalance(getBalance() + w, { immediate: true });
@@ -5843,7 +5880,7 @@
             didCashOut = false;
             cashoutInit = false;
             closeBetMenu();
-            setBtnState('Ставка отправляется...','disabled');
+            setBtnState(currentLang === 'en' ? 'Sending bet...' : 'Ставка отправляется...','disabled');
             showMyBet(amt);
 
             const { error } = await sb.from('crash_bets').upsert(
@@ -5869,14 +5906,14 @@
                 if (row) row.remove();
                 const btn = document.getElementById('crashBetBtn');
                 if (btn) {
-                    btn.innerHTML = 'Сделать ставку';
+                    btn.innerHTML = t('place_bet');
                     btn.classList.remove('placed', 'disabled');
                     btn.onclick = function(){ placeBet(); };
                 }
                 return;
             }
 
-            setBtnState('Ставка сделана','placed');
+            setBtnState(currentLang === 'en' ? 'Bet placed' : 'Ставка сделана','placed');
         }
 
         // ─── Crash offline state ───
@@ -6031,7 +6068,7 @@
             if (!stickyMyGiftPreview || betPlaced) {
                 if (wait && !players.querySelector('.crash-player-row')) {
                     wait.style.display = '';
-                    wait.textContent = 'Ожидание ставок';
+                    wait.textContent = currentLang === 'en' ? 'Waiting for bets' : 'Ожидание ставок';
                 }
                 return;
             }
@@ -6164,14 +6201,23 @@
                 showClaimToast(true, 0, currentLang === 'en' ? 'Gift received!' : 'Подарок получен!');
             } catch (e) {
                 console.error('takeGift error', e);
-                // Пробуем обновить из БД — возможно подарок всё же создан
+                // Фолбэк: пробуем продать подарок вместо забора
+                const fallbackWin = Math.max(0, parseInt(m._win, 10) || 0);
+                const fallbackRoundId = m._roundId;
+                try {
+                    if (fallbackRoundId && fallbackWin > 0) {
+                        const sellResult = await apiRequest('/api/crash/reward/sell', { body: { round_id: fallbackRoundId, amount: fallbackWin } });
+                        if (sellResult?.ok) {
+                            setBalance(sellResult.balance || 0, { persist: false, cache: true });
+                            showClaimToast(true, fallbackWin, currentLang === 'en' ? 'Sold for' : 'Продано за');
+                            return;
+                        }
+                    }
+                } catch (e2) { console.error('takeGift fallback sell failed', e2); }
+                // Обновляем из БД
                 await refreshInventoryFromDB().catch(() => {});
-                const recoveredItem = expectedPair ? inventory.find(it => (String(it.name) + '||' + String(it.img)) === expectedPair) : null;
-                if (recoveredItem) {
-                    showClaimToast(true, 0, currentLang === 'en' ? 'Gift received!' : 'Подарок получен!');
-                } else {
-                    showClaimToast(false, 0, currentLang === 'en' ? 'Error receiving gift' : 'Ошибка при получении подарка');
-                }
+                await refreshBalanceFromDB().catch(() => {});
+                showClaimToast(false, 0, currentLang === 'en' ? 'Error, balance restored' : 'Ошибка, баланс восстановлен');
             } finally {
                 m.dataset.busy = '0';
                 _giftBeingTaken = false;
@@ -6264,13 +6310,13 @@
                 const sellBtn = document.createElement('button');
                 sellBtn.className = 'inv-btn sell';
                 sellBtn.type = 'button';
-                sellBtn.innerHTML = 'Продать ' + it.price + ' <img src="star.png" alt="">';
+                sellBtn.innerHTML = t('gift_sell') + ' ' + it.price + ' <img src="star.png" alt="">';
                 sellBtn.onclick = function() { sellInvItem(i); };
 
                 const withdrawBtn = document.createElement('button');
                 withdrawBtn.className = 'inv-btn withdraw';
                 withdrawBtn.type = 'button';
-                withdrawBtn.textContent = 'Вывести';
+                withdrawBtn.textContent = t('withdraw');
 
                 btnsEl.appendChild(sellBtn);
                 btnsEl.appendChild(withdrawBtn);
@@ -6343,7 +6389,7 @@
         function getSellAllLabel(total) { return t('sell_all') + ' ' + (Math.max(0, parseInt(total, 10) || 0)); }
         function updateGiftModalTranslations() { const sellAmount = document.getElementById('giftSellAmount')?.textContent || ''; const sellBtn = document.getElementById('giftSellBtn'); const takeBtn = document.getElementById('giftTakeBtn'); if (sellBtn) sellBtn.innerHTML = t('gift_sell') + ' <span id="giftSellAmount">' + sellAmount + '</span> <img src="star.png" alt="">'; if (takeBtn) takeBtn.textContent = t('gift_take'); }
         function updateCheckTranslations() { const subtitle = document.getElementById('checkSubtitle'); const label = document.getElementById('checkLabel'); if (label) label.textContent = t('check_label'); if (subtitle && (!subtitle.textContent || subtitle.dataset.i18n !== 'manual')) subtitle.textContent = t('check_subtitle'); }
-        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = currentLang === 'en' ? 'Upgrade' : 'Апгрейд'; if (navSpans[2]) navSpans[2].textContent = currentLang === 'en' ? 'Crash' : 'Краш'; if (navSpans[3]) navSpans[3].textContent = currentLang === 'en' ? 'Craft' : 'Крафт'; if (navSpans[4]) navSpans[4].textContent = t('profile_nav'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); const craftLabel = document.querySelector('.craft-summary-label'); if (craftLabel) craftLabel.textContent = t('craft_value_label'); const craftAddBtn = document.getElementById('craftAddBtn'); if (craftAddBtn) craftAddBtn.textContent = t('craft_add_own'); if (typeof renderCraftUI === 'function') renderCraftUI(); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); }
+        function applyTranslations() { document.documentElement.lang = currentLang; const navSpans = document.querySelectorAll('.nav-item span'); if (navSpans[0]) navSpans[0].textContent = t('top'); if (navSpans[1]) navSpans[1].textContent = currentLang === 'en' ? 'Upgrade' : 'Апгрейд'; if (navSpans[2]) navSpans[2].textContent = currentLang === 'en' ? 'Crash' : 'Краш'; if (navSpans[3]) navSpans[3].textContent = currentLang === 'en' ? 'Craft' : 'Крафт'; if (navSpans[4]) navSpans[4].textContent = t('profile_nav'); const profileTitle = document.querySelector('#page-profile > .section-title'); if (profileTitle) profileTitle.textContent = t('profile'); const invTitle = document.querySelector('.inventory-header .section-title'); if (invTitle) invTitle.textContent = t('inventory'); const promoTitle = document.getElementById('promoTitle'); const promoInput = document.getElementById('promoInput'); const promoApplyBtn = document.getElementById('promoApplyBtn'); if (promoTitle) promoTitle.textContent = t('promo_title'); if (promoInput) promoInput.placeholder = t('promo_placeholder'); if (promoApplyBtn) promoApplyBtn.textContent = t('apply'); const inviteMain = document.querySelector('.invite-btn-text .main'); const inviteSub = document.querySelector('.invite-btn-text .sub'); if (inviteMain) inviteMain.textContent = t('invite_friend'); if (inviteSub) inviteSub.textContent = t('invite_sub'); const refBack = document.querySelector('.ref-back span'); if (refBack) refBack.textContent = t('back'); const refLabels = document.querySelectorAll('.ref-stat-card .label'); if (refLabels[0]) refLabels[0].textContent = t('referrals'); if (refLabels[1]) refLabels[1].textContent = t('earned'); const copyBtn = document.querySelector('.ref-copy-btn'); if (copyBtn && copyBtn.dataset.copied !== '1') copyBtn.textContent = t('copy_link'); const langRowLabel = document.getElementById('langRowLabel'); const supportRowLabel = document.getElementById('supportRowLabel'); const settingsSaveBtn = document.getElementById('settingsSaveBtn'); if (langRowLabel) langRowLabel.textContent = t('settings_language'); if (supportRowLabel) supportRowLabel.textContent = t('settings_support'); if (settingsSaveBtn) settingsSaveBtn.textContent = t('settings_save'); const refCardTitle = document.getElementById('refCardTitle'); const refCardDesc = document.getElementById('refCardDesc'); if (refCardTitle) refCardTitle.textContent = t('referral_title'); if (refCardDesc) refCardDesc.textContent = t('referral_desc'); const giftsEmptyTitle = document.getElementById('giftsEmptyTitle'); const giftsEmptyDesc = document.getElementById('giftsEmptyDesc'); if (giftsEmptyTitle) giftsEmptyTitle.textContent = t('gifts_empty_title'); if (giftsEmptyDesc) giftsEmptyDesc.innerHTML = t('gifts_empty_desc').replace('@GiftPepeSupport', '<a href="https://t.me/GiftPepeSupport" target="_blank">@GiftPepeSupport</a>'); const crashBetBtn = document.getElementById('crashBetBtn'); const crashWaitingText = document.getElementById('crashWaitingText'); const topupTitleEl = document.getElementById('topupTitleEl'); const betMenuTitle = document.getElementById('betMenuTitle'); const betSubmitBtn = document.getElementById('betSubmitBtn'); if (crashBetBtn) crashBetBtn.textContent = t('place_bet'); if (crashWaitingText) crashWaitingText.textContent = t('waiting_bets'); if (topupTitleEl) topupTitleEl.textContent = t('topup_title'); if (betMenuTitle) betMenuTitle.textContent = t('bet_title'); if (betSubmitBtn) betSubmitBtn.textContent = t('place_bet'); const craftLabel = document.querySelector('.craft-summary-label'); if (craftLabel) craftLabel.textContent = t('craft_value_label'); const craftAddBtn = document.getElementById('craftAddBtn'); if (craftAddBtn) craftAddBtn.textContent = t('craft_add_own'); if (typeof renderCraftUI === 'function') renderCraftUI(); updateCheckTranslations(); updateGiftModalTranslations(); if (typeof updateInventorySummary === 'function') updateInventorySummary(); if (typeof renderInventory === 'function') renderInventory(); if (typeof renderTopLeaderboard === 'function') renderTopLeaderboard(topLeaderboardCache); const upgSoonTitle = document.getElementById('upgradeSoonTitle'); const upgSoonDesc = document.getElementById('upgradeSoonDesc'); if (upgSoonTitle) upgSoonTitle.textContent = currentLang === 'en' ? 'Coming soon' : 'Скоро'; if (upgSoonDesc) upgSoonDesc.innerHTML = currentLang === 'en' ? 'Gift upgrade will appear<br>in the next update' : 'Апгрейд подарков появится<br>в ближайшем обновлении'; const topupCustomBtn = document.getElementById('topupCustomLink'); if (topupCustomBtn) topupCustomBtn.textContent = currentLang === 'en' ? 'Custom amount' : 'Своя сумма'; const topupPayBtn = document.getElementById('topupCustomPayBtn'); if (topupPayBtn) topupPayBtn.textContent = currentLang === 'en' ? 'Pay' : 'Оплатить'; }
         function closeSettingsOutside(e) { if (e.target === e.currentTarget) closeSettings(); }
         function toggleLang() { document.getElementById('langOptions').classList.toggle('show'); document.getElementById('langRow').classList.toggle('open'); }
         function selectLang(lang, el) { currentLang = I18N[lang] ? lang : 'ru'; localStorage.setItem(LANG_STORAGE_KEY, currentLang); document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active')); if (el) el.classList.add('active'); applyTranslations(); }
