@@ -990,19 +990,17 @@
         }
 
         .craft-slot-plus {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            border: 1.5px dashed rgba(255, 255, 255, 0.15);
             display: flex;
             align-items: center;
             justify-content: center;
+            background: transparent;
+            border: none;
         }
 
         .craft-slot-plus span {
-            font-size: 20px;
+            font-size: 28px;
             font-weight: 300;
-            color: rgba(255, 255, 255, 0.25);
+            color: rgba(255, 255, 255, 0.38);
             line-height: 1;
         }
 
@@ -3122,12 +3120,6 @@
     <!-- Upgrade Page -->
     <div class="tab-page" id="page-upgrade">
         <div class="games-page">
-            <div class="upgrade-visual">
-                <div class="upgrade-circle">
-                    <div class="upgrade-arrow-up"></div>
-                    <div class="upgrade-circle-inner"></div>
-                </div>
-            </div>
             <div class="gifts-title" id="upgradeSoonTitle" style="text-align:center; margin-top:18px;">Скоро</div>
             <div class="gifts-desc" id="upgradeSoonDesc" style="text-align:center;">Апгрейд подарков появится<br>в ближайшем обновлении</div>
         </div>
@@ -3717,7 +3709,8 @@
             balance: false,
             top: false,
             crash: false,
-            rocket: false
+            rocket: false,
+            inventory: false
         };
         let _loaderTimerDone = false;
         let _loaderForceHide = false;
@@ -4255,8 +4248,10 @@
                 await refreshBalanceFromDB(user);
                 await refreshReferralStats();
                 await refreshInventoryFromDB(user.id);
+                markLoaderTask('inventory');
             } catch(e) {
                 console.error('DB init error', e);
+                markLoaderTask('inventory');
             }
         }
 
@@ -4327,11 +4322,15 @@
         }
 
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) refreshBalanceFromDB();
+            if (!document.hidden) {
+                refreshBalanceFromDB();
+                refreshInventoryFromDB();
+            }
         });
 
         window.addEventListener('focus', () => {
             refreshBalanceFromDB();
+            refreshInventoryFromDB();
         });
 
         window.addEventListener('pagehide', () => {
@@ -4437,7 +4436,7 @@
         // ═══════════════════════════════════════
         const WAIT_MS = 10000;
         const PAUSE_MS = 3000;
-        const CRASH_HOLD_MS = 350;
+        const CRASH_HOLD_MS = PAUSE_MS;
         const CRASH_HIST_CACHE_KEY = 'giftpepe_crash_history_v2';
         const SPEED = 0.00018;
         const POLL_MS = 2000;
@@ -5139,11 +5138,24 @@
             if (c) c.style.display = 'none';
         }
 
-        function resetBet() {
+        function resetBet(opts = {}) {
             betPlaced = false; currentBet = 0; didCashOut = false; cashoutInit = false;
+            const waiting = !!opts.waiting;
+            const keepPlayers = !!opts.keepPlayers;
             const btn = document.getElementById('crashBetBtn');
-            if (btn) { btn.innerHTML = t('place_bet'); btn.classList.remove('placed','disabled'); btn.onclick = function(){ placeBet(); }; }
-            clearCrashPlayers();
+            if (btn) {
+                if (waiting) {
+                    btn.innerHTML = t('waiting_bets');
+                    btn.classList.remove('placed');
+                    btn.classList.add('disabled');
+                    btn.onclick = null;
+                } else {
+                    btn.innerHTML = t('place_bet');
+                    btn.classList.remove('placed','disabled');
+                    btn.onclick = function(){ placeBet(); };
+                }
+            }
+            if (!keepPlayers) clearCrashPlayers();
             resetGiftDisplay();
         }
 
@@ -5415,6 +5427,14 @@
                 betPlaced = true;
                 didCashOut = false;
                 cashoutInit = false;
+                if (crashRunning && currentRound && !crashShown) {
+                    const times = getRoundTimes(currentRound);
+                    const now = srvNow();
+                    if (now >= times.gameStart && now < times.crashAt) {
+                        updateCash(mult(now - times.gameStart));
+                        return;
+                    }
+                }
                 setBtnState(currentLang === 'en' ? 'Bet placed' : 'Ставка сделана', 'placed');
             }
         }
@@ -5509,7 +5529,6 @@
         async function loadBets(rid) {
             if (!sb) return;
             const optimisticMyBet = myUserId ? crashBetsState.get(crashBetKey({ round_id: rid, user_id: myUserId })) : null;
-            clearCrashPlayers();
             const { data, error } = await sb.from('crash_bets')
                 .select('*')
                 .eq('round_id', rid)
@@ -5521,6 +5540,7 @@
                 return;
             }
 
+            clearCrashPlayers();
             const seenKeys = new Set();
             if (data && data.length) {
                 data.forEach(item => {
@@ -5611,7 +5631,7 @@
         async function initCrash() {
             if (!crashActive) return;
             hideAll();
-            resetBet();
+            resetBet({ waiting: true });
 
             const cachedHist = getCrashHistoryCache();
             if (cachedHist.length) renderCrashHistoryPast(cachedHist);
@@ -5791,7 +5811,7 @@
                     pendingFreshRoundVisual = true;
                     currentRound = null;
                     hideAll();
-                    resetBet();
+                    resetBet({ waiting: true });
 
                     // Агрессивные ретраи — пока не найдём новый раунд
                     _syncFailCount = 0;
@@ -6188,23 +6208,9 @@
                 showClaimToast(true, 0, currentLang === 'en' ? 'Gift received!' : 'Подарок получен!');
             } catch (e) {
                 console.error('takeGift error', e);
-                // Фолбэк: пробуем продать подарок вместо забора
-                const fallbackWin = Math.max(0, parseInt(m._win, 10) || 0);
-                const fallbackRoundId = m._roundId;
-                try {
-                    if (fallbackRoundId && fallbackWin > 0) {
-                        const sellResult = await apiRequest('/api/crash/reward/sell', { body: { round_id: fallbackRoundId, amount: fallbackWin } });
-                        if (sellResult?.ok) {
-                            setBalance(sellResult.balance || 0, { persist: false, cache: true });
-                            showClaimToast(true, fallbackWin, currentLang === 'en' ? 'Sold for' : 'Продано за');
-                            return;
-                        }
-                    }
-                } catch (e2) { console.error('takeGift fallback sell failed', e2); }
-                // Обновляем из БД
                 await refreshInventoryFromDB().catch(() => {});
                 await refreshBalanceFromDB().catch(() => {});
-                showClaimToast(false, 0, currentLang === 'en' ? 'Error, balance restored' : 'Ошибка, баланс восстановлен');
+                showClaimToast(false, 0, currentLang === 'en' ? 'Failed to collect gift' : 'Не удалось забрать подарок');
             } finally {
                 m.dataset.busy = '0';
                 _giftBeingTaken = false;
