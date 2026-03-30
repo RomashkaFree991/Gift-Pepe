@@ -2417,21 +2417,21 @@
         }
 
         .topup-custom-btn {
-            height: 44px;
-            padding: 0 28px;
+            min-height: 46px;
+            padding: 0 36px;
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: rgba(100, 170, 255, 0.9);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
             font-family: inherit;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
         }
 
         .topup-custom-btn:active {
-            background: rgba(0, 122, 255, 0.15);
+            background: rgba(255, 255, 255, 0.13);
         }
 
         .topup-custom-input-wrap {
@@ -2815,10 +2815,7 @@
 
         /* ─── Upgrade Visual ─── */
         .upgrade-visual {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 50px 0 16px;
+            display: none !important;
         }
 
         .upgrade-circle {
@@ -4440,7 +4437,7 @@
         // ═══════════════════════════════════════
         const WAIT_MS = 10000;
         const PAUSE_MS = 3000;
-        const CRASH_HOLD_MS = 2800;
+        const CRASH_HOLD_MS = 350;
         const CRASH_HIST_CACHE_KEY = 'giftpepe_crash_history_v2';
         const SPEED = 0.00018;
         const POLL_MS = 2000;
@@ -4521,8 +4518,7 @@
             if (!round) return false;
             const now = srvNow();
             const times = getActualRoundTimes(round);
-            const msUntilStart = times.gameStart - now;
-            return msUntilStart > Math.max(1500, WAIT_MS - 1800);
+            return times.gameStart - now > 120;
         }
         async function cleanupExtraCrashRounds(rounds, keepId) {
             if (!sb || !Array.isArray(rounds) || !rounds.length || keepId === undefined || keepId === null) return;
@@ -4737,13 +4733,13 @@
 
             const now = srvNow();
             const currentTimes = currentRound ? getRoundTimes(currentRound) : null;
-            const holdingCurrentRound = !!(currentTimes && now < Math.max(currentTimes.nextAt, currentTimes.crashAt + CRASH_HOLD_MS));
+            const holdingCurrentRound = !!(currentTimes && now < Math.min(currentTimes.nextAt, currentTimes.crashAt + CRASH_HOLD_MS));
 
             if (holdingCurrentRound && !forceReloadBets) {
                 return;
             }
 
-            const round = await getActiveRound({ ensure: !holdingCurrentRound, requireFreshCountdown: pendingFreshRoundVisual && !holdingCurrentRound });
+            const round = await getActiveRound({ ensure: !holdingCurrentRound, requireFreshCountdown: false });
 
             if (!round) {
                 if (holdingCurrentRound) return;
@@ -4801,7 +4797,7 @@
             }
 
             if (pendingFreshRoundVisual && isFreshCountdownRound(round)) {
-                startRoundCountdownFromNow(round);
+                // keep server timing; just accept the next countdown immediately
             }
             pendingFreshRoundVisual = false;
             currentRound = round;
@@ -5694,20 +5690,11 @@
                     const sec = Math.max(1, Math.min(Math.ceil(msLeft / 1000), 10));
 
                     if (sec !== lastCountNum) {
-                        const firstShow = lastCountNum < 0;
                         lastCountNum = sec;
                         countEl.textContent = sec;
-                        if (firstShow) {
-                            // Первый показ после входа/возврата — без анимации, сразу видно
-                            countEl.classList.remove('pop');
-                            countEl.style.cssText = 'display:block;opacity:1;transform:translateY(-50%) scale(1);';
-                        } else {
-                            countEl.style.cssText = '';
-                            countEl.classList.remove('pop');
-                            void countEl.offsetWidth;
-                            countEl.classList.add('pop');
-                        }
                     }
+                    countEl.classList.remove('pop');
+                    countEl.style.cssText = '';
 
                     setActiveHist(currentLang === 'en' ? 'Waiting' : 'Ожидание');
                     crashRunning = false;
@@ -5752,7 +5739,7 @@
                 }
 
                 // ── CRASHED ──
-                if (now >= crashAt && now < nextAt) {
+                if (now >= crashAt && now < Math.min(nextAt, crashAt + CRASH_HOLD_MS)) {
                     if (!crashShown) {
                         crashShown = true;
                         crashRunning = false;
@@ -5789,7 +5776,7 @@
                 }
 
                 // ── NEXT ROUND ──
-                if (now >= nextAt) {
+                if (now >= Math.min(nextAt, crashAt + CRASH_HOLD_MS)) {
                     clearInterval(gameLoop);
                     gameLoop = null;
 
@@ -5816,7 +5803,7 @@
                         if (!currentRound && crashActive && attempt < 15) {
                             setTimeout(() => retryNextRound(attempt + 1), Math.min(600 + attempt * 200, 2000));
                         } else if (!currentRound && crashActive) {
-                            showCrashStatus('Нет соединения с сервером', true);
+                            showCrashStatus(t('no_connection'), true);
                         }
                     }
                     setTimeout(() => retryNextRound(0), 100);
